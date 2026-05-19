@@ -13,7 +13,8 @@ export async function getActiveSession() {
     .from('work_sessions')
     .select(`
       *,
-      vehicle:vehicles(*)
+      vehicle:vehicles(*),
+      earnings(*)
     `)
     .eq('user_id', user.id)
     .eq('status', 'active')
