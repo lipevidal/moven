@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 import {
   View,
   Text,
@@ -7,144 +9,124 @@ import {
   TextInput,
   StyleSheet,
   Alert,
+  Image,
 } from 'react-native';
 
-import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
 
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '../../../src/constants/colors';
 
 import { createVehicle } from '../../../src/features/vehicles/services/createVehicle';
-
 import { getVehicles } from '../../../src/features/vehicles/services/getVehicles';
 
 const vehicleTypes = [
-  {
-    id: 'car',
-    label: 'Carro',
-    icon: 'car-outline',
-  },
-
-  {
-    id: 'motorcycle',
-    label: 'Moto',
-    icon: 'bicycle-outline',
-  },
-
-  {
-    id: 'utility',
-    label: 'Utilitário',
-    icon: 'bus-outline',
-  },
+  { id: 'car', label: 'Carro', icon: 'car-outline' },
+  { id: 'motorcycle', label: 'Moto', icon: 'bicycle-outline' },
+  { id: 'utility', label: 'Utilitário', icon: 'cube-outline' },
 ];
+
+function getVehicleImage(type: string) {
+  switch (type) {
+    case 'motorcycle':
+      return require('../../../assets/vehicles/motorcycle.png');
+
+    case 'utility':
+      return require('../../../assets/vehicles/utility.png');
+
+    default:
+      return require('../../../assets/vehicles/car.png');
+  }
+}
+
+function getRevisionStatus(currentKm: number, nextRevisionKm: number) {
+  const remainingKm = nextRevisionKm - currentKm;
+
+  if (!nextRevisionKm) {
+    return {
+      label: 'Sem revisão',
+      color: '#71717A',
+    };
+  }
+
+  if (remainingKm <= 0) {
+    return {
+      label: 'Atrasada',
+      color: '#EF4444',
+    };
+  }
+
+  if (remainingKm <= 1000) {
+    return {
+      label: 'Próxima',
+      color: '#F59E0B',
+    };
+  }
+
+  return {
+    label: 'Em dia',
+    color: '#22C55E',
+  };
+}
 
 export default function VehiclesScreen() {
   const [vehicles, setVehicles] = useState<any[]>([]);
-
-  const [modalVisible, setModalVisible] =
-    useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const [brand, setBrand] = useState('');
-
   const [model, setModel] = useState('');
-
   const [year, setYear] = useState('');
-
   const [plate, setPlate] = useState('');
-
   const [type, setType] = useState('car');
+  const [currentKm, setCurrentKm] = useState('');
+  const [nextRevisionKm, setNextRevisionKm] = useState('');
 
-  const [currentKm, setCurrentKm] =
-    useState('');
-
-  const [nextRevisionKm, setNextRevisionKm] =
-    useState('');
+  useEffect(() => {
+    loadVehicles();
+  }, []);
 
   async function loadVehicles() {
     try {
-      const response =
-        await getVehicles();
-
+      const response = await getVehicles();
       setVehicles(response);
     } catch (error) {
       console.log(error);
     }
   }
 
-  useEffect(() => {
-    loadVehicles();
-  }, []);
-
   async function handleCreateVehicle() {
     try {
-      if (
-        !brand ||
-        !model ||
-        !year ||
-        !plate
-      ) {
-        Alert.alert(
-          'Atenção',
-          'Preencha os campos obrigatórios.',
-        );
-
+      if (!brand || !model || !year || !plate) {
+        Alert.alert('Atenção', 'Preencha os campos obrigatórios.');
         return;
       }
 
       await createVehicle({
         brand,
-
         model,
-
         year: Number(year),
-
         plate,
-
         type,
-
-        current_km:
-          Number(currentKm) || 0,
-
-        next_revision_km:
-          Number(nextRevisionKm) || 0,
+        current_km: Number(currentKm) || 0,
+        next_revision_km: Number(nextRevisionKm) || 0,
       });
 
       setModalVisible(false);
 
       setBrand('');
-
       setModel('');
-
       setYear('');
-
       setPlate('');
-
+      setType('car');
       setCurrentKm('');
-
       setNextRevisionKm('');
 
       loadVehicles();
     } catch (error) {
       console.log(error);
 
-      Alert.alert(
-        'Erro',
-        'Não foi possível cadastrar o veículo.',
-      );
-    }
-  }
-
-  function getVehicleIcon(type: string) {
-    switch (type) {
-      case 'motorcycle':
-        return 'bicycle-outline';
-
-      case 'utility':
-        return 'bus-outline';
-
-      default:
-        return 'car-outline';
+      Alert.alert('Erro', 'Não foi possível cadastrar o veículo.');
     }
   }
 
@@ -157,9 +139,7 @@ export default function VehiclesScreen() {
       >
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>
-              Veículos
-            </Text>
+            <Text style={styles.title}>Veículos</Text>
 
             <Text style={styles.subtitle}>
               Gerencie seus veículos.
@@ -168,224 +148,152 @@ export default function VehiclesScreen() {
 
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() =>
-              setModalVisible(true)
-            }
+            onPress={() => setModalVisible(true)}
           >
-            <Ionicons
-              name="add"
-              size={26}
-              color="#FFFFFF"
-            />
+            <Ionicons name="add" size={26} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        {vehicles.map((vehicle) => {
-          const remainingKm =
-            Number(
-              vehicle.next_revision_km,
-            ) -
-            Number(
-              vehicle.current_km,
-            );
+        {vehicles.map((vehicle, index) => {
+          const current = Number(vehicle.current_km ?? 0);
+          const nextRevision = Number(vehicle.next_revision_km ?? 0);
+          const remainingKm = nextRevision - current;
+          const revisionStatus = getRevisionStatus(current, nextRevision);
 
           return (
-            <View
+            <TouchableOpacity
               key={vehicle.id}
+              activeOpacity={0.85}
               style={styles.vehicleCard}
+              onPress={() =>
+                router.push({
+                  pathname: '/(private)/veiculo-detalhes',
+                  params: {
+                    id: vehicle.id,
+                  },
+                })
+              }
             >
               <View style={styles.vehicleTop}>
-                <View style={styles.vehicleIcon}>
-                  <Ionicons
-                    name={getVehicleIcon(
-                      vehicle.type,
-                    )}
-                    size={26}
-                    color="#22C55E"
-                  />
-                </View>
+                <Image
+                  source={getVehicleImage(vehicle.type)}
+                  style={styles.vehicleImage}
+                />
 
-                <View
-                  style={{ flex: 1 }}
-                >
-                  <Text
-                    style={
-                      styles.vehicleTitle
-                    }
-                  >
-                    {vehicle.brand}{' '}
-                    {vehicle.model}
-                  </Text>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.vehicleTitleRow}>
+                    <Text style={styles.vehicleTitle}>
+                      {vehicle.model}
+                    </Text>
 
-                  <Text
-                    style={
-                      styles.vehiclePlate
-                    }
-                  >
+                    {index === 0 ? (
+                      <View style={styles.defaultBadge}>
+                        <Text style={styles.defaultBadgeText}>
+                          Padrão
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.vehiclePlate}>
                     {vehicle.plate}
                   </Text>
                 </View>
               </View>
 
-              <View
-                style={
-                  styles.vehicleInfoRow
-                }
-              >
-                <View>
-                  <Text
-                    style={
-                      styles.infoLabel
-                    }
-                  >
-                    KM atual
-                  </Text>
+              <View style={styles.divider} />
 
-                  <Text
-                    style={
-                      styles.infoValue
-                    }
-                  >
-                    {Number(
-                      vehicle.current_km,
-                    ).toLocaleString(
-                      'pt-BR',
-                    )}
+              <View style={styles.vehicleInfoRow}>
+                <View>
+                  <Text style={styles.infoLabel}>Km atual</Text>
+
+                  <Text style={styles.infoValue}>
+                    {current.toLocaleString('pt-BR')} km
                   </Text>
                 </View>
 
                 <View>
-                  <Text
-                    style={
-                      styles.infoLabel
-                    }
-                  >
-                    Revisão
-                  </Text>
+                  <Text style={styles.infoLabel}>Próxima revisão</Text>
 
-                  <Text
-                    style={[
-                      styles.infoValue,
-
-                      remainingKm <=
-                        1000 && {
-                        color:
-                          '#F59E0B',
-                      },
-                    ]}
-                  >
-                    {remainingKm <= 0
-                      ? 'Atrasada'
-                      : `${remainingKm.toLocaleString(
-                          'pt-BR',
-                        )} km`}
+                  <Text style={styles.infoValue}>
+                    {nextRevision.toLocaleString('pt-BR')} km
                   </Text>
                 </View>
               </View>
-            </View>
+
+              <View style={styles.revisionFooter}>
+                <View
+                  style={[
+                    styles.revisionBadge,
+                    {
+                      borderColor: revisionStatus.color,
+                      backgroundColor: `${revisionStatus.color}20`,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.revisionBadgeText,
+                      {
+                        color: revisionStatus.color,
+                      },
+                    ]}
+                  >
+                    {revisionStatus.label}
+                  </Text>
+                </View>
+
+                {remainingKm > 0 ? (
+                  <Text style={styles.revisionHint}>
+                    Faltam {remainingKm.toLocaleString('pt-BR')} km
+                  </Text>
+                ) : (
+                  <Text style={styles.revisionHint}>
+                    Revisão vencida
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
           );
         })}
       </ScrollView>
 
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-      >
-        <View
-          style={
-            styles.modalOverlay
-          }
-        >
-          <ScrollView
-            contentContainerStyle={
-              styles.modalScroll
-            }
-          >
-            <View
-              style={
-                styles.modalContent
-              }
-            >
-              <View
-                style={
-                  styles.modalHeader
-                }
-              >
-                <Text
-                  style={
-                    styles.modalTitle
-                  }
-                >
-                  Novo veículo
-                </Text>
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <ScrollView contentContainerStyle={styles.modalScroll}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Novo veículo</Text>
 
-                <TouchableOpacity
-                  onPress={() =>
-                    setModalVisible(
-                      false,
-                    )
-                  }
-                >
-                  <Ionicons
-                    name="close"
-                    size={26}
-                    color="#FFFFFF"
-                  />
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Ionicons name="close" size={26} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
-              <View
-                style={
-                  styles.typesRow
-                }
-              >
-                {vehicleTypes.map(
-                  (item) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[
-                        styles.typeButton,
+              <View style={styles.typesRow}>
+                {vehicleTypes.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.typeButton,
+                      type === item.id && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setType(item.id)}
+                  >
+                    <Ionicons
+                      name={item.icon as any}
+                      size={20}
+                      color="#FFFFFF"
+                    />
 
-                        type ===
-                          item.id && {
-                          backgroundColor:
-                            '#22C55E',
-                        },
-                      ]}
-                      onPress={() =>
-                        setType(
-                          item.id,
-                        )
-                      }
-                    >
-                      <Ionicons
-                        name={
-                          item.icon as any
-                        }
-                        size={20}
-                        color="#FFFFFF"
-                      />
-
-                      <Text
-                        style={
-                          styles.typeText
-                        }
-                      >
-                        {
-                          item.label
-                        }
-                      </Text>
-                    </TouchableOpacity>
-                  ),
-                )}
+                    <Text style={styles.typeText}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <TextInput
                 value={brand}
-                onChangeText={
-                  setBrand
-                }
+                onChangeText={setBrand}
                 placeholder="Marca"
                 placeholderTextColor="#71717A"
                 style={styles.input}
@@ -393,104 +301,56 @@ export default function VehiclesScreen() {
 
               <TextInput
                 value={model}
-                onChangeText={
-                  setModel
-                }
+                onChangeText={setModel}
                 placeholder="Modelo"
                 placeholderTextColor="#71717A"
                 style={styles.input}
               />
 
-              <View
-                style={styles.row}
-              >
+              <View style={styles.row}>
                 <TextInput
                   value={year}
-                  onChangeText={
-                    setYear
-                  }
+                  onChangeText={setYear}
                   placeholder="Ano"
                   keyboardType="numeric"
                   placeholderTextColor="#71717A"
-                  style={[
-                    styles.input,
-                    {
-                      flex: 1,
-                    },
-                  ]}
+                  style={[styles.input, { flex: 1 }]}
                 />
 
                 <TextInput
                   value={plate}
-                  onChangeText={(
-                    text,
-                  ) =>
-                    setPlate(
-                      text.toUpperCase(),
-                    )
-                  }
+                  onChangeText={(text) => setPlate(text.toUpperCase())}
                   placeholder="Placa"
                   placeholderTextColor="#71717A"
-                  style={[
-                    styles.input,
-                    {
-                      flex: 1,
-                    },
-                  ]}
+                  style={[styles.input, { flex: 1 }]}
                 />
               </View>
 
-              <View
-                style={styles.row}
-              >
+              <View style={styles.row}>
                 <TextInput
                   value={currentKm}
-                  onChangeText={
-                    setCurrentKm
-                  }
+                  onChangeText={setCurrentKm}
                   placeholder="KM atual"
                   keyboardType="numeric"
                   placeholderTextColor="#71717A"
-                  style={[
-                    styles.input,
-                    {
-                      flex: 1,
-                    },
-                  ]}
+                  style={[styles.input, { flex: 1 }]}
                 />
 
                 <TextInput
-                  value={
-                    nextRevisionKm
-                  }
-                  onChangeText={
-                    setNextRevisionKm
-                  }
+                  value={nextRevisionKm}
+                  onChangeText={setNextRevisionKm}
                   placeholder="Próxima revisão"
                   keyboardType="numeric"
                   placeholderTextColor="#71717A"
-                  style={[
-                    styles.input,
-                    {
-                      flex: 1,
-                    },
-                  ]}
+                  style={[styles.input, { flex: 1 }]}
                 />
               </View>
 
               <TouchableOpacity
-                style={
-                  styles.saveButton
-                }
-                onPress={
-                  handleCreateVehicle
-                }
+                style={styles.saveButton}
+                onPress={handleCreateVehicle}
               >
-                <Text
-                  style={
-                    styles.saveButtonText
-                  }
-                >
+                <Text style={styles.saveButtonText}>
                   Salvar veículo
                 </Text>
               </TouchableOpacity>
@@ -505,8 +365,7 @@ export default function VehiclesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor:
-      colors.background,
+    backgroundColor: colors.background,
   },
 
   content: {
@@ -517,238 +376,218 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row',
-
     alignItems: 'center',
-
-    justifyContent:
-      'space-between',
-
+    justifyContent: 'space-between',
     marginBottom: 28,
   },
 
   title: {
     color: '#FFFFFF',
-
     fontSize: 28,
-
     fontWeight: '800',
   },
 
   subtitle: {
     color: '#71717A',
-
     marginTop: 6,
   },
 
   addButton: {
     width: 54,
-
     height: 54,
-
     borderRadius: 18,
-
-    backgroundColor:
-      '#22C55E',
-
+    backgroundColor: '#22C55E',
     alignItems: 'center',
-
     justifyContent: 'center',
   },
 
   vehicleCard: {
-    backgroundColor:
-      '#18181B',
-
-    borderRadius: 26,
-
-    padding: 18,
-
+    backgroundColor: '#0D1117',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 16,
     marginBottom: 14,
   },
 
   vehicleTop: {
     flexDirection: 'row',
-
     alignItems: 'center',
-
-    marginBottom: 20,
   },
 
-  vehicleIcon: {
-    width: 58,
-
+  vehicleImage: {
+    width: 82,
     height: 58,
-
-    borderRadius: 18,
-
-    backgroundColor:
-      '#111827',
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
+    resizeMode: 'contain',
     marginRight: 14,
+  },
+
+  vehicleTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 
   vehicleTitle: {
     color: '#FFFFFF',
-
-    fontSize: 18,
-
+    fontSize: 17,
     fontWeight: '800',
+    textTransform: 'uppercase',
   },
 
   vehiclePlate: {
-    color: '#71717A',
-
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
     marginTop: 4,
+  },
+
+  defaultBadge: {
+    backgroundColor: 'rgba(34,197,94,0.18)',
+    borderColor: 'rgba(34,197,94,0.35)',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+
+  defaultBadgeText: {
+    color: '#22C55E',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#1F2937',
+    marginVertical: 14,
   },
 
   vehicleInfoRow: {
     flexDirection: 'row',
-
-    justifyContent:
-      'space-between',
+    justifyContent: 'space-between',
   },
 
   infoLabel: {
     color: '#71717A',
-
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   infoValue: {
     color: '#FFFFFF',
-
-    fontSize: 18,
-
+    fontSize: 16,
     fontWeight: '800',
-
     marginTop: 6,
+  },
+
+  revisionFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+  },
+
+  revisionBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+
+  revisionBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  revisionHint: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   modalOverlay: {
     flex: 1,
-
-    backgroundColor:
-      'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
 
   modalScroll: {
     flexGrow: 1,
-
-    justifyContent:
-      'center',
-
+    justifyContent: 'center',
     padding: 20,
   },
 
   modalContent: {
-    backgroundColor:
-      '#111827',
-
+    backgroundColor: '#111827',
     borderRadius: 28,
-
     padding: 20,
   },
 
   modalHeader: {
     flexDirection: 'row',
-
-    justifyContent:
-      'space-between',
-
+    justifyContent: 'space-between',
     alignItems: 'center',
-
     marginBottom: 20,
   },
 
   modalTitle: {
     color: '#FFFFFF',
-
     fontSize: 22,
-
     fontWeight: '800',
   },
 
   typesRow: {
     flexDirection: 'row',
-
-    justifyContent:
-      'space-between',
-
+    gap: 8,
     marginBottom: 18,
   },
 
   typeButton: {
     flex: 1,
-
     height: 54,
-
     borderRadius: 18,
-
-    backgroundColor:
-      '#18181B',
-
+    backgroundColor: '#18181B',
     alignItems: 'center',
-
     justifyContent: 'center',
+  },
 
-    marginHorizontal: 4,
+  typeButtonActive: {
+    backgroundColor: '#22C55E',
   },
 
   typeText: {
     color: '#FFFFFF',
-
     fontSize: 12,
-
     fontWeight: '700',
-
     marginTop: 4,
   },
 
   input: {
     height: 58,
-
-    backgroundColor:
-      '#18181B',
-
+    backgroundColor: '#18181B',
     borderRadius: 18,
-
     paddingHorizontal: 18,
-
     color: '#FFFFFF',
-
     marginBottom: 14,
   },
 
   row: {
     flexDirection: 'row',
-
     gap: 12,
   },
 
   saveButton: {
     height: 58,
-
     borderRadius: 18,
-
-    backgroundColor:
-      '#22C55E',
-
+    backgroundColor: '#22C55E',
     alignItems: 'center',
-
     justifyContent: 'center',
-
     marginTop: 10,
   },
 
   saveButtonText: {
     color: '#FFFFFF',
-
     fontSize: 16,
-
     fontWeight: '800',
   },
 });
