@@ -9,17 +9,18 @@ export default function TabsLayout() {
         headerShown: false,
 
         tabBarStyle: {
-          backgroundColor: '#09090B',
-          borderTopWidth: 1,
-          borderTopColor: '#18181B',
-          height: 72,
-          paddingBottom: 8,
-          paddingTop: 8,
+          backgroundColor: '#111827',
+          borderTopWidth: 0,
+          height: 84,
+          paddingBottom: 10,
+          paddingTop: 10,
         },
 
-        tabBarActiveTintColor: '#22C55E',
+        tabBarActiveTintColor:
+          '#22C55E',
 
-        tabBarInactiveTintColor: '#71717A',
+        tabBarInactiveTintColor:
+          '#71717A',
       }}
     >
       <Tabs.Screen
@@ -27,7 +28,10 @@ export default function TabsLayout() {
         options={{
           title: 'Dashboard',
 
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
             <Ionicons
               name="home-outline"
               size={size}
@@ -42,7 +46,10 @@ export default function TabsLayout() {
         options={{
           title: 'Jornadas',
 
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
             <Ionicons
               name="time-outline"
               size={size}
@@ -55,13 +62,16 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="nova-jornada"
         options={{
-          title: '',
+          title: 'Nova',
 
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
             <Ionicons
               name="add-circle"
-              size={56}
-              color={focused ? '#22C55E' : '#22C55E'}
+              size={32}
+              color="#22C55E"
             />
           ),
         }}
@@ -72,24 +82,12 @@ export default function TabsLayout() {
         options={{
           title: 'Despesas',
 
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
             <Ionicons
               name="wallet-outline"
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="veiculos"
-        options={{
-          title: 'Veículos',
-
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons
-              name="car-outline"
               size={size}
               color={color}
             />
@@ -102,7 +100,10 @@ export default function TabsLayout() {
         options={{
           title: 'Perfil',
 
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
             <Ionicons
               name="person-outline"
               size={size}
