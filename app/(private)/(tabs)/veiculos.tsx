@@ -10,6 +10,8 @@ import {
   StyleSheet,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 
 import { router } from 'expo-router';
@@ -47,6 +49,7 @@ function getRevisionStatus(currentKm: number, nextRevisionKm: number) {
     return {
       label: 'Sem revisão',
       color: '#71717A',
+      hint: 'Informe a próxima revisão',
     };
   }
 
@@ -54,6 +57,7 @@ function getRevisionStatus(currentKm: number, nextRevisionKm: number) {
     return {
       label: 'Atrasada',
       color: '#EF4444',
+      hint: 'Revisão vencida',
     };
   }
 
@@ -61,12 +65,14 @@ function getRevisionStatus(currentKm: number, nextRevisionKm: number) {
     return {
       label: 'Próxima',
       color: '#F59E0B',
+      hint: `Faltam ${remainingKm.toLocaleString('pt-BR')} km`,
     };
   }
 
   return {
     label: 'Em dia',
     color: '#22C55E',
+    hint: `Faltam ${remainingKm.toLocaleString('pt-BR')} km`,
   };
 }
 
@@ -89,6 +95,7 @@ export default function VehiclesScreen() {
   async function loadVehicles() {
     try {
       const response = await getVehicles();
+
       setVehicles(response);
     } catch (error) {
       console.log(error);
@@ -108,8 +115,15 @@ export default function VehiclesScreen() {
         year: Number(year),
         plate,
         type,
-        current_km: Number(currentKm) || 0,
-        next_revision_km: Number(nextRevisionKm) || 0,
+        current_km:
+        Number(
+            currentKm.replace(/\./g, ''),
+            ) || 0,
+
+        next_revision_km:
+            Number(
+            nextRevisionKm.replace(/\./g, ''),
+            ) || 0,
       });
 
       setModalVisible(false);
@@ -141,9 +155,7 @@ export default function VehiclesScreen() {
           <View>
             <Text style={styles.title}>Veículos</Text>
 
-            <Text style={styles.subtitle}>
-              Gerencie seus veículos.
-            </Text>
+            <Text style={styles.subtitle}>Gerencie seus veículos.</Text>
           </View>
 
           <TouchableOpacity
@@ -157,7 +169,6 @@ export default function VehiclesScreen() {
         {vehicles.map((vehicle, index) => {
           const current = Number(vehicle.current_km ?? 0);
           const nextRevision = Number(vehicle.next_revision_km ?? 0);
-          const remainingKm = nextRevision - current;
           const revisionStatus = getRevisionStatus(current, nextRevision);
 
           return (
@@ -243,15 +254,9 @@ export default function VehiclesScreen() {
                   </Text>
                 </View>
 
-                {remainingKm > 0 ? (
-                  <Text style={styles.revisionHint}>
-                    Faltam {remainingKm.toLocaleString('pt-BR')} km
-                  </Text>
-                ) : (
-                  <Text style={styles.revisionHint}>
-                    Revisão vencida
-                  </Text>
-                )}
+                <Text style={styles.revisionHint}>
+                  {revisionStatus.hint}
+                </Text>
               </View>
             </TouchableOpacity>
           );
@@ -259,104 +264,238 @@ export default function VehiclesScreen() {
       </ScrollView>
 
       <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScroll}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Novo veículo</Text>
+        <KeyboardAvoidingView
+        behavior={
+            Platform.OS === 'ios'
+            ? 'padding'
+            : 'height'
+        }
+        style={{ flex: 1 }}
+        >
+            <View style={styles.modalOverlay}>
+                <ScrollView
+                    contentContainerStyle={styles.modalScroll}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <View style={styles.modalHeaderLeft}>
+                                <View style={styles.modalIcon}>
+                                    <Ionicons
+                                    name="car-outline"
+                                    size={25}
+                                    color="#FFFFFF"
+                                    />
+                                </View>
 
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                  <Ionicons name="close" size={26} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
+                                <View>
+                                    <Text style={styles.modalTitle}>Novo veículo</Text>
 
-              <View style={styles.typesRow}>
-                {vehicleTypes.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.typeButton,
-                      type === item.id && styles.typeButtonActive,
-                    ]}
-                    onPress={() => setType(item.id)}
-                  >
-                    <Ionicons
-                      name={item.icon as any}
-                      size={20}
-                      color="#FFFFFF"
-                    />
+                                    <Text style={styles.modalSubtitle}>
+                                        Preencha as informações do veículo
+                                    </Text>
+                                </View>
+                            </View>
 
-                    <Text style={styles.typeText}>{item.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                            <TouchableOpacity
+                            style={styles.modalCloseButton}
+                            onPress={() => setModalVisible(false)}
+                            >
+                            <Ionicons name="close" size={25} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
 
-              <TextInput
-                value={brand}
-                onChangeText={setBrand}
-                placeholder="Marca"
-                placeholderTextColor="#71717A"
-                style={styles.input}
-              />
+                        <View style={styles.typesRow}>
+                            {vehicleTypes.map((item) => {
+                            const selected = type === item.id;
 
-              <TextInput
-                value={model}
-                onChangeText={setModel}
-                placeholder="Modelo"
-                placeholderTextColor="#71717A"
-                style={styles.input}
-              />
+                            return (
+                                <TouchableOpacity
+                                key={item.id}
+                                style={[
+                                    styles.typeButton,
+                                    selected && styles.typeButtonActive,
+                                ]}
+                                onPress={() => setType(item.id)}
+                                activeOpacity={0.85}
+                                >
+                                <Ionicons
+                                    name={item.icon as any}
+                                    size={24}
+                                    color="#FFFFFF"
+                                />
 
-              <View style={styles.row}>
-                <TextInput
-                  value={year}
-                  onChangeText={setYear}
-                  placeholder="Ano"
-                  keyboardType="numeric"
-                  placeholderTextColor="#71717A"
-                  style={[styles.input, { flex: 1 }]}
-                />
+                                <Text style={styles.typeText}>{item.label}</Text>
 
-                <TextInput
-                  value={plate}
-                  onChangeText={(text) => setPlate(text.toUpperCase())}
-                  placeholder="Placa"
-                  placeholderTextColor="#71717A"
-                  style={[styles.input, { flex: 1 }]}
-                />
-              </View>
+                                {selected ? <View style={styles.typeArrow} /> : null}
+                                </TouchableOpacity>
+                            );
+                            })}
+                        </View>
 
-              <View style={styles.row}>
-                <TextInput
-                  value={currentKm}
-                  onChangeText={setCurrentKm}
-                  placeholder="KM atual"
-                  keyboardType="numeric"
-                  placeholderTextColor="#71717A"
-                  style={[styles.input, { flex: 1 }]}
-                />
+                        <View style={styles.inputBox}>
+                            <Ionicons name="pricetag-outline" size={22} color="#22C55E" />
 
-                <TextInput
-                  value={nextRevisionKm}
-                  onChangeText={setNextRevisionKm}
-                  placeholder="Próxima revisão"
-                  keyboardType="numeric"
-                  placeholderTextColor="#71717A"
-                  style={[styles.input, { flex: 1 }]}
-                />
-              </View>
+                            <View style={{ flex: 1 }}>
+                            <Text style={styles.inputLabel}>Marca</Text>
 
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleCreateVehicle}
-              >
-                <Text style={styles.saveButtonText}>
-                  Salvar veículo
-                </Text>
-              </TouchableOpacity>
+                            <TextInput
+                                value={brand}
+                                onChangeText={setBrand}
+                                placeholder="Ex: Toyota, Honda, Fiat"
+                                placeholderTextColor="#71717A"
+                                style={styles.input}
+                            />
+                            </View>
+                        </View>
+
+                        <View style={styles.inputBox}>
+                            <Ionicons name="car-outline" size={22} color="#22C55E" />
+
+                            <View style={{ flex: 1 }}>
+                            <Text style={styles.inputLabel}>Modelo</Text>
+
+                            <TextInput
+                                value={model}
+                                onChangeText={setModel}
+                                placeholder="Ex: Corolla, Civic, Uno"
+                                placeholderTextColor="#71717A"
+                                style={styles.input}
+                            />
+                            </View>
+                        </View>
+
+                        <View style={styles.formRow}>
+                            <View style={[styles.inputBox, { flex: 1 }]}>
+                            <Ionicons
+                                name="calendar-outline"
+                                size={22}
+                                color="#22C55E"
+                            />
+
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.inputLabel}>Ano</Text>
+
+                                <TextInput
+                                value={year}
+                                onChangeText={setYear}
+                                placeholder="2024"
+                                placeholderTextColor="#71717A"
+                                keyboardType="numeric"
+                                maxLength={4}
+                                style={styles.input}
+                                />
+                            </View>
+                            </View>
+
+                            <View style={[styles.inputBox, { flex: 1 }]}>
+                            <Ionicons
+                                name="barcode-outline"
+                                size={22}
+                                color="#22C55E"
+                            />
+
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.inputLabel}>Placa</Text>
+
+                                <TextInput
+                                value={plate}
+                                onChangeText={(text) => setPlate(text.toUpperCase())}
+                                placeholder="ABC1D23"
+                                placeholderTextColor="#71717A"
+                                autoCapitalize="characters"
+                                maxLength={7}
+                                style={styles.input}
+                                />
+                            </View>
+                            </View>
+                        </View>
+
+                        <View style={styles.formRow}>
+                            <View style={[styles.inputBox, { flex: 1 }]}>
+                            <Ionicons
+                                name="speedometer-outline"
+                                size={22}
+                                color="#22C55E"
+                            />
+
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.inputLabel}>KM atual</Text>
+
+                                <TextInput
+                                value={currentKm}
+                                onChangeText={(text) => {
+                                    const numbers = text.replace(/\D/g, '').slice(0, 6);
+
+                                    const formatted = Number(numbers).toLocaleString('pt-BR');
+
+                                    setCurrentKm(
+                                    numbers ? formatted : '',
+                                    );
+                                }}
+                                placeholder="Ex: 58.450"
+                                placeholderTextColor="#71717A"
+                                keyboardType="numeric"
+                                style={styles.input}
+                                />
+                            </View>
+                            </View>
+
+                            <View style={[styles.inputBox, { flex: 1 }]}>
+                            <Ionicons
+                                name="construct-outline"
+                                size={22}
+                                color="#22C55E"
+                            />
+
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.inputLabel}>Próxima revisão</Text>
+
+                                <TextInput
+                                value={nextRevisionKm}
+                                onChangeText={(text) => {
+                                    const numbers = text.replace(/\D/g, '').slice(0, 6);
+
+                                    const formatted = Number(numbers).toLocaleString('pt-BR');
+
+                                    setNextRevisionKm(
+                                    numbers ? formatted : '',
+                                    );
+                                }}
+                                placeholder="Ex: 60.000"
+                                placeholderTextColor="#71717A"
+                                keyboardType="numeric"
+                                style={styles.input}
+                                />
+                            </View>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.saveButton}
+                            onPress={handleCreateVehicle}
+                            activeOpacity={0.9}
+                        >
+                            <Ionicons
+                            name="checkmark-circle-outline"
+                            size={22}
+                            color="#FFFFFF"
+                            />
+
+                            <Text style={styles.saveButtonText}>Salvar veículo</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.secureRow}>
+                            <Ionicons name="lock-closed-outline" size={18} color="#71717A" />
+
+                            <Text style={styles.secureText}>
+                            Suas informações estão seguras
+                            </Text>
+                        </View>
+                    </View>
+                </ScrollView>
             </View>
-          </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -508,86 +647,174 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.78)',
   },
 
   modalScroll: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 28,
   },
 
   modalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
-    padding: 20,
+    backgroundColor: '#07111F',
+    borderRadius: 34,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: '#1F2937',
   },
 
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 26,
+  },
+
+  modalHeaderLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    flex: 1,
+  },
+
+  modalIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
   },
 
   modalTitle: {
     color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+
+  modalSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    marginTop: 3,
+  },
+
+  modalCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 999,
+    backgroundColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
   },
 
   typesRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 18,
+    gap: 10,
+    marginBottom: 24,
   },
 
   typeButton: {
     flex: 1,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: '#151E2B',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#1F2937',
   },
 
   typeButtonActive: {
     backgroundColor: '#22C55E',
+    borderColor: '#22C55E',
   },
 
   typeText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 4,
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 0,
   },
 
-  input: {
-    height: 58,
-    backgroundColor: '#18181B',
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    color: '#FFFFFF',
+  typeArrow: {
+    position: 'absolute',
+    bottom: -11,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderTopWidth: 12,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#22C55E',
+  },
+
+  inputBox: {
+    minHeight: 72,
+    borderRadius: 22,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
     marginBottom: 14,
   },
 
-  row: {
+  inputLabel: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 5,
+  },
+
+  input: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    padding: 0,
+    margin: 0,
+  },
+
+  formRow: {
     flexDirection: 'row',
     gap: 12,
   },
 
   saveButton: {
-    height: 58,
-    borderRadius: 18,
+    height: 50,
+    borderRadius: 22,
     backgroundColor: '#22C55E',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
+    gap: 14,
+    marginTop: 18,
   },
 
   saveButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  secureRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 22,
+  },
+
+  secureText: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
