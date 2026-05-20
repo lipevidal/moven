@@ -306,39 +306,41 @@ export default function ActiveSessionScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() => router.replace('/(private)/(tabs)/dashboard')}
-        >
-          <Ionicons name="close" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
 
         <View style={styles.hero}>
           <View style={styles.statusRow}>
-            <View
-              style={[
-                styles.statusDot,
-                session.status === 'paused' && {
-                  backgroundColor: '#F59E0B',
-                },
-              ]}
-            />
+            <View style={{flexDirection: 'column', alignItems: 'center'}}>
+                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                    <View
+                        style={[
+                            styles.statusDot,
+                            session.status === 'paused' && {
+                            backgroundColor: '#F59E0B',
+                            },
+                        ]}
+                    />
+                    <Text style={styles.statusTitle}>
+                        {session.status === 'paused'
+                        ? 'Jornada pausada'
+                        : 'Jornada ativa'}
+                    </Text>
+                </View>
 
-            <View>
-              <Text style={styles.statusTitle}>
-                {session.status === 'paused'
-                  ? 'Jornada pausada'
-                  : 'Jornada ativa'}
-              </Text>
-
-              <Text style={styles.startedText}>
-                Iniciada às{' '}
-                {new Date(session.started_at).toLocaleTimeString('pt-BR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </Text>
+                <Text style={styles.startedText}>
+                    Iniciada às{' '}
+                    {new Date(session.started_at).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    })}
+                </Text>
             </View>
+
+            <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => router.replace('/(private)/(tabs)/dashboard')}
+            >
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.timer}>{formatTimer(elapsedSeconds)}</Text>
@@ -379,29 +381,57 @@ export default function ActiveSessionScreen() {
         </View>
 
         <TouchableOpacity style={styles.vehicleCard} activeOpacity={0.85}>
-          <Text style={styles.vehicleLabel}>Veículo</Text>
+            <View>
+                <Text style={styles.vehicleLabel}>Veículo</Text>
 
-          <View style={styles.vehicleRow}>
-            <Image
-              source={getVehicleImage(session.vehicle?.type)}
-              style={styles.vehicleImage}
+                <View style={styles.vehicleRow}>
+                    <Image
+                    source={getVehicleImage(session.vehicle?.type)}
+                    style={styles.vehicleImage}
+                    />
+
+                    <View>
+                        <Text style={styles.vehicleTitle}>
+                            {session.vehicle?.model} - {session.vehicle?.plate}
+                        </Text>
+
+                        <Text style={styles.vehicleKm}>
+                            {Number(session.vehicle?.current_km ?? 0).toLocaleString(
+                            'pt-BR',
+                            )}{' '}
+                            km
+                        </Text>
+                    </View>
+                </View>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        <View style={styles.bottomActions}>
+          <TouchableOpacity style={styles.bottomButton} onPress={handleTogglePause}>
+            <Ionicons
+              name={session.status === 'paused' ? 'play' : 'pause'}
+              size={18}
+              color="#FFFFFF"
             />
 
-            <View style={{ flex: 1 }}>
-              <Text style={styles.vehicleTitle}>
-                {session.vehicle?.model} - {session.vehicle?.plate}
-              </Text>
+            <Text style={styles.bottomButtonText}>
+              {session.status === 'paused' ? 'Retomar' : 'Pausar'}
+            </Text>
+          </TouchableOpacity>
 
-              <Text style={styles.vehicleKm}>
-                {Number(session.vehicle?.current_km ?? 0).toLocaleString(
-                  'pt-BR',
-                )}{' '}
-                km
-              </Text>
-            </View>
+          <TouchableOpacity style={styles.bottomButton} onPress={handleDeleteSession}>
+            <Ionicons name="stop" size={16} color="#FFFFFF" />
 
-            <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
-          </View>
+            <Text style={styles.bottomButtonText}>Deletar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.finishButton}
+          onPress={() => setFinishModalVisible(true)}
+        >
+          <Text style={styles.finishButtonText}>Finalizar jornada</Text>
         </TouchableOpacity>
 
         <View style={styles.actionsRow}>
@@ -460,32 +490,6 @@ export default function ActiveSessionScreen() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.finishButton}
-          onPress={() => setFinishModalVisible(true)}
-        >
-          <Text style={styles.finishButtonText}>Finalizar jornada</Text>
-        </TouchableOpacity>
-
-        <View style={styles.bottomActions}>
-          <TouchableOpacity style={styles.bottomButton} onPress={handleTogglePause}>
-            <Ionicons
-              name={session.status === 'paused' ? 'play' : 'pause'}
-              size={18}
-              color="#FFFFFF"
-            />
-
-            <Text style={styles.bottomButtonText}>
-              {session.status === 'paused' ? 'Retomar' : 'Pausar'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.bottomButton} onPress={handleDeleteSession}>
-            <Ionicons name="stop" size={16} color="#FFFFFF" />
-
-            <Text style={styles.bottomButtonText}>Deletar</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
       <Modal visible={gainModalVisible} transparent animationType="fade">
@@ -655,43 +659,48 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'absolute',
+    right: 0,
   },
 
   hero: {
     alignItems: 'center',
     marginTop: 8,
-    marginBottom: 28,
+    marginBottom: 38,
   },
 
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    width: '100%',
+    justifyContent: 'center'
   },
 
   statusDot: {
     width: 11,
     height: 11,
     borderRadius: 99,
+    marginRight: 5,
     backgroundColor: '#22C55E',
   },
 
   statusTitle: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '600',
   },
 
   startedText: {
     color: '#A1A1AA',
     fontSize: 13,
     marginTop: 3,
+    marginLeft: 15,
   },
 
   timer: {
     color: '#FFFFFF',
-    fontSize: 54,
-    fontWeight: '900',
+    fontSize: 62,
+    fontWeight: '500',
     marginTop: 28,
   },
 
@@ -721,13 +730,13 @@ const styles = StyleSheet.create({
   metricLabel: {
     color: '#A1A1AA',
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '600',
   },
 
   metricValue: {
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '900',
+    fontSize: 24,
+    fontWeight: '700',
     marginTop: 12,
   },
 
@@ -738,6 +747,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
 
   vehicleLabel: {
@@ -762,7 +774,7 @@ const styles = StyleSheet.create({
   vehicleTitle: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: '600',
   },
 
   vehicleKm: {
@@ -870,7 +882,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#DC2626',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 20,
+    marginTop: 10,
   },
 
   finishButtonText: {
@@ -882,6 +895,7 @@ const styles = StyleSheet.create({
   bottomActions: {
     flexDirection: 'row',
     gap: 10,
+    marginBottom: 10,
   },
 
   bottomButton: {

@@ -675,7 +675,7 @@ const styles = StyleSheet.create({
   startButton: {
     height: 62,
     borderRadius: 20,
-    backgroundColor: '#DC2626',
+    backgroundColor: '#003400',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
