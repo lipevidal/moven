@@ -1,37 +1,129 @@
+import { useEffect, useMemo, useState } from 'react';
+
 import {
   View,
   Text,
-  ScrollView,
+  StyleSheet,
   TouchableOpacity,
   TextInput,
-  StyleSheet,
+  ScrollView,
+  Image,
+  Modal,
   Alert,
 } from 'react-native';
 
-import { useEffect, useState } from 'react';
-
-import { router } from 'expo-router';
-
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 import { colors } from '../../../src/constants/colors';
 
 import { getVehicles } from '../../../src/features/vehicles/services/getVehicles';
-
 import { createWorkSession } from '../../../src/features/workSessions/services/createWorkSession';
 
-export default function NewSessionScreen() {
-  const [vehicles, setVehicles] =
-    useState<any[]>([]);
+function vehicleImage(type: string) {
+  switch (type) {
+    case 'motorcycle':
+      return require('../../../assets/vehicles/motorcycle.png');
 
-  const [selectedVehicle, setSelectedVehicle] =
-    useState<any>(null);
+    case 'utility':
+      return require('../../../assets/vehicles/utility.png');
 
-  const [startKm, setStartKm] =
-    useState('');
+    default:
+      return require('../../../assets/vehicles/car.png');
+  }
+}
 
-  const [loading, setLoading] =
-    useState(false);
+function formatKm(value: string) {
+  const numbers = value.replace(/\D/g, '').slice(0, 6);
+
+  if (!numbers) return '';
+
+  return Number(numbers).toLocaleString('pt-BR');
+}
+
+function parseKm(value: string) {
+  return Number(value.replace(/\./g, ''));
+}
+
+function formatDate(date: Date) {
+  return date.toLocaleDateString('pt-BR');
+}
+
+function formatTime(date: Date) {
+  return date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function maskDate(text: string) {
+  const numbers = text.replace(/\D/g, '').slice(0, 8);
+
+  if (numbers.length > 4) {
+    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4)}`;
+  }
+
+  if (numbers.length > 2) {
+    return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+  }
+
+  return numbers;
+}
+
+function maskTime(text: string) {
+  const numbers = text.replace(/\D/g, '').slice(0, 4);
+
+  if (numbers.length > 2) {
+    return `${numbers.slice(0, 2)}:${numbers.slice(2)}`;
+  }
+
+  return numbers;
+}
+
+function parseDateTime(dateText: string, timeText: string) {
+  const [day, month, year] = dateText.split('/');
+  const [hour, minute] = timeText.split(':');
+
+  if (!day || !month || !year || !hour || !minute) {
+    return null;
+  }
+
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    0,
+    0,
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+export default function NewJourneyScreen() {
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+
+  const [vehicleModal, setVehicleModal] = useState(false);
+  const [timeModalVisible, setTimeModalVisible] = useState(false);
+
+  const [kmInitial, setKmInitial] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const [startDate, setStartDate] = useState(new Date());
+
+  const [dateInput, setDateInput] = useState(
+    formatDate(new Date()),
+  );
+
+  const [timeInput, setTimeInput] = useState(
+    formatTime(new Date()),
+  );
 
   useEffect(() => {
     loadVehicles();
@@ -39,21 +131,15 @@ export default function NewSessionScreen() {
 
   async function loadVehicles() {
     try {
-      const response =
-        await getVehicles();
+      const data = await getVehicles();
 
-      setVehicles(response);
+      setVehicles(data);
 
-      if (response.length > 0) {
-        setSelectedVehicle(
-          response[0],
-        );
+      if (data.length > 0) {
+        setSelectedVehicle(data[0]);
 
-        setStartKm(
-          String(
-            response[0]
-              .current_km ?? 0,
-          ),
+        setKmInitial(
+          Number(data[0].current_km ?? 0).toLocaleString('pt-BR'),
         );
       }
     } catch (error) {
@@ -61,7 +147,44 @@ export default function NewSessionScreen() {
     }
   }
 
-  async function handleStartSession() {
+  const startTimeLabel = useMemo(() => {
+    return formatTime(startDate);
+  }, [startDate]);
+
+  function openTimeModal() {
+    setDateInput(formatDate(startDate));
+    setTimeInput(formatTime(startDate));
+
+    setTimeModalVisible(true);
+  }
+
+  function handleSaveStartTime() {
+    const parsedDate = parseDateTime(dateInput, timeInput);
+
+    if (!parsedDate) {
+      Alert.alert(
+        'Data inválida',
+        'Informe uma data e hora válidas.',
+      );
+
+      return;
+    }
+
+    if (parsedDate > new Date()) {
+      Alert.alert(
+        'Horário inválido',
+        'O horário inicial não pode ser maior que o horário atual.',
+      );
+
+      return;
+    }
+
+    setStartDate(parsedDate);
+
+    setTimeModalVisible(false);
+  }
+
+  async function handleStartJourney() {
     try {
       if (!selectedVehicle) {
         Alert.alert(
@@ -72,21 +195,25 @@ export default function NewSessionScreen() {
         return;
       }
 
+      if (!kmInitial) {
+        Alert.alert(
+          'Atenção',
+          'Informe o KM inicial.',
+        );
+
+        return;
+      }
+
       setLoading(true);
 
-      const session =
-        await createWorkSession({
-          vehicle_id:
-            selectedVehicle.id,
-
-          start_km:
-            Number(startKm),
-        });
+      const session = await createWorkSession({
+        vehicle_id: selectedVehicle.id,
+        start_km: parseKm(kmInitial),
+        started_at: startDate,
+      });
 
       router.replace({
-        pathname:
-          '/(private)/jornada-ativa',
-
+        pathname: '/(private)/jornada-ativa',
         params: {
           id: session.id,
         },
@@ -103,206 +230,570 @@ export default function NewSessionScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={styles.title}>
-        Nova jornada
-      </Text>
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>
+            Nova jornada
+          </Text>
 
-      <Text style={styles.subtitle}>
-        Inicie uma nova jornada de trabalho.
-      </Text>
+          <Text style={styles.subtitle}>
+            Inicie sua jornada de trabalho
+          </Text>
+        </View>
 
-      <Text style={styles.sectionTitle}>
-        Veículo
-      </Text>
+        <View style={styles.liveCard}>
+          <View style={styles.liveLeft}>
+            <View style={styles.liveDot} />
 
-      <View style={styles.vehiclesList}>
-        {vehicles.map((vehicle) => (
+            <Text style={styles.liveText}>
+              Jornada iniciará às {startTimeLabel}
+            </Text>
+          </View>
+
           <TouchableOpacity
-            key={vehicle.id}
-            style={[
-              styles.vehicleCard,
-
-              selectedVehicle?.id ===
-                vehicle.id && {
-                borderColor:
-                  '#22C55E',
-              },
-            ]}
-            onPress={() => {
-              setSelectedVehicle(
-                vehicle,
-              );
-
-              setStartKm(
-                String(
-                  vehicle.current_km,
-                ),
-              );
-            }}
+            style={styles.changeTimeButton}
+            onPress={openTimeModal}
           >
-            <View
-              style={
-                styles.vehicleIcon
+            <Text style={styles.changeTimeText}>
+              Alterar
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.label}>
+          Veículo
+        </Text>
+
+        <TouchableOpacity
+          style={styles.vehicleCard}
+          activeOpacity={0.85}
+          onPress={() => setVehicleModal(true)}
+        >
+          {selectedVehicle ? (
+            <>
+              <Image
+                source={vehicleImage(
+                  selectedVehicle.type,
+                )}
+                style={styles.vehicleImage}
+              />
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.vehicleTitle}>
+                  {selectedVehicle.model} -{' '}
+                  {selectedVehicle.plate}
+                </Text>
+
+                <Text style={styles.vehicleKm}>
+                  {Number(
+                    selectedVehicle.current_km ?? 0,
+                  ).toLocaleString('pt-BR')}{' '}
+                  km
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-down"
+                size={22}
+                color="#FFFFFF"
+              />
+            </>
+          ) : (
+            <Text style={{ color: '#FFFFFF' }}>
+              Nenhum veículo encontrado
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        <Text style={styles.label}>
+          KM atual
+        </Text>
+
+        <View style={styles.inputCard}>
+          <TextInput
+            value={kmInitial}
+            onChangeText={(text) =>
+              setKmInitial(formatKm(text))
+            }
+            keyboardType="numeric"
+            placeholder="45.678 km"
+            placeholderTextColor="#71717A"
+            style={styles.input}
+          />
+
+          <Text style={styles.kmText}>
+            km
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.startButton}
+          activeOpacity={0.85}
+          onPress={handleStartJourney}
+          disabled={loading}
+        >
+          <Ionicons
+            name="play-circle"
+            size={24}
+            color="#FFFFFF"
+          />
+
+          <Text style={styles.startButtonText}>
+            {loading
+              ? 'Iniciando...'
+              : 'Iniciar jornada'}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <Modal
+        visible={vehicleModal}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Selecionar veículo
+              </Text>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setVehicleModal(false)
+                }
+              >
+                <Ionicons
+                  name="close"
+                  size={26}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {vehicles.map((vehicle) => (
+              <TouchableOpacity
+                key={vehicle.id}
+                style={styles.modalVehicle}
+                activeOpacity={0.85}
+                onPress={() => {
+                  setSelectedVehicle(vehicle);
+
+                  setKmInitial(
+                    Number(
+                      vehicle.current_km ?? 0,
+                    ).toLocaleString('pt-BR'),
+                  );
+
+                  setVehicleModal(false);
+                }}
+              >
+                <Image
+                  source={vehicleImage(
+                    vehicle.type,
+                  )}
+                  style={
+                    styles.modalVehicleImage
+                  }
+                />
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={
+                      styles.modalVehicleTitle
+                    }
+                  >
+                    {vehicle.model}
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.modalVehiclePlate
+                    }
+                  >
+                    {vehicle.plate}
+                  </Text>
+                </View>
+
+                {selectedVehicle?.id ===
+                  vehicle.id && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color="#22C55E"
+                  />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={timeModalVisible}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Alterar horário
+              </Text>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setTimeModalVisible(false)
+                }
+              >
+                <Ionicons
+                  name="close"
+                  size={26}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              O horário não pode ser maior
+              que o horário atual.
+            </Text>
+
+            <View style={styles.dateRow}>
+              <View
+                style={styles.dateInputBox}
+              >
+                <Text style={styles.inputLabel}>
+                  Data
+                </Text>
+
+                <TextInput
+                  value={dateInput}
+                  onChangeText={(text) =>
+                    setDateInput(
+                      maskDate(text),
+                    )
+                  }
+                  placeholder="DD/MM/AAAA"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  maxLength={10}
+                  style={styles.modalInput}
+                />
+              </View>
+
+              <View
+                style={styles.dateInputBox}
+              >
+                <Text style={styles.inputLabel}>
+                  Hora
+                </Text>
+
+                <TextInput
+                  value={timeInput}
+                  onChangeText={(text) =>
+                    setTimeInput(
+                      maskTime(text),
+                    )
+                  }
+                  placeholder="HH:MM"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  maxLength={5}
+                  style={styles.modalInput}
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.saveTimeButton}
+              onPress={
+                handleSaveStartTime
               }
             >
-              <Ionicons
-                name="car-outline"
-                size={24}
-                color="#22C55E"
-              />
-            </View>
-
-            <View>
               <Text
                 style={
-                  styles.vehicleTitle
+                  styles.saveTimeButtonText
                 }
               >
-                {vehicle.brand}{' '}
-                {vehicle.model}
+                Salvar horário
               </Text>
-
-              <Text
-                style={
-                  styles.vehiclePlate
-                }
-              >
-                {vehicle.plate}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.sectionTitle}>
-        KM inicial
-      </Text>
-
-      <TextInput
-        value={startKm}
-        onChangeText={setStartKm}
-        keyboardType="numeric"
-        placeholder="KM inicial"
-        placeholderTextColor="#71717A"
-        style={styles.input}
-      />
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={
-          handleStartSession
-        }
-        disabled={loading}
-      >
-        <Text
-          style={styles.buttonText}
-        >
-          {loading
-            ? 'Iniciando...'
-            : 'Iniciar jornada'}
-        </Text>
-      </TouchableOpacity>
-    </ScrollView>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor:
-      colors.background,
+    backgroundColor: colors.background,
   },
 
   content: {
+    paddingTop: 60,
     paddingHorizontal: 20,
-    paddingTop: 56,
     paddingBottom: 120,
+  },
+
+  header: {
+    marginBottom: 24,
   },
 
   title: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '800',
   },
 
   subtitle: {
     color: '#71717A',
-    marginTop: 6,
-    marginBottom: 30,
+    fontSize: 15,
+    marginTop: 4,
   },
 
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
+  liveCard: {
+    minHeight: 52,
+    borderRadius: 16,
+    backgroundColor: '#03150C',
+    borderWidth: 1,
+    borderColor: '#14532D',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    marginBottom: 26,
+  },
+
+  liveLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  liveDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    marginRight: 10,
+  },
+
+  liveText: {
+    color: '#DCFCE7',
     fontWeight: '700',
-    marginBottom: 14,
+    flex: 1,
   },
 
-  vehiclesList: {
-    marginBottom: 24,
+  changeTimeButton: {
+    height: 34,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  changeTimeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  label: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
   },
 
   vehicleCard: {
+    minHeight: 82,
+    borderRadius: 20,
+    backgroundColor: '#0B1220',
+    borderWidth: 1,
+    borderColor: '#1E293B',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor:
-      '#18181B',
-    borderRadius: 22,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#18181B',
+    paddingHorizontal: 14,
+    marginBottom: 22,
   },
 
-  vehicleIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor:
-      '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
+  vehicleImage: {
+    width: 86,
+    height: 54,
+    resizeMode: 'contain',
+    marginRight: 12,
   },
 
   vehicleTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
 
-  vehiclePlate: {
+  vehicleKm: {
     color: '#71717A',
     marginTop: 4,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  inputCard: {
+    height: 74,
+    borderRadius: 20,
+    backgroundColor: '#0B1220',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 26,
   },
 
   input: {
-    height: 58,
-    borderRadius: 18,
-    backgroundColor:
-      '#18181B',
-    paddingHorizontal: 18,
+    flex: 1,
     color: '#FFFFFF',
-    marginBottom: 28,
+    fontSize: 30,
+    fontWeight: '800',
+    padding: 0,
   },
 
-  button: {
-    height: 58,
-    borderRadius: 18,
+  kmText: {
+    color: '#71717A',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  startButton: {
+    height: 62,
+    borderRadius: 20,
+    backgroundColor: '#DC2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  startButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  modalOverlay: {
+    flex: 1,
     backgroundColor:
-      '#22C55E',
+      'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+
+  modalContent: {
+    backgroundColor: '#111827',
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+  },
+
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+
+  modalVehicle: {
+    height: 78,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+
+  modalVehicleImage: {
+    width: 76,
+    height: 50,
+    resizeMode: 'contain',
+    marginRight: 12,
+  },
+
+  modalVehicleTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  modalVehiclePlate: {
+    color: '#71717A',
+    marginTop: 4,
+    fontSize: 13,
+  },
+
+  modalDescription: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    marginBottom: 14,
+  },
+
+  dateRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 18,
+  },
+
+  dateInputBox: {
+    flex: 1,
+    minHeight: 76,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+
+  inputLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+
+  modalInput: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    padding: 0,
+  },
+
+  saveTimeButton: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#22C55E',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  buttonText: {
+  saveTimeButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '900',
   },
 });

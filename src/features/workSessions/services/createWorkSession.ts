@@ -2,11 +2,17 @@ import { supabase } from '../../../database/supabase';
 
 type CreateWorkSessionParams = {
   vehicle_id: string;
-
   start_km: number;
-
   started_at?: Date;
 };
+
+function toLocalISOString(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60000;
+
+  return new Date(date.getTime() - offsetMs)
+    .toISOString()
+    .slice(0, -1);
+}
 
 export async function createWorkSession({
   vehicle_id,
@@ -18,36 +24,19 @@ export async function createWorkSession({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error('Usuário não autenticado');
-  }
-
-  const { data: activeSession } = await supabase
-    .from('work_sessions')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (activeSession) {
-    throw new Error(
-      'Você já possui uma jornada ativa.',
-    );
+    throw new Error('Usuário não autenticado.');
   }
 
   const { data, error } = await supabase
     .from('work_sessions')
     .insert({
       user_id: user.id,
-
       vehicle_id,
-
       start_km,
-
-      started_at:
-        started_at?.toISOString() ??
-        new Date().toISOString(),
-
       status: 'active',
+      started_at: started_at
+        ? toLocalISOString(started_at)
+        : toLocalISOString(new Date()),
     })
     .select()
     .single();

@@ -1,22 +1,18 @@
 import { supabase } from '../../../database/supabase';
 
-type FinishWorkSessionParams = {
+type UpdateSessionKmParams = {
   session_id: string;
   end_km: number;
 };
 
-export async function finishWorkSession({
+export async function updateSessionKm({
   session_id,
   end_km,
-}: FinishWorkSessionParams) {
-  const finished_at = new Date().toISOString();
-
+}: UpdateSessionKmParams) {
   const { data, error } = await supabase
     .from('work_sessions')
     .update({
-      status: 'finished',
       end_km,
-      finished_at,
     })
     .eq('id', session_id)
     .select()
