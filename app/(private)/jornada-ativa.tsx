@@ -115,12 +115,25 @@ export default function ActiveSessionScreen() {
     if (!session?.started_at) return;
 
     function updateTimer() {
-      const startTime = new Date(session.started_at).getTime();
-      const now = new Date().getTime();
+        const startTime = new Date(session.started_at).getTime();
+        const now = new Date().getTime();
 
-      const diffInSeconds = Math.floor((now - startTime) / 1000);
+        const totalPausedSeconds = Number(session.total_paused_seconds ?? 0);
 
-      setElapsedSeconds(diffInSeconds > 0 ? diffInSeconds : 0);
+        let currentPauseSeconds = 0;
+
+        if (session.status === 'paused' && session.paused_at) {
+        currentPauseSeconds = Math.floor(
+            (now - new Date(session.paused_at).getTime()) / 1000,
+        );
+        }
+
+        const diffInSeconds = Math.floor((now - startTime) / 1000);
+
+        const realWorkedSeconds =
+        diffInSeconds - totalPausedSeconds - currentPauseSeconds;
+
+        setElapsedSeconds(realWorkedSeconds > 0 ? realWorkedSeconds : 0);
     }
 
     updateTimer();
@@ -128,7 +141,12 @@ export default function ActiveSessionScreen() {
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [session?.started_at]);
+    }, [
+    session?.started_at,
+    session?.status,
+    session?.paused_at,
+    session?.total_paused_seconds,
+  ]);
 
   const earnings = session?.earnings ?? [];
 
@@ -302,7 +320,16 @@ export default function ActiveSessionScreen() {
     return (
     <>
       <ScrollView
-        style={styles.container}
+        style={[
+            styles.container,
+
+            {
+                backgroundColor:
+                session?.status === 'paused'
+                    ? '#1d0f07'
+                    : '#001B12',
+            },
+        ]}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
@@ -404,7 +431,7 @@ export default function ActiveSessionScreen() {
                     </View>
                 </View>
             </View>
-            <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+            {/*<Ionicons name="chevron-forward" size={22} color="#FFFFFF" />*/}
         </TouchableOpacity>
 
         <View style={styles.bottomActions}>
@@ -642,7 +669,6 @@ export default function ActiveSessionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#001B12',
   },
 
   content: {

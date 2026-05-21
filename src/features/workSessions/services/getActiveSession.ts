@@ -17,7 +17,11 @@ export async function getActiveSession() {
       earnings(*)
     `)
     .eq('user_id', user.id)
-    .eq('status', 'active')
+    .in('status', ['active', 'paused'])
+    .order('started_at', {
+      ascending: false,
+    })
+    .limit(1)
     .maybeSingle();
 
   if (error) {
