@@ -364,9 +364,16 @@ export default function ActiveSessionScreen() {
 
             <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => router.replace('/(private)/(tabs)/dashboard')}
+                onPress={() =>
+                router.replace({
+                    pathname: '/(private)/(tabs)/dashboard',
+                    params: {
+                    hideActiveSession: '1',
+                    },
+                })
+                }
             >
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
