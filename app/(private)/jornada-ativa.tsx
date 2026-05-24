@@ -10,6 +10,8 @@ import {
   Modal,
   TextInput,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 
 import { router } from 'expo-router';
@@ -33,6 +35,11 @@ import { startWaitingRide } from '../../src/features/rides/services/startWaiting
 import { finishRide } from '../../src/features/rides/services/finishRide';
 import { updateFinishedRide } from '../../src/features/rides/services/updateFinishedRide';
 import { deleteFinishedRide } from '../../src/features/rides/services/deleteFinishedRide';
+
+import { getPlatforms } from '../../src/features/platforms/services/getPlatforms';
+import { getUserPlatforms } from '../../src/features/platforms/services/getUserPlatforms';
+import { toggleUserPlatform } from '../../src/features/platforms/services/toggleUserPlatform';
+
 
 const platforms = [
   'Particular',
@@ -142,6 +149,64 @@ export default function ActiveSessionScreen() {
   const [returnToFinishModalAfterGain, setReturnToFinishModalAfterGain] =
     useState(false);
   const [lockedGainPlatform, setLockedGainPlatform] = useState(false);
+  const [platformsList, setPlatformsList] = useState<any[]>([]);
+  const [userPlatforms, setUserPlatforms] = useState<any[]>([]);
+  const [platformDrawerVisible, setPlatformDrawerVisible] = useState(false);
+  const [returnToGainModalAfterPlatforms, setReturnToGainModalAfterPlatforms] =
+  useState(false);
+  const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
+
+  function openPlatformDrawerFromGainModal() {
+    setReturnToGainModalAfterPlatforms(true);
+    setGainModalVisible(false);
+
+    setTimeout(() => {
+      setPlatformDrawerVisible(true);
+    }, 400);
+  }
+
+
+  async function loadPlatforms() {
+    const allPlatforms = await getPlatforms();
+    const selectedPlatforms = await getUserPlatforms();
+
+    setPlatformsList(allPlatforms);
+    setUserPlatforms(selectedPlatforms);
+
+    setSelectedPlatformIds(
+      selectedPlatforms.map((item: any) => item.platform_id),
+    );
+  }
+
+  function togglePlatformSelection(platformId: string) {
+    setSelectedPlatformIds((prev) => {
+      if (prev.includes(platformId)) {
+        return prev.filter((id) => id !== platformId);
+      }
+
+      return [...prev, platformId];
+    });
+  }
+
+  async function handleSaveUserPlatforms() {
+    for (const platform of platformsList) {
+      const selected = selectedPlatformIds.includes(platform.id);
+
+      await toggleUserPlatform(platform.id, selected);
+    }
+
+    await loadPlatforms();
+
+    setPlatformDrawerVisible(false);
+
+    if (returnToGainModalAfterPlatforms) {
+      setTimeout(() => {
+        setGainModalVisible(true);
+        setReturnToGainModalAfterPlatforms(false);
+      }, 400);
+    }
+  }
+
   
   function openEditFinishedRideModal(ride: any) {
     setFinishedDrawerVisible(false);
@@ -221,6 +286,8 @@ export default function ActiveSessionScreen() {
 
     const ridesResponse = await getSessionRides(response.id);
     setRides(ridesResponse);
+
+    await loadPlatforms();
   }
 
   useEffect(() => {
@@ -706,33 +773,23 @@ export default function ActiveSessionScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() =>
-            router.replace({
-              pathname: '/(private)/(tabs)/dashboard',
-              params: { hideActiveSession: '1' },
-            })
-          }
-        >
-          <Ionicons name="close" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
 
-        <View style={styles.hero}>
+        <View style={{alignItems: 'center', justifyContent: 'center'}}>
           <View style={styles.statusRow}>
-            <View
-              style={[
-                styles.statusDot,
-                session.status === 'paused' && { backgroundColor: '#F59E0B' },
-              ]}
-            />
-
-            <View>
-              <Text style={styles.statusTitle}>
-                {session.status === 'paused'
-                  ? 'Jornada pausada'
-                  : 'Jornada ativa'}
-              </Text>
+            <View style={{justifyContent: 'center', alignItems: 'center'}}>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    session.status === 'paused' && { backgroundColor: '#F59E0B' },
+                  ]}
+                />
+                <Text style={styles.statusTitle}>
+                  {session.status === 'paused'
+                    ? 'Jornada pausada'
+                    : 'Jornada ativa'}
+                </Text>
+              </View>
 
               <Text style={styles.startedText}>
                 Iniciada às{' '}
@@ -744,9 +801,24 @@ export default function ActiveSessionScreen() {
             </View>
           </View>
 
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() =>
+              router.replace({
+                pathname: '/(private)/(tabs)/dashboard',
+                params: { hideActiveSession: '1' },
+              })
+            }
+          >
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.hero}>
           <Text style={styles.timer}>{formatTimer(elapsedSeconds)}</Text>
           <Text style={styles.timerLabel}>Tempo de trabalho</Text>
         </View>
+      
 
         <View style={styles.metricsGrid}>
           <View style={styles.metricCard}>
@@ -859,6 +931,32 @@ export default function ActiveSessionScreen() {
           </View>
         )}
 
+        <View style={styles.bottomActions}>
+          <TouchableOpacity style={styles.bottomButton} onPress={handleTogglePause}>
+            <Ionicons
+              name={session.status === 'paused' ? 'play' : 'pause'}
+              size={18}
+              color="#FFFFFF"
+            />
+
+            <Text style={styles.bottomButtonText}>
+              {session.status === 'paused' ? 'Retomar' : 'Pausar'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.bottomButton} onPress={handleDeleteSession}>
+            <Ionicons name="stop" size={16} color="#FFFFFF" />
+            <Text style={styles.bottomButtonText}>Deletar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.finishButton}
+          onPress={() => setFinishModalVisible(true)}
+        >
+          <Text style={styles.finishButtonText}>Finalizar jornada</Text>
+        </TouchableOpacity>
+
         <View style={styles.actionsRow}>
           <TouchableOpacity style={styles.secondaryButton} onPress={openCreateGainModal}>
             <Ionicons name="cash-outline" size={20} color="#FFFFFF" />
@@ -909,31 +1007,6 @@ export default function ActiveSessionScreen() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.finishButton}
-          onPress={() => setFinishModalVisible(true)}
-        >
-          <Text style={styles.finishButtonText}>Finalizar jornada</Text>
-        </TouchableOpacity>
-
-        <View style={styles.bottomActions}>
-          <TouchableOpacity style={styles.bottomButton} onPress={handleTogglePause}>
-            <Ionicons
-              name={session.status === 'paused' ? 'play' : 'pause'}
-              size={18}
-              color="#FFFFFF"
-            />
-
-            <Text style={styles.bottomButtonText}>
-              {session.status === 'paused' ? 'Retomar' : 'Pausar'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.bottomButton} onPress={handleDeleteSession}>
-            <Ionicons name="stop" size={16} color="#FFFFFF" />
-            <Text style={styles.bottomButtonText}>Deletar</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
       <TouchableOpacity style={styles.floatingRideButton} onPress={openCreateRideModal}>
@@ -1005,33 +1078,6 @@ export default function ActiveSessionScreen() {
           </View>
         </View>
       </Modal>
-
-      {/*<Modal visible={finishRideModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Finalizar corrida</Text>
-
-              <TouchableOpacity onPress={() => setFinishRideModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              value={rideEndKm}
-              onChangeText={(text) => setRideEndKm(formatKm(text))}
-              placeholder="KM final"
-              placeholderTextColor="#71717A"
-              keyboardType="numeric"
-              style={styles.input}
-            />
-
-            <TouchableOpacity style={styles.modalSaveButton} onPress={handleFinishRide}>
-              <Text style={styles.modalSaveButtonText}>Finalizar corrida</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>*/}
 
       <Modal visible={startWaitingRideModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -1113,59 +1159,184 @@ export default function ActiveSessionScreen() {
       </Modal>
 
       <Modal visible={gainModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingEarningId ? 'Editar ganho' : 'Adicionar ganho'}
-              </Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {editingEarningId ? 'Editar ganho' : 'Adicionar ganho'}
+                </Text>
 
-              <TouchableOpacity onPress={() => setGainModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity onPress={() => setGainModalVisible(false)}>
+                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {lockedGainPlatform ? (
-                <View style={styles.lockedPlatformBox}>
-                  <Text style={styles.lockedPlatformLabel}>Plataforma</Text>
+              {editingEarningId ? (
+                <View style={styles.platformLockedCard}>
+                  {(() => {
+                    const platformItem = userPlatforms.find(
+                      (item) =>
+                        item.platform?.name === selectedPlatform,
+                    );
 
-                  <Text style={styles.lockedPlatformValue}>
-                    {selectedPlatform}
-                  </Text>
+                    const platform = platformItem?.platform;
+
+                    if (!platform) return null;
+
+                    return (
+                      <>
+                        {platform.logo_url ? (
+                          <Image
+                            source={{ uri: platform.logo_url }}
+                            style={styles.platformLockedLogo}
+                          />
+                        ) : (
+                          <View style={styles.platformLockedLogoFallback}>
+                            <Text style={styles.platformLockedLogoFallbackText}>
+                              {platform.name.slice(0, 1)}
+                            </Text>
+                          </View>
+                        )}
+
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.platformLockedName}>
+                            {platform.name}
+                          </Text>
+                        </View>
+                      </>
+                    );
+                  })()}
                 </View>
               ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {availablePlatforms.map((platform) => (
+                <View style={styles.platformsGrid}>
+                  {userPlatforms.length === 0 ? (
                     <TouchableOpacity
-                      key={platform}
-                      style={[
-                        styles.platformChip,
-                        selectedPlatform === platform && styles.platformChipActive,
-                      ]}
-                      onPress={() => setSelectedPlatform(platform)}
+                      style={styles.emptyPlatformsBox}
+                      onPress={openPlatformDrawerFromGainModal}
                     >
-                      <Text style={styles.platformChipText}>{platform}</Text>
+                      <Ionicons
+                        name="apps-outline"
+                        size={34}
+                        color="#A1A1AA"
+                      />
+
+                      <Text style={styles.emptyPlatformsTitle}>
+                        Nenhuma plataforma definida
+                      </Text>
+
+                      <Text style={styles.emptyPlatformsText}>
+                        Clique em gerenciar plataformas e defina ao menos uma plataforma para continuar.
+                      </Text>
+
+                      <View style={styles.emptyPlatformsButton}>
+                        <Text style={styles.emptyPlatformsButtonText}>
+                          Gerenciar plataformas
+                        </Text>
+                      </View>
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                  ) : (
+                    <View style={styles.platformsGrid}>
+                      {userPlatforms.map((item) => {
+                        const platform = item.platform;
+
+                        if (!platform) return null;
+
+                        const selected =
+                          selectedPlatform === platform.name;
+
+                        const alreadyHasGain = earnings.some(
+                          (earning: any) =>
+                            earning.platform === platform.name,
+                        );
+
+                        return (
+                          <TouchableOpacity
+                            key={platform.id}
+                            disabled={alreadyHasGain}
+                            style={[
+                              styles.platformGridCard,
+                              selected &&
+                                styles.platformGridCardActive,
+                              alreadyHasGain && {
+                                opacity: 0.35,
+                              },
+                            ]}
+                            onPress={() => {
+                              if (alreadyHasGain) return;
+
+                              setSelectedPlatform(platform.name);
+                            }}
+                          >
+                            {platform.logo_url ? (
+                              <Image
+                                source={{
+                                  uri: platform.logo_url,
+                                }}
+                                style={styles.platformGridLogo}
+                              />
+                            ) : (
+                              <View
+                                style={
+                                  styles.platformGridLogoFallback
+                                }
+                              >
+                                <Text
+                                  style={
+                                    styles.platformGridLogoFallbackText
+                                  }
+                                >
+                                  {platform.name.slice(0, 1)}
+                                </Text>
+                              </View>
+                            )}
+
+                            <Text
+                              style={styles.platformGridName}
+                              numberOfLines={1}
+                            >
+                              {platform.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
               )}
-            </ScrollView>
 
-            <TextInput
-              value={gainValue}
-              onChangeText={setGainValue}
-              placeholder="Valor do ganho"
-              placeholderTextColor="#71717A"
-              keyboardType="numeric"
-              style={styles.input}
-            />
+              <Text style={{color: '#ffffff', marginLeft: 5, marginBottom: 5}}>Valor do ganho</Text>
+              <TextInput
+                value={gainValue}
+                onChangeText={setGainValue}
+                placeholder="Valor do ganho"
+                placeholderTextColor="#71717A"
+                keyboardType="numeric"
+                style={styles.input}
+              />
 
-            <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveGain}>
-              <Text style={styles.modalSaveButtonText}>Salvar ganho</Text>
-            </TouchableOpacity>
+              {!editingEarningId && (
+                <TouchableOpacity
+                  style={styles.addPlatformGridCard}
+                  onPress={openPlatformDrawerFromGainModal}
+                >
+                  <Ionicons name="add" size={24} color="#FFFFFF" />
+
+                  <Text style={styles.addPlatformGridText}>
+                    Gerenciar plataformas
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveGain}>
+                <Text style={styles.modalSaveButtonText}>Salvar ganho</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={kmModalVisible} transparent animationType="fade">
@@ -1390,6 +1561,68 @@ export default function ActiveSessionScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={platformDrawerVisible} transparent animationType="slide">
+        <View style={styles.drawerOverlay}>
+          <View style={styles.drawer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Minhas plataformas</Text>
+
+              <TouchableOpacity onPress={() => setPlatformDrawerVisible(false)}>
+                <Ionicons name="close" size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView>
+              {platformsList.map((platform) => {
+                const selected = selectedPlatformIds.includes(platform.id);
+
+                return (
+                  <TouchableOpacity
+                    key={platform.id}
+                    style={[
+                      styles.platformListItem,
+                      selected && styles.platformListItemSelected,
+                    ]}
+                    onPress={() => togglePlatformSelection(platform.id)}
+                  >
+                    {platform.logo_url ? (
+                      <Image source={{ uri: platform.logo_url }} style={styles.platformLogo} />
+                    ) : (
+                      <View style={styles.platformLogoFallback}>
+                        <Text style={styles.platformLogoFallbackText}>
+                          {platform.name.slice(0, 1)}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.platformListName}>{platform.name}</Text>
+                      <Text style={styles.platformListDescription}>{platform.description}</Text>
+                    </View>
+
+                    {selected && (
+                      <TouchableOpacity
+                        style={styles.removePlatformButton}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          togglePlatformSelection(platform.id);
+                        }}
+                      >
+                        <Ionicons name="close" size={18} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveUserPlatforms}>
+              <Text style={styles.modalSaveButtonText}>Concluir</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -1403,7 +1636,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 14,
     paddingTop: 48,
-    paddingBottom: 160,
+    paddingBottom: 50,
   },
 
   closeButton: {
@@ -1414,12 +1647,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'absolute',
+    right: 0
   },
 
   hero: {
     alignItems: 'center',
     marginTop: 8,
-    marginBottom: 28,
+    marginBottom: 35,
   },
 
   statusRow: {
@@ -1433,32 +1668,34 @@ const styles = StyleSheet.create({
     height: 11,
     borderRadius: 99,
     backgroundColor: '#22C55E',
+    marginRight: 5
   },
 
   statusTitle: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '600',
   },
 
   startedText: {
     color: '#A1A1AA',
     fontSize: 13,
     marginTop: 3,
+    marginLeft: 20
   },
 
   timer: {
     color: '#FFFFFF',
-    fontSize: 54,
-    fontWeight: '900',
+    fontSize: 65,
+    fontWeight: '600',
     marginTop: 28,
   },
 
   timerLabel: {
     color: '#A1A1AA',
-    marginTop: 8,
+    marginTop: 0,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   metricsGrid: {
@@ -1466,6 +1703,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
     marginBottom: 12,
+    justifyContent: 'space-around'
   },
 
   metricCard: {
@@ -1480,13 +1718,13 @@ const styles = StyleSheet.create({
   metricLabel: {
     color: '#A1A1AA',
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '600',
   },
 
   metricValue: {
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '900',
+    fontSize: 25,
+    fontWeight: '700',
     marginTop: 12,
   },
 
@@ -1588,7 +1826,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#DC2626',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 15,
+    marginTop: 15
   },
 
   finishButtonText: {
@@ -1600,6 +1839,7 @@ const styles = StyleSheet.create({
   bottomActions: {
     flexDirection: 'row',
     gap: 10,
+    marginTop: 15
   },
 
   bottomButton: {
@@ -1933,5 +2173,320 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '900',
+  },
+  addPlatformChip: {
+    height: 42,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginRight: 8,
+    marginBottom: 16,
+  },
+
+  platformListItem: {
+    minHeight: 76,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 10,
+  },
+
+  platformListItemSelected: {
+    borderColor: '#22C55E',
+    backgroundColor: '#052E16',
+  },
+
+  platformLogo: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+
+  platformLogoFallback: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  platformLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  platformListName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  platformListDescription: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+    textTransform: 'capitalize',
+  },
+
+  removePlatformButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  addPlatformButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  platformsContainer: {
+    marginBottom: 14,
+  },
+
+  platformSelectCard: {
+    minHeight: 70,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 10,
+  },
+
+  platformSelectCardActive: {
+    backgroundColor: '#052E16',
+    borderColor: '#22C55E',
+  },
+
+  platformSelectLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+
+  platformSelectLogoFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  platformSelectLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  platformSelectName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  platformSelectType: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+    textTransform: 'capitalize',
+  },
+
+  addPlatformCard: {
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  addPlatformCardText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  platformsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+
+  platformGridCard: {
+    width: 160,
+    flexDirection: 'row',
+    gap: 5,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    padding: 10,
+  },
+
+  platformGridCardActive: {
+    backgroundColor: '#052E16',
+    borderColor: '#22C55E',
+  },
+
+  platformGridLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+  },
+
+  platformGridLogoFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  platformGridLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  platformGridName: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+
+  addPlatformGridCard: {
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    marginVertical: 10,
+    flexDirection: 'row'
+  },
+
+  addPlatformGridText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  emptyPlatformsBox: {
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  emptyPlatformsTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 14,
+  },
+
+  emptyPlatformsText: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 20,
+  },
+
+  emptyPlatformsButton: {
+    marginTop: 18,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  emptyPlatformsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  platformLockedCard: {
+    minHeight: 74,
+    borderRadius: 16,
+    backgroundColor: '#052E16',
+    borderWidth: 1,
+    borderColor: '#22C55E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 16,
+  },
+
+  platformLockedLogo: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+
+  platformLockedLogoFallback: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  platformLockedLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  platformLockedName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  platformLockedDescription: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
   },
 });
