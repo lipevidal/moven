@@ -2242,7 +2242,7 @@ const styles = StyleSheet.create({
   floatingRideButton: {
     position: 'absolute',
     right: 18,
-    bottom: 160,
+    bottom: 20,
     width: 58,
     height: 58,
     borderRadius: 999,
@@ -2256,7 +2256,7 @@ const styles = StyleSheet.create({
   finishedDrawerButton: {
     position: 'absolute',
     right: 18,
-    bottom: 230,
+    bottom: 100,
     width: 50,
     height: 50,
     borderRadius: 999,
