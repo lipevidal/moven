@@ -1991,7 +1991,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 14,
-    paddingTop: 48,
+    paddingTop: 20,
     paddingBottom: 50,
   },
 
