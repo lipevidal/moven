@@ -155,6 +155,7 @@ export default function ActiveSessionScreen() {
   const [returnToGainModalAfterPlatforms, setReturnToGainModalAfterPlatforms] =
   useState(false);
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
+  const [finishPlatformValues, setFinishPlatformValues] = useState<Record<string, string>>({});
 
   function openPlatformDrawerFromGainModal() {
     setReturnToGainModalAfterPlatforms(true);
@@ -163,6 +164,27 @@ export default function ActiveSessionScreen() {
     setTimeout(() => {
       setPlatformDrawerVisible(true);
     }, 400);
+  }
+
+  function openFinishSessionModal() {
+    const values: Record<string, string> = {};
+
+    userPlatforms.forEach((item: any) => {
+      const platform = item.platform;
+
+      if (!platform) return;
+
+      const earning = earnings.find(
+        (earning: any) => earning.platform === platform.name,
+      );
+
+      values[platform.name] = earning
+        ? String(earning.amount).replace('.', ',')
+        : '';
+    });
+
+    setFinishPlatformValues(values);
+    setFinishModalVisible(true);
   }
 
 
@@ -175,6 +197,12 @@ export default function ActiveSessionScreen() {
 
     setSelectedPlatformIds(
       selectedPlatforms.map((item: any) => item.platform_id),
+    );
+  }
+
+  function getPlatformByName(platformName: string) {
+    return platformsList.find(
+      (platform) => platform.name === platformName,
     );
   }
 
@@ -205,6 +233,36 @@ export default function ActiveSessionScreen() {
         setReturnToGainModalAfterPlatforms(false);
       }, 400);
     }
+  }
+
+  function formatRideHour(date?: string | null) {
+    if (!date) return '--:--';
+
+    return new Date(date).toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function getFinishedRideDuration(ride: any) {
+    if (!ride.started_at || !ride.finished_at) return '00:00';
+
+    const start = new Date(ride.started_at).getTime();
+    const end = new Date(ride.finished_at).getTime();
+
+    const totalMinutes = Math.max(
+      Math.floor((end - start) / (1000 * 60)),
+      0,
+    );
+
+    const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    const minutes = String(totalMinutes % 60).padStart(2, '0');
+
+    return `${hours}:${minutes}`;
+  }
+
+  function getFinishedRideKm(ride: any) {
+    return Math.max(Number(ride.end_km ?? 0) - Number(ride.start_km ?? 0), 0);
   }
 
   
@@ -735,6 +793,47 @@ export default function ActiveSessionScreen() {
       return;
     }
 
+    const hasAnyGain = Object.values(finishPlatformValues).some(
+      (value) => parseMoney(value) > 0,
+    );
+
+    if (!hasAnyGain) {
+      Alert.alert(
+        'Nenhum ganho informado',
+        'Informe pelo menos um ganho em uma plataforma antes de concluir a jornada.',
+      );
+      return;
+    }
+
+    for (const item of userPlatforms) {
+      const platform = item.platform;
+
+      if (!platform) continue;
+
+      const amount = parseMoney(finishPlatformValues[platform.name] ?? '');
+
+      const existingEarning = earnings.find(
+        (earning: any) => earning.platform === platform.name,
+      );
+
+      if (existingEarning) {
+        if (amount > 0) {
+          await updateEarning({
+            earning_id: existingEarning.id,
+            amount,
+          });
+        } else {
+          await deleteEarning(existingEarning.id);
+        }
+      } else if (amount > 0) {
+        await createEarning({
+          session_id: session.id,
+          platform: platform.name,
+          amount,
+        });
+      }
+    }
+
     await finishWorkSession({
       session_id: session.id,
       end_km: parsedKm,
@@ -759,6 +858,10 @@ export default function ActiveSessionScreen() {
   }
 
   if (!session) return null;
+
+  const activeRidePlatform = activeRide
+    ? getPlatformByName(activeRide.platform)
+    : null;
 
     return (
     <>
@@ -819,6 +922,178 @@ export default function ActiveSessionScreen() {
           <Text style={styles.timerLabel}>Tempo de trabalho</Text>
         </View>
       
+        {activeRide && (
+          <View style={styles.rideCardActive}>
+            <View style={styles.rideActiveBadge}>
+              <Ionicons name="car-sport-outline" size={14} color="#8BFFBF" />
+              <Text style={styles.rideActiveBadgeText}>CORRIDA EM ANDAMENTO</Text>
+            </View>
+
+            <View style={styles.rideHeader}>
+              <View style={styles.ridePlatformRow}>
+                {activeRidePlatform?.logo_url ? (
+                  <Image
+                    source={{ uri: activeRidePlatform.logo_url }}
+                    style={styles.rideLogo}
+                  />
+                ) : (
+                  <View style={styles.rideLogoFallback}>
+                    <Text style={styles.rideLogoFallbackText}>
+                      {activeRide.platform.slice(0, 2)}
+                    </Text>
+                  </View>
+                )}
+
+                <View>
+                  <Text style={styles.ridePlatform}>{activeRide.platform}</Text>
+                  <Text style={styles.rideValue}>
+                    R$ {formatCurrency(Number(activeRide.amount))}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.rideCircleIcon}>
+                <Ionicons name="speedometer-outline" size={42} color="#22C55E" />
+              </View>
+            </View>
+
+            <View style={styles.rideStatsBox}>
+              <View style={styles.rideStatsRow}>
+                <View style={styles.rideStatItem}>
+                  <Text style={styles.rideStatLabel}>Tempo em andamento</Text>
+                  <Text style={styles.rideStatValue}>
+                    {formatTimer(getRideElapsedSeconds(activeRide))}
+                  </Text>
+                </View>
+
+                <View style={styles.rideStatDivider} />
+
+                <View style={styles.rideStatItem}>
+                  <Text style={styles.rideStatLabel}>Ganho/hora agora</Text>
+                  <Text style={styles.rideStatValue}>
+                    R$ {Number(getRideGainPerHour(activeRide) ?? 0).toFixed(2).replace('.', ',')}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.rideKmBox}>
+                <Text style={styles.rideStatLabel}>KM inicial</Text>
+                <Text style={styles.rideStatValue}>
+                  {Number(activeRide.start_km ?? 0).toLocaleString('pt-BR')} km
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.rideActions}>
+              <TouchableOpacity
+                style={styles.rideActionEdit}
+                onPress={() => openEditRideModal(activeRide)}
+              >
+                <Ionicons name="create-outline" size={18} color="#4DA3FF" />
+                <Text style={styles.rideActionTextBlue}>Editar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.rideActionDelete}
+                onPress={() => handleDeleteRide(activeRide)}
+              >
+                <Ionicons name="trash-outline" size={18} color="#FF5B5B" />
+                <Text style={styles.rideActionTextRed}>Excluir</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.rideActionFinish}
+                onPress={() => openFinishRideModal(activeRide)}
+              >
+                <Ionicons name="flag-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.rideActionTextGreen}>Finalizar corrida</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {waitingRides.length > 0 && (
+          <View>
+            {waitingRides.map((ride) => {
+              if (!ride) return null;
+
+              const ridePlatformData = ride.platform
+                ? getPlatformByName(ride.platform)
+                : null;
+
+              return (
+                <View key={ride.id} style={styles.rideWaitingItem}>
+                  <View style={styles.rideWaitingBadge}>
+                    <Ionicons name="time-outline" size={14} color="#60A5FA" />
+
+                    <Text style={styles.rideWaitingBadgeText}>
+                      AGUARDANDO INÍCIO
+                    </Text>
+                  </View>
+
+                  <View style={styles.rideHeader}>
+                    <View style={styles.ridePlatformRow}>
+                      {ridePlatformData?.logo_url ? (
+                        <Image
+                          source={{ uri: ridePlatformData.logo_url }}
+                          style={styles.rideLogo}
+                        />
+                      ) : (
+                        <View style={styles.rideLogoFallbackYellow}>
+                          <Text style={styles.rideLogoFallbackYellowText}>
+                            {ride.platform?.slice(0, 2) ?? '--'}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View>
+                        <Text style={styles.ridePlatform}>
+                          {ride.platform ?? 'Plataforma'}
+                        </Text>
+
+                        <Text style={styles.rideWaitingValue}>
+                          R$ {formatCurrency(Number(ride.amount ?? 0))}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.rideWaitingCircleIcon}>
+                      <Ionicons name="hourglass-outline" size={42} color="#3B82F6" />
+                    </View>
+                  </View>
+
+                  <View style={styles.rideWaitingActions}>
+                    <TouchableOpacity
+                      style={styles.rideActionEdit}
+                      onPress={() => openEditRideModal(ride)}
+                    >
+                      <Ionicons name="create-outline" size={18} color="#4DA3FF" />
+                      <Text style={styles.rideActionTextBlue}>Editar</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.rideActionDelete}
+                      onPress={() => handleDeleteRide(ride)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FF5B5B" />
+                      <Text style={styles.rideActionTextRed}>Excluir</Text>
+                    </TouchableOpacity>
+
+                    {!activeRide && oldestWaitingRide?.id === ride.id && (
+                      <TouchableOpacity
+                        style={styles.startRideButton}
+                        onPress={() => openStartWaitingRideModal(ride)}
+                      >
+                        <Ionicons name="play-outline" size={18} color="#FFFFFF" />
+                        <Text style={styles.startRideButtonText}>Iniciar</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         <View style={styles.metricsGrid}>
           <View style={styles.metricCard}>
@@ -833,103 +1108,14 @@ export default function ActiveSessionScreen() {
 
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>GANHO/HORA</Text>
-            <Text style={styles.metricValue}>R$ {formatCurrency(gainPerHour)}</Text>
+            <Text style={styles.metricValue}>R$ {Number(gainPerHour ?? 0).toFixed(2).replace('.', ',')}</Text>
           </View>
 
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>GANHO/KM</Text>
-            <Text style={styles.metricValue}>R$ {formatCurrency(gainPerKm)}</Text>
+            <Text style={styles.metricValue}>R$ {Number(gainPerKm ?? 0).toFixed(2).replace('.', ',')}</Text>
           </View>
         </View>
-
-        {activeRide && (
-          <View style={styles.rideCardActive}>
-            <Text style={styles.sectionTitle}>Corrida em andamento</Text>
-
-            <Text style={styles.ridePlatform}>{activeRide.platform}</Text>
-
-            <Text style={styles.rideValue}>
-              R$ {formatCurrency(Number(activeRide.amount))}
-            </Text>
-
-            <Text style={styles.rideInfo}>
-              Tempo: {formatTimer(getRideElapsedSeconds(activeRide))}
-            </Text>
-
-            <Text style={styles.rideInfo}>
-              Ganho/hora agora: R$ {formatCurrency(getRideGainPerHour(activeRide))}
-            </Text>
-
-            <Text style={styles.rideInfo}>
-              KM inicial: {Number(activeRide.start_km ?? 0).toLocaleString('pt-BR')} km
-            </Text>
-
-            <View style={styles.rideActions}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => openEditRideModal(activeRide)}
-              >
-                <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.iconButtonDanger}
-                onPress={() => handleDeleteRide(activeRide)}
-              >
-                <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.finishRideButton}
-                onPress={() => openFinishRideModal(activeRide)}
-              >
-                <Text style={styles.finishRideButtonText}>Finalizar corrida</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {waitingRides.length > 0 && (
-          <View style={styles.earningsCard}>
-            <Text style={styles.sectionTitle}>Aguardando início</Text>
-
-            {waitingRides.map((ride) => (
-              <View key={ride.id} style={styles.rideWaitingItem}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.earningPlatform}>{ride.platform}</Text>
-                  <Text style={styles.earningAmount}>
-                    R$ {formatCurrency(Number(ride.amount))}
-                  </Text>
-                </View>
-
-                <View style={styles.earningActions}>
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => openEditRideModal(ride)}
-                  >
-                    <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.iconButtonDanger}
-                    onPress={() => handleDeleteRide(ride)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-
-                {!activeRide && oldestWaitingRide?.id === ride.id && (
-                  <TouchableOpacity
-                    style={styles.startRideButton}
-                    onPress={() => openStartWaitingRideModal(ride)}
-                  >
-                    <Text style={styles.startRideButtonText}>Iniciar</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
 
         <View style={styles.bottomActions}>
           <TouchableOpacity style={styles.bottomButton} onPress={handleTogglePause}>
@@ -952,7 +1138,7 @@ export default function ActiveSessionScreen() {
 
         <TouchableOpacity
           style={styles.finishButton}
-          onPress={() => setFinishModalVisible(true)}
+          onPress={openFinishSessionModal}
         >
           <Text style={styles.finishButtonText}>Finalizar jornada</Text>
         </TouchableOpacity>
@@ -1006,7 +1192,6 @@ export default function ActiveSessionScreen() {
             ))
           )}
         </View>
-
       </ScrollView>
 
       <TouchableOpacity style={styles.floatingRideButton} onPress={openCreateRideModal}>
@@ -1035,44 +1220,100 @@ export default function ActiveSessionScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {platforms.map((platform) => (
-                <TouchableOpacity
-                  key={platform}
-                  style={[
-                    styles.platformChip,
-                    ridePlatform === platform && styles.platformChipActive,
-                  ]}
-                  onPress={() => setRidePlatform(platform)}
-                >
-                  <Text style={styles.platformChipText}>{platform}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <View style={styles.platformsGrid}>
+              {userPlatforms.map((item) => {
+                const platform = item.platform;
+                if (!platform) return null;
+
+                const selected = ridePlatform === platform.name;
+
+                return (
+                  <TouchableOpacity
+                    key={platform.id}
+                    style={[
+                      styles.platformGridCard,
+                      selected && styles.platformGridCardActive,
+                    ]}
+                    onPress={() => setRidePlatform(platform.name)}
+                  >
+                    {platform.logo_url ? (
+                      <Image source={{ uri: platform.logo_url }} style={styles.platformGridLogo} />
+                    ) : (
+                      <View style={styles.platformGridLogoFallback}>
+                        <Text style={styles.platformGridLogoFallbackText}>
+                          {platform.name.slice(0, 1)}
+                        </Text>
+                      </View>
+                    )}
+
+                    <Text style={styles.platformGridName} numberOfLines={1}>
+                      {platform.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.finishInputLabel}>
+              Valor da corrida/entrega
+            </Text>
 
             <TextInput
               value={rideAmount}
-              onChangeText={setRideAmount}
-              placeholder="Valor da corrida/entrega"
+              onChangeText={(text) => {
+                let sanitized = text.replace(/[^0-9,]/g, '');
+
+                const parts = sanitized.split(',');
+                if (parts.length > 2) {
+                  sanitized = parts[0] + ',' + parts[1];
+                }
+                if (parts[1]?.length > 2) {
+                  sanitized =
+                    parts[0] + ',' + parts[1].slice(0, 2);
+                }
+                setRideAmount(sanitized);
+              }}
+              placeholder="0,00"
               placeholderTextColor="#71717A"
               keyboardType="numeric"
               style={styles.input}
             />
 
             {(!activeRide || editingRide?.start_km) && (
-              <TextInput
-                value={rideStartKm}
-                onChangeText={(text) => setRideStartKm(formatKm(text))}
-                placeholder="KM inicial"
-                placeholderTextColor="#71717A"
-                keyboardType="numeric"
-                style={styles.input}
-              />
+              <>
+                <Text style={styles.finishInputLabel}>KM inicial</Text>
+
+                <TextInput
+                  value={rideStartKm}
+                  onChangeText={(text) => setRideStartKm(formatKm(text))}
+                  placeholder="KM inicial"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              </>
             )}
 
             <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveRide}>
               <Text style={styles.modalSaveButtonText}>
                 {editingRide ? 'Salvar alterações' : activeRide ? 'Registrar corrida/entrega' : 'Iniciar corrida/entrega'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.addPlatformGridCard}
+              onPress={() => {
+                setRideModalVisible(false);
+
+                setTimeout(() => {
+                  setPlatformDrawerVisible(true);
+                }, 400);
+              }}
+            >
+              <Ionicons name="add" size={24} color="#FFFFFF" />
+
+              <Text style={styles.addPlatformGridText}>
+                Gerenciar plataformas
               </Text>
             </TouchableOpacity>
           </View>
@@ -1118,41 +1359,94 @@ export default function ActiveSessionScreen() {
             </View>
 
             <ScrollView>
-              {finishedRides.map((ride) => (
-                <View key={ride.id} style={styles.finishedRideItem}>
-                  <Text style={styles.earningPlatform}>
-                    {new Date(ride.started_at).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}{' '}
-                    • {ride.platform}
-                  </Text>
+              {finishedRides.map((ride) => {
+                const platformData = getPlatformByName(ride.platform);
 
-                  <Text style={styles.earningAmount}>
-                    R$ {formatCurrency(Number(ride.amount))}
-                  </Text>
+                return (
+                  <View key={ride.id} style={styles.finishedRideCard}>
+                    <View style={styles.finishedRideTop}>
+                      {platformData?.logo_url ? (
+                        <Image
+                          source={{ uri: platformData.logo_url }}
+                          style={styles.finishedRideLogo}
+                        />
+                      ) : (
+                        <View style={styles.finishedRideLogoFallback}>
+                          <Text style={styles.finishedRideLogoFallbackText}>
+                            {ride.platform?.slice(0, 2)}
+                          </Text>
+                        </View>
+                      )}
 
-                  <Text style={styles.rideInfo}>
-                    Hora: R$ {formatCurrency(Number(ride.gain_per_hour ?? 0))} • Km: R${' '}
-                    {formatCurrency(Number(ride.gain_per_km ?? 0))}
-                  </Text>
-                  <View style={styles.earningActions}>
-                    <TouchableOpacity
-                      style={styles.iconButton}
-                      onPress={() => openEditFinishedRideModal(ride)}
-                    >
-                      <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-                    </TouchableOpacity>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.finishedRideTitle}>
+                          {formatRideHour(ride.started_at)} - {formatRideHour(ride.finished_at)} · {ride.platform}
+                        </Text>
 
-                    <TouchableOpacity
-                      style={styles.iconButtonDanger}
-                      onPress={() => handleDeleteFinishedRide(ride)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-                    </TouchableOpacity>
+                        <Text style={styles.finishedRideAmount}>
+                          R$ {formatCurrency(Number(ride.amount))}
+                        </Text>
+                      </View>
+
+                      <View style={styles.finishedBadge}>
+                        <Text style={styles.finishedBadgeText}>Concluída</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.finishedDivider} />
+
+                    <View style={styles.finishedStatsRow}>
+                      <Text style={styles.finishedStatText}>
+                        Tempo: {getFinishedRideDuration(ride)}
+                      </Text>
+
+                      <Text style={styles.finishedStatText}>
+                        {getFinishedRideKm(ride).toLocaleString('pt-BR')} km
+                      </Text>
+                    </View>
+
+                    <View style={styles.finishedStatsRow1}>
+                      <View style={styles.finishedStatsRow2}>
+                        <Text style={styles.finishedStatText1}>
+                          Ganho/Hora
+                        </Text>
+
+                        <Text style={styles.finishedStatText2}>
+                          R$ {formatCurrency(Number(ride.gain_per_hour ?? 0))}
+                        </Text>
+                      </View>
+
+                       <View style={styles.finishedStatsRow2}>
+                        <Text style={styles.finishedStatText1}>
+                          Ganho/Km
+                        </Text>
+
+                        <Text style={styles.finishedStatText2}>
+                          R$ {formatCurrency(Number(ride.gain_per_km ?? 0))}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.finishedActions}>
+                      <TouchableOpacity
+                        style={styles.finishedEditButton}
+                        onPress={() => openEditFinishedRideModal(ride)}
+                      >
+                        <Ionicons name="create-outline" size={18} color="#FFFFFF" />
+                        <Text style={styles.finishedEditText}>Editar</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.finishedDeleteButton}
+                        onPress={() => handleDeleteFinishedRide(ride)}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#FF5B5B" />
+                        <Text style={styles.finishedDeleteText}>Excluir</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
           </View>
         </View>
@@ -1367,76 +1661,138 @@ export default function ActiveSessionScreen() {
       </Modal>
 
       <Modal visible={finishModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContentLarge}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Finalizar jornada</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContentLarge}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Finalizar jornada</Text>
 
-              <TouchableOpacity onPress={() => setFinishModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity onPress={() => setFinishModalVisible(false)}>
+                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
 
-            <Text style={styles.modalSubtitle}>
-              Confira os ganhos e o KM final antes de encerrar.
-            </Text>
+              <Text style={styles.modalSubtitle}>
+                Confira o KM final e informe os ganhos das plataformas.
+              </Text>
 
-            <TextInput
-              value={kmValue}
-              onChangeText={(text) => setKmValue(formatKm(text))}
-              placeholder="KM final"
-              placeholderTextColor="#71717A"
-              keyboardType="numeric"
-              style={styles.input}
-            />
+              <ScrollView>
 
-            <TouchableOpacity
-              style={styles.addInsideFinishButton}
-              onPress={openCreateGainModal}
-            >
-              <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.finishInputLabel}>Km final</Text>
 
-              <Text style={styles.addInsideFinishText}>Adicionar ganho</Text>
-            </TouchableOpacity>
+                <TextInput
+                  value={kmValue}
+                  onChangeText={(text) => setKmValue(formatKm(text))}
+                  placeholder="KM final"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
 
-            <ScrollView style={{ maxHeight: 240 }}>
-              {earnings.map((earning: any) => (
-                <View key={earning.id} style={styles.earningItem}>
-                  <View>
-                    <Text style={styles.earningPlatform}>{earning.platform}</Text>
+                {userPlatforms.length === 0 ? (
+                  <TouchableOpacity
+                    style={styles.emptyPlatformsBox}
+                    onPress={() => {
+                      setFinishModalVisible(false);
 
-                    <Text style={styles.earningAmount}>
-                      R$ {formatCurrency(Number(earning.amount))}
+                      setTimeout(() => {
+                        setPlatformDrawerVisible(true);
+                      }, 400);
+                    }}
+                  >
+                    <Ionicons name="apps-outline" size={34} color="#A1A1AA" />
+
+                    <Text style={styles.emptyPlatformsTitle}>
+                      Nenhuma plataforma definida
                     </Text>
+
+                    <Text style={styles.emptyPlatformsText}>
+                      Clique em gerenciar plataformas e defina ao menos uma plataforma para continuar.
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View>
+                    {userPlatforms.map((item: any) => {
+                      const platform = item.platform;
+
+                      if (!platform) return null;
+
+                      return (
+                        <View key={platform.id} style={styles.finishPlatformItem}>
+                          <View style={styles.finishPlatformHeader}>
+                            {platform.logo_url ? (
+                              <Image
+                                source={{ uri: platform.logo_url }}
+                                style={styles.finishPlatformLogo}
+                              />
+                            ) : (
+                              <View style={styles.finishPlatformLogoFallback}>
+                                <Text style={styles.finishPlatformLogoFallbackText}>
+                                  {platform.name.slice(0, 1)}
+                                </Text>
+                              </View>
+                            )}
+
+                            <Text style={styles.finishPlatformName}>
+                              {platform.name}
+                            </Text>
+                          </View>
+
+                          <TextInput
+                            value={finishPlatformValues[platform.name] ?? ''}
+                            onChangeText={(text) =>
+                              setFinishPlatformValues((prev) => ({
+                                ...prev,
+                                [platform.name]: text,
+                              }))
+                            }
+                            placeholder="0,00"
+                            placeholderTextColor="#71717A"
+                            keyboardType="numeric"
+                            style={styles.finishPlatformInput}
+                          />
+                        </View>
+                      );
+                    })}
                   </View>
+                )}
 
-                  <View style={styles.earningActions}>
-                    <TouchableOpacity
-                      style={styles.iconButton}
-                      onPress={() => openEditGainModal(earning)}
-                    >
-                      <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-                    </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.managePlatformsButton}
+                  onPress={() => {
+                    setFinishModalVisible(false);
 
-                    <TouchableOpacity
-                      style={styles.iconButtonDanger}
-                      onPress={() => handleDeleteGain(earning.id)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
+                    setTimeout(() => {
+                      setPlatformDrawerVisible(true);
+                    }, 400);
+                  }}
+                >
+                  <Ionicons
+                    name="apps-outline"
+                    size={20}
+                    color="#FFFFFF"
+                  />
 
-            <TouchableOpacity
-              style={styles.modalFinishButton}
-              onPress={handleFinishSession}
-            >
-              <Text style={styles.modalFinishButtonText}>Concluir jornada</Text>
-            </TouchableOpacity>
+                  <Text style={styles.managePlatformsButtonText}>
+                    Gerenciar plataformas
+                  </Text>
+                </TouchableOpacity>
+
+              </ScrollView>
+
+              <TouchableOpacity
+                style={styles.modalFinishButton}
+                onPress={handleFinishSession}
+              >
+                <Text style={styles.modalFinishButtonText}>Concluir jornada</Text>
+              </TouchableOpacity>
+              
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={finishRideModalVisible} transparent animationType="fade">
@@ -1861,40 +2217,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  rideCardActive: {
-    backgroundColor: '#064E3B',
-    borderWidth: 1,
-    borderColor: '#22C55E',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
-  },
-
-  ridePlatform: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-
-  rideValue: {
-    color: '#22C55E',
-    fontSize: 24,
-    fontWeight: '900',
-    marginTop: 6,
-  },
-
   rideInfo: {
     color: '#A1A1AA',
     fontSize: 13,
     fontWeight: '700',
     marginTop: 6,
-  },
-
-  rideActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
   },
 
   finishRideButton: {
@@ -1907,28 +2234,6 @@ const styles = StyleSheet.create({
   },
 
   finishRideButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-
-  rideWaitingItem: {
-    backgroundColor: '#111827',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-  },
-
-  startRideButton: {
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#22C55E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-
-  startRideButtonText: {
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '900',
@@ -2408,7 +2713,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom:50,
   },
 
   emptyPlatformsTitle: {
@@ -2488,5 +2793,500 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
+  },
+  finishInputLabel: {
+    color: '#CCCCCC',
+    margin: 10,
+    marginBottom: 5,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+
+  finishPlatformItem: {
+    backgroundColor: '#18181B',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    padding: 12,
+    marginBottom: 10,
+  },
+
+  finishPlatformHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  finishPlatformLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    marginRight: 10,
+  },
+
+  finishPlatformLogoFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  finishPlatformLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  finishPlatformName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  finishPlatformInput: {
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    color: '#FFFFFF',
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  managePlatformsButton: {
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+
+  managePlatformsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  rideCardActive: {
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 18,
+    backgroundColor: '#031B12',
+    borderWidth: 1.5,
+    borderColor: '#00FF85',
+    overflow: 'hidden',
+  },
+
+  rideActiveBadge: {
+    alignSelf: 'flex-start',
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,255,133,0.12)',
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 18,
+  },
+
+  rideActiveBadgeText: {
+    color: '#8BFFBF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  rideHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  ridePlatformRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  rideLogo: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    marginRight: 14,
+  },
+
+  rideLogoFallback: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+
+  rideLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+
+  ridePlatform: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  rideValue: {
+    color: '#00FF85',
+    fontSize: 28,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  rideCircleIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#00FF85',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,255,133,0.08)',
+  },
+
+  rideStatsBox: {
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    padding: 16,
+    marginBottom: 16,
+  },
+
+  rideStatsRow: {
+    flexDirection: 'row',
+  },
+
+  rideStatItem: {
+    flex: 1,
+  },
+
+  rideStatDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginHorizontal: 14,
+  },
+
+  rideStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+
+  rideStatValue: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  rideKmBox: {
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+
+  rideActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  rideActionEdit: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: '#062B4F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  rideActionDelete: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: '#3B0B12',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  rideActionFinish: {
+    flex: 2,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  rideActionTextBlue: {
+    color: '#4DA3FF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  rideActionTextRed: {
+    color: '#FF5B5B',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  rideActionTextGreen: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  rideWaitingItem: {
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 16,
+    backgroundColor: '#03142F',
+    borderWidth: 1.5,
+    borderColor: '#2563EB',
+  },
+
+  rideWaitingBadge: {
+    alignSelf: 'flex-start',
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: 'rgba(37,99,235,0.12)',
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 18,
+  },
+
+  rideWaitingBadgeText: {
+    color: '#60A5FA',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  rideWaitingActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+
+  startRideButton: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  startRideButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  rideLogoFallbackYellow: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: '#FACC15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+
+  rideLogoFallbackYellowText: {
+    color: '#000000',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+
+  rideWaitingValue: {
+    color: '#3B82F6',
+    fontSize: 28,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  rideWaitingCircleIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(37,99,235,0.08)',
+  },
+  finishedRideCard: {
+    backgroundColor: '#0B1220',
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    marginBottom: 16,
+  },
+
+  finishedRideTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  finishedRideLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+  },
+
+  finishedRideLogoFallback: {
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: '#FACC15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  finishedRideLogoFallbackText: {
+    color: '#000000',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+
+  finishedRideTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  finishedRideAmount: {
+    color: '#4ADE80',
+    fontSize: 28,
+    fontWeight: '900',
+  },
+
+  finishedBadge: {
+    backgroundColor: '#064E3B',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+
+  finishedBadgeText: {
+    color: '#BBF7D0',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  finishedDivider: {
+    height: 1,
+    backgroundColor: '#1F2937',
+    marginVertical: 14,
+  },
+
+  finishedStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+
+  finishedStatsRow1: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+
+  finishedStatsRow2: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#1F2937',
+    gap: 5,
+    marginHorizontal: 10
+  },
+
+  finishedStatText: {
+    color: '#CBD5E1',
+    fontSize: 15,
+    fontWeight: '400',
+  },
+
+  finishedStatText1: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    fontWeight: '400',
+  },
+
+  finishedStatText2: {
+    color: '#CBD5E1',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  finishedActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 12,
+  },
+
+  finishedEditButton: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#1F2937',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  finishedEditText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+
+  finishedDeleteButton: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#3B0B12',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  finishedDeleteText: {
+    color: '#FF5B5B',
+    fontWeight: '900',
   },
 });
