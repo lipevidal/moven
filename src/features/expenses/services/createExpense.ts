@@ -1,52 +1,43 @@
 import { supabase } from '../../../database/supabase';
 
 type CreateExpenseParams = {
-  vehicle_id?: string;
-
+  vehicle_id: string;
   category: string;
-
-  description: string;
-
-  location: string;
-
   amount: number;
-
-  expense_date: Date;
+  expense_date: string;
+  location?: string;
+  description?: string;
+  maintenance_km?: number | null;
 };
 
 export async function createExpense({
   vehicle_id,
   category,
-  description,
-  location,
   amount,
   expense_date,
+  location,
+  description,
+  maintenance_km,
 }: CreateExpenseParams) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error('Usuário não autenticado');
+    throw new Error('Usuário não autenticado.');
   }
 
   const { data, error } = await supabase
     .from('expenses')
     .insert({
       user_id: user.id,
-
       vehicle_id,
-
       category,
-
-      description,
-
-      location,
-
       amount,
-
-      expense_date:
-        expense_date.toISOString(),
+      expense_date,
+      location,
+      description,
+      maintenance_km,
     })
     .select()
     .single();
