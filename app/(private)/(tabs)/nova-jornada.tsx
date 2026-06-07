@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { searchMunicipalities } from '../../../src/features/municipalities/services/searchMunicipalities';
+import { getLastMunicipality } from '../../../src/features/municipalities/services/getLastMunicipality';
 
 import {
   View,
@@ -117,6 +119,11 @@ export default function NewJourneyScreen() {
 
   const [startDate, setStartDate] = useState(new Date());
 
+  const [municipalityModalVisible, setMunicipalityModalVisible] = useState(false);
+  const [municipalitySearch, setMunicipalitySearch] = useState('');
+  const [municipalities, setMunicipalities] = useState<any[]>([]);
+  const [selectedMunicipality, setSelectedMunicipality] = useState<any>(null);
+
   const [dateInput, setDateInput] = useState(
     formatDate(new Date()),
   );
@@ -125,8 +132,39 @@ export default function NewJourneyScreen() {
     formatTime(new Date()),
   );
 
+  async function handleSearchMunicipalities(text: string) {
+    setMunicipalitySearch(text);
+
+    if (text.trim().length < 2) {
+      setMunicipalities([]);
+      return;
+    }
+
+    const response = await searchMunicipalities(text);
+
+    console.log('Cidades encontradas:', response);
+
+    setMunicipalities(response);
+  }
+
+  async function loadLastMunicipality() {
+    try {
+      const lastMunicipality =
+        await getLastMunicipality();
+
+      if (lastMunicipality) {
+        setSelectedMunicipality(
+          lastMunicipality,
+        );
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
   useEffect(() => {
     loadVehicles();
+    loadLastMunicipality();
   }, []);
 
   async function loadVehicles() {
@@ -210,6 +248,7 @@ export default function NewJourneyScreen() {
         vehicle_id: selectedVehicle.id,
         start_km: parseKm(kmInitial),
         started_at: startDate,
+        municipality_id: selectedMunicipality?.id ?? null,
       });
 
       router.replace({
@@ -330,6 +369,31 @@ export default function NewJourneyScreen() {
             km
           </Text>
         </View>
+
+        <Text style={styles.label}>Cidade base</Text>
+
+        <TouchableOpacity
+          style={styles.selectCard}
+          onPress={() => setMunicipalityModalVisible(true)}
+        >
+          <Ionicons name="location-outline" size={24} color="#22C55E" />
+
+          <View style={{ flex: 1 }}>
+            <Text style={styles.selectText}>
+              {selectedMunicipality
+                ? `${selectedMunicipality.name} - ${selectedMunicipality.uf}`
+                : 'Selecionar cidade'}
+            </Text>
+
+            {selectedMunicipality?.immediate_region && (
+              <Text style={styles.selectSubText}>
+                Região: {selectedMunicipality.immediate_region}
+              </Text>
+            )}
+          </View>
+
+          <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.startButton}
@@ -524,6 +588,72 @@ export default function NewJourneyScreen() {
                 Salvar horário
               </Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={municipalityModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMunicipalityModalVisible(false)}
+      >
+        <View style={styles.municipalityModalOverlay}>
+          <View style={styles.municipalityModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Escolher cidade</Text>
+
+              <TouchableOpacity onPress={() => setMunicipalityModalVisible(false)}>
+                <Ionicons name="close" size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              value={municipalitySearch}
+              onChangeText={handleSearchMunicipalities}
+              placeholder="Buscar cidade ou região"
+              placeholderTextColor="#71717A"
+              style={styles.municipalitySearchInput}
+            />
+
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {municipalitySearch.trim().length < 2 ? (
+                <Text style={styles.emptyText}>
+                  Digite pelo menos 2 letras para buscar uma cidade.
+                </Text>
+              ) : municipalities.length === 0 ? (
+                <Text style={styles.emptyText}>Nenhuma cidade encontrada.</Text>
+              ) : (
+                municipalities.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.municipalityItem}
+                    onPress={() => {
+                      setSelectedMunicipality(item);
+                      setMunicipalityModalVisible(false);
+                    }}
+                  >
+                    <View>
+                      <Text style={styles.municipalityName}>
+                        {item.name} - {item.uf}
+                      </Text>
+
+                      <Text style={styles.municipalityRegion}>
+                        Região: {item.immediate_region}
+                      </Text>
+                    </View>
+
+                    {selectedMunicipality?.id === item.id && (
+                      <Ionicons name="checkmark-circle" size={22} color="#22C55E" />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -795,5 +925,91 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '900',
+  },
+  selectSubText: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  municipalityItem: {
+    minHeight: 64,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  municipalityName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  municipalityRegion: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  selectCard: {
+    minHeight: 62,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  selectText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  municipalityModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
+  },
+
+  municipalityModalContent: {
+    height: '75%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+  },
+
+  municipalitySearchInput: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    color: '#FFFFFF',
+    paddingHorizontal: 16,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+
+  emptyText: {
+    color: '#71717A',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 24,
+    fontWeight: '600',
   },
 });

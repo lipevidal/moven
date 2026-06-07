@@ -4,6 +4,7 @@ type CreateWorkSessionParams = {
   vehicle_id: string;
   start_km: number;
   started_at?: Date;
+  municipality_id?: string | null;
 };
 
 function toLocalISOString(date: Date) {
@@ -18,6 +19,7 @@ export async function createWorkSession({
   vehicle_id,
   start_km,
   started_at,
+  municipality_id,
 }: CreateWorkSessionParams) {
   const {
     data: { user },
@@ -34,6 +36,7 @@ export async function createWorkSession({
       vehicle_id,
       start_km,
       status: 'active',
+      municipality_id,
       started_at: started_at
         ? toLocalISOString(started_at)
         : toLocalISOString(new Date()),
