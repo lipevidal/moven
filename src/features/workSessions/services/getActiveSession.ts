@@ -14,7 +14,8 @@ export async function getActiveSession() {
     .select(`
       *,
       vehicle:vehicles(*),
-      earnings(*)
+      earnings(*),
+      municipality:municipalities(*)
     `)
     .eq('user_id', user.id)
     .in('status', ['active', 'paused'])

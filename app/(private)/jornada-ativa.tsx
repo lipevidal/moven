@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-
+import { getOnlineDriversByMunicipality } from '../../src/features/municipalities/services/getOnlineDriversByMunicipality';
 import {
   View,
   Text,
@@ -156,6 +156,10 @@ export default function ActiveSessionScreen() {
   useState(false);
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
   const [finishPlatformValues, setFinishPlatformValues] = useState<Record<string, string>>({});
+
+  const [onlineDrivers, setOnlineDrivers] = useState<any[]>([]);
+  const [driversModalVisible, setDriversModalVisible] = useState(false);
+  const [municipalityModalVisible, setMunicipalityModalVisible] = useState(false);
 
   function openPlatformDrawerFromGainModal() {
     setReturnToGainModalAfterPlatforms(true);
@@ -848,6 +852,12 @@ export default function ActiveSessionScreen() {
     return calculateSecondsFromDate(ride.started_at);
   }
 
+  useEffect(() => {
+    if (session?.municipality_id) {
+      loadOnlineDrivers(session.municipality_id);
+    }
+  }, [session?.municipality_id]);
+
   function getRideGainPerHour(ride: any) {
     const seconds = getRideElapsedSeconds(ride);
     const hours = seconds / 3600;
@@ -863,6 +873,11 @@ export default function ActiveSessionScreen() {
     ? getPlatformByName(activeRide.platform)
     : null;
 
+
+  async function loadOnlineDrivers(municipalityId: string) {
+    const response = await getOnlineDriversByMunicipality(municipalityId);
+    setOnlineDrivers(response);
+  }
     return (
     <>
       <ScrollView
@@ -1979,6 +1994,95 @@ export default function ActiveSessionScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={driversModalVisible} transparent animationType="slide">
+        <View style={styles.cityModalOverlay}>
+          <View style={styles.cityModalContent}>
+            <View style={styles.cityModalHeader}>
+              <Text style={styles.cityModalTitle}>
+                Rodando agora
+              </Text>
+
+              <TouchableOpacity onPress={() => setDriversModalVisible(false)}>
+                <Ionicons name="close" size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView>
+              {onlineDrivers.map((item) => (
+                <View key={item.id} style={styles.driverOnlineItem}>
+                  {item.user?.avatar_url ? (
+                    <Image
+                      source={{ uri: item.user.avatar_url }}
+                      style={styles.driverAvatar}
+                    />
+                  ) : (
+                    <View style={styles.driverAvatarFallback}>
+                      <Ionicons
+                        name="person"
+                        size={22}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                  )}
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.driverName}>
+                      {item.user?.full_name ?? 'Motorista'}
+                    </Text>
+
+                    <Text style={styles.driverStatus}>
+                      {item.status === 'active' ? 'Rodando' : 'Em pausa'}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.driverStatusDot,
+                      {
+                        backgroundColor:
+                          item.status === 'active' ? '#22C55E' : '#F59E0B',
+                      },
+                    ]}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {session?.municipality && (
+        <View style={styles.cityBottomMenu}>
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            onPress={() => setDriversModalVisible(true)}
+          >
+            <Text style={styles.cityBottomTitle}>
+              {onlineDrivers.length} rodando agora
+            </Text>
+
+            <Text style={styles.cityBottomSubtitle}>
+              {session.municipality.name} - {session.municipality.uf}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cityChangeButton}
+            onPress={() => setMunicipalityModalVisible(true)}
+          >
+            <Ionicons
+              name="location-outline"
+              size={18}
+              color="#FFFFFF"
+            />
+
+            <Text style={styles.cityChangeText}>
+              Alterar
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 }
@@ -1992,7 +2096,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 14,
     paddingTop: 20,
-    paddingBottom: 50,
+    paddingBottom: 100,
   },
 
   closeButton: {
@@ -2242,7 +2346,7 @@ const styles = StyleSheet.create({
   floatingRideButton: {
     position: 'absolute',
     right: 18,
-    bottom: 20,
+    bottom: 100,
     width: 58,
     height: 58,
     borderRadius: 999,
@@ -3288,5 +3392,124 @@ const styles = StyleSheet.create({
   finishedDeleteText: {
     color: '#FF5B5B',
     fontWeight: '900',
+  },
+
+  cityBottomMenu: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 18,
+    minHeight: 76,
+    borderRadius: 24,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  cityBottomTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  cityBottomSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+
+  cityChangeButton: {
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  cityChangeText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  cityModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
+  },
+
+  cityModalContent: {
+    height: '70%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+  },
+
+  cityModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+
+  cityModalTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+
+  driverOnlineItem: {
+    minHeight: 68,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  driverAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+  },
+
+  driverAvatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driverName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  driverStatus: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  driverStatusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
   },
 });

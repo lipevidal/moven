@@ -810,6 +810,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
+    marginTop: 25
   },
 
   startButtonText: {
