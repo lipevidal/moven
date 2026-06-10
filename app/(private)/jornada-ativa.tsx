@@ -27,7 +27,10 @@ import { pauseWorkSession } from '../../src/features/workSessions/services/pause
 import { resumeWorkSession } from '../../src/features/workSessions/services/resumeWorkSession';
 import { deleteWorkSession } from '../../src/features/workSessions/services/deleteWorkSession';
 import { finishWorkSession } from '../../src/features/workSessions/services/finishWorkSession';
-
+import { getCityChatMessages } from '../../src/features/cityChat/services/getCityChatMessages';
+import { sendCityChatMessage } from '../../src/features/cityChat/services/sendCityChatMessage';
+import { getUnreadCityChatCount } from '../../src/features/cityChat/services/getUnreadCityChatCount';
+import { markCityChatAsRead } from '../../src/features/cityChat/services/markCityChatAsRead';
 import { getSessionRides } from '../../src/features/rides/services/getSessionRides';
 import { createRide } from '../../src/features/rides/services/createRide';
 import { updateRide } from '../../src/features/rides/services/updateRide';
@@ -115,10 +118,13 @@ function parseMoney(value: string) {
 export default function ActiveSessionScreen() {
   const [session, setSession] = useState<any>(null);
   const [rides, setRides] = useState<any[]>([]);
-
+  const [cityChatVisible, setCityChatVisible] = useState(false);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatMessage, setChatMessage] = useState('');
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [nowTick, setNowTick] = useState(Date.now());
-
+  const [currentUserId, setCurrentUserId] = useState('');
   const [gainModalVisible, setGainModalVisible] = useState(false);
   const [kmModalVisible, setKmModalVisible] = useState(false);
   const [finishModalVisible, setFinishModalVisible] = useState(false);
@@ -177,6 +183,37 @@ export default function ActiveSessionScreen() {
     const response = await searchMunicipalities(text);
 
     setMunicipalities(response);
+  }
+
+  async function loadCityChat() {
+    if (!session?.municipality_id) return;
+
+    const response = await getCityChatMessages(session.municipality_id);
+    const unread = await getUnreadCityChatCount(session.municipality_id);
+
+    setChatMessages(response);
+    setUnreadChatCount(unread);
+  }
+
+  async function openCityChat() {
+    if (!session?.municipality_id) return;
+
+    setCityChatVisible(true);
+
+    const response = await getCityChatMessages(session.municipality_id);
+    setChatMessages(response);
+
+    await markCityChatAsRead(session.municipality_id);
+    setUnreadChatCount(0);
+  }
+
+  async function handleSendCityMessage() {
+    if (!chatMessage.trim() || !session?.municipality_id) return;
+
+    await sendCityChatMessage(session.municipality_id, chatMessage);
+
+    setChatMessage('');
+    await loadCityChat();
   }
 
   async function handleChangeMunicipality(municipality: any) {
@@ -433,6 +470,44 @@ export default function ActiveSessionScreen() {
     session?.total_paused_seconds,
   ]);
 
+  useEffect(() => {
+    if (!session?.municipality_id) return;
+
+    loadCityChat();
+
+    const channel = supabase
+      .channel(`city-chat-${session.municipality_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'city_chat_messages',
+          filter: `municipality_id=eq.${session.municipality_id}`,
+        },
+        async () => {
+          await loadCityChat();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.municipality_id]);
+
+  useEffect(() => {
+    async function loadUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      setCurrentUserId(user?.id ?? '');
+    }
+
+    loadUser();
+  }, []);
+
   const earnings = session?.earnings ?? [];
 
   const activeRide = rides.find((ride) => ride.status === 'active');
@@ -484,7 +559,7 @@ export default function ActiveSessionScreen() {
     return sessionKm || vehicleKm || startKm || 0;
   }
 
-    function openCreateRideModal() {
+  function openCreateRideModal() {
     setEditingRide(null);
     setRidePlatform('');
     setRideAmount('');
@@ -2164,6 +2239,98 @@ export default function ActiveSessionScreen() {
         </View>
       </Modal>
 
+      <Modal visible={cityChatVisible} transparent animationType="slide">
+        <View style={styles.cityModalOverlay}>
+          <View style={styles.cityChatContent}>
+            <View style={styles.cityModalHeader}>
+              <View>
+                <Text style={styles.cityModalTitle}>Chat da cidade</Text>
+                <Text style={styles.cityBottomSubtitle}>
+                  {session?.municipality?.name} - {session?.municipality?.uf}
+                </Text>
+              </View>
+
+              <TouchableOpacity onPress={() => setCityChatVisible(false)}>
+                <Ionicons name="close" size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              {chatMessages.map((item) => {
+                const isMe = item.user_id === currentUserId;
+                return (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.chatMessageItem,
+                      {
+                        justifyContent: isMe ? 'flex-end' : 'flex-start',
+                      },
+                    ]}
+                  >
+                    {!isMe && (
+                      item.user?.avatar_url ? (
+                        <Image
+                          source={{ uri: item.user.avatar_url }}
+                          style={styles.chatAvatar}
+                        />
+                      ) : (
+                        <View style={styles.chatAvatarFallback}>
+                          <Ionicons name="person" size={18} color="#FFFFFF" />
+                        </View>
+                      )
+                    )}
+
+                    <View
+                      style={[
+                        styles.chatBubble,
+                        {
+                          backgroundColor: isMe ? '#22C55E' : '#18181B',
+                          marginLeft: isMe ? 10 : 0,
+                          marginRight: isMe ? 0 : 10,
+                        },
+                      ]}
+                    >
+                      {!isMe && (
+                        <Text style={styles.chatUserName}>
+                          {item.user?.full_name || item.user?.name || 'Motorista'}
+                        </Text>
+                      )}
+
+                      <Text style={styles.chatText}>{item.message}</Text>
+
+                      <Text style={styles.chatHour}>
+                        {new Date(item.created_at).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.chatInputRow}>
+              <TextInput
+                value={chatMessage}
+                onChangeText={setChatMessage}
+                placeholder="Digite uma mensagem..."
+                placeholderTextColor="#71717A"
+                style={styles.chatInput}
+              />
+
+              <TouchableOpacity
+                style={styles.chatSendButton}
+                onPress={handleSendCityMessage}
+              >
+                <Ionicons name="send" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {session?.municipality && (
         <View style={styles.cityBottomMenu}>
           <TouchableOpacity
@@ -2192,6 +2359,18 @@ export default function ActiveSessionScreen() {
             <Text style={styles.cityChangeText}>
               Alterar
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cityChatButton} onPress={openCityChat}>
+            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#FFFFFF" />
+
+            {unreadChatCount > 0 && (
+              <View style={styles.chatBadge}>
+                <Text style={styles.chatBadgeText}>
+                  {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -3662,5 +3841,126 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
+  },
+  cityChatButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+
+  chatBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+
+  chatBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  cityChatContent: {
+    height: '82%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 18,
+  },
+
+  chatMessageItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 12,
+    width: '100%',
+  },
+
+  chatAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+  },
+
+  chatAvatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  chatBubble: {
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: '75%',
+    minWidth: '40%',
+    alignSelf: 'flex-start',
+  },
+
+  chatUserName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  chatText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 5,
+  },
+
+  chatHour: {
+    color: '#D4D4D8',
+    fontSize: 11,
+    fontWeight: '700',
+    alignSelf: 'flex-end',
+    marginTop: 6,
+  },
+
+  chatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 12,
+  },
+
+  chatInput: {
+    flex: 1,
+    minHeight: 48,
+    maxHeight: 100,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    color: '#FFFFFF',
+    paddingHorizontal: 14,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  chatSendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
