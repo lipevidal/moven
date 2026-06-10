@@ -2240,95 +2240,101 @@ export default function ActiveSessionScreen() {
       </Modal>
 
       <Modal visible={cityChatVisible} transparent animationType="slide">
-        <View style={styles.cityModalOverlay}>
-          <View style={styles.cityChatContent}>
-            <View style={styles.cityModalHeader}>
-              <View>
-                <Text style={styles.cityModalTitle}>Chat da cidade</Text>
-                <Text style={styles.cityBottomSubtitle}>
-                  {session?.municipality?.name} - {session?.municipality?.uf}
-                </Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.cityModalOverlay}>
+            <View style={styles.cityChatContent}>
+              <View style={styles.cityModalHeader}>
+                <View>
+                  <Text style={styles.cityModalTitle}>Chat da cidade</Text>
+                  <Text style={styles.cityBottomSubtitle}>
+                    {session?.municipality?.name} - {session?.municipality?.uf}
+                  </Text>
+                </View>
+
+                <TouchableOpacity onPress={() => setCityChatVisible(false)}>
+                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity onPress={() => setCityChatVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-              {chatMessages.map((item) => {
-                const isMe = item.user_id === currentUserId;
-                return (
-                  <View
-                    key={item.id}
-                    style={[
-                      styles.chatMessageItem,
-                      {
-                        justifyContent: isMe ? 'flex-end' : 'flex-start',
-                      },
-                    ]}
-                  >
-                    {!isMe && (
-                      item.user?.avatar_url ? (
-                        <Image
-                          source={{ uri: item.user.avatar_url }}
-                          style={styles.chatAvatar}
-                        />
-                      ) : (
-                        <View style={styles.chatAvatarFallback}>
-                          <Ionicons name="person" size={18} color="#FFFFFF" />
-                        </View>
-                      )
-                    )}
-
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                {chatMessages.map((item) => {
+                  const isMe = item.user_id === currentUserId;
+                  return (
                     <View
+                      key={item.id}
                       style={[
-                        styles.chatBubble,
+                        styles.chatMessageItem,
                         {
-                          backgroundColor: isMe ? '#22C55E' : '#18181B',
-                          marginLeft: isMe ? 10 : 0,
-                          marginRight: isMe ? 0 : 10,
+                          justifyContent: isMe ? 'flex-end' : 'flex-start',
                         },
                       ]}
                     >
                       {!isMe && (
-                        <Text style={styles.chatUserName}>
-                          {item.user?.full_name || item.user?.name || 'Motorista'}
-                        </Text>
+                        item.user?.avatar_url ? (
+                          <Image
+                            source={{ uri: item.user.avatar_url }}
+                            style={styles.chatAvatar}
+                          />
+                        ) : (
+                          <View style={styles.chatAvatarFallback}>
+                            <Ionicons name="person" size={18} color="#FFFFFF" />
+                          </View>
+                        )
                       )}
 
-                      <Text style={styles.chatText}>{item.message}</Text>
+                      <View
+                        style={[
+                          styles.chatBubble,
+                          {
+                            backgroundColor: isMe ? '#22C55E' : '#18181B',
+                            marginLeft: isMe ? 10 : 0,
+                            marginRight: isMe ? 0 : 10,
+                          },
+                        ]}
+                      >
+                        {!isMe && (
+                          <Text style={styles.chatUserName}>
+                            {item.user?.full_name || item.user?.name || 'Motorista'}
+                          </Text>
+                        )}
 
-                      <Text style={styles.chatHour}>
-                        {new Date(item.created_at).toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </Text>
+                        <Text style={styles.chatText}>{item.message}</Text>
+
+                        <Text style={styles.chatHour}>
+                          {new Date(item.created_at).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                );
-              })}
-            </ScrollView>
+                  );
+                })}
+              </ScrollView>
 
-            <View style={styles.chatInputRow}>
-              <TextInput
-                value={chatMessage}
-                onChangeText={setChatMessage}
-                placeholder="Digite uma mensagem..."
-                placeholderTextColor="#71717A"
-                style={styles.chatInput}
-              />
+              <View style={styles.chatInputRow}>
+                <TextInput
+                  value={chatMessage}
+                  onChangeText={setChatMessage}
+                  placeholder="Digite uma mensagem..."
+                  placeholderTextColor="#71717A"
+                  style={styles.chatInput}
+                />
 
-              <TouchableOpacity
-                style={styles.chatSendButton}
-                onPress={handleSendCityMessage}
-              >
-                <Ionicons name="send" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.chatSendButton}
+                  onPress={handleSendCityMessage}
+                >
+                  <Ionicons name="send" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {session?.municipality && (
@@ -3939,6 +3945,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 0,
   },
 
   chatInput: {
