@@ -1,240 +1,158 @@
+import { useEffect, useState } from 'react';
+
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
   StyleSheet,
+  Image,
   Alert,
 } from 'react-native';
 
-import { useEffect, useState } from 'react';
-
 import { router } from 'expo-router';
-
 import { Ionicons } from '@expo/vector-icons';
 
-import { supabase } from '../../../src/database/supabase';
-
-import { colors } from '../../../src/constants/colors';
+import { getProfile } from '../../../src/features/profile/services/getProfile';
+import { signOut } from '../../../src/features/auth/services/signOut';
 
 export default function ProfileScreen() {
-  const [user, setUser] =
-    useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
-    loadUser();
+    loadProfile();
   }, []);
 
-  async function loadUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    setUser(user);
+  async function loadProfile() {
+    const response = await getProfile();
+    setProfile(response);
   }
 
-  async function handleLogout() {
+  function handleLogout() {
     Alert.alert(
-      'Sair',
-      'Deseja realmente sair da conta?',
+      'Sair da conta',
+      'Deseja realmente sair?',
       [
         {
           text: 'Cancelar',
           style: 'cancel',
         },
-
         {
           text: 'Sair',
-
           style: 'destructive',
-
           onPress: async () => {
-            await supabase.auth.signOut();
-
-            router.replace(
-              '/(auth)/login',
-            );
+            await signOut();
+            router.replace('/(auth)/login');
           },
         },
       ],
     );
   }
 
+  const menuItems = [
+    {
+      title: 'Minha conta',
+      icon: 'person-outline',
+      route: '/(private)/perfil/minha-conta',
+    },
+    {
+      title: 'Assinatura',
+      icon: 'diamond-outline',
+      route: '/(private)/perfil/assinatura',
+    },
+    {
+      title: 'Meus veículos',
+      icon: 'car-sport-outline',
+      route: '/(private)/(tabs)/veiculos',
+    },
+    {
+      title: 'Notificações',
+      icon: 'notifications-outline',
+      route: '/(private)/perfil/notificacoes',
+    },
+    {
+      title: 'Privacidade',
+      icon: 'shield-checkmark-outline',
+      route: '/(private)/perfil/privacidade',
+    },
+    {
+      title: 'Comunidade',
+      icon: 'people-outline',
+      route: '/(private)/perfil/comunidade',
+    },
+    {
+      title: 'Central de ajuda',
+      icon: 'help-circle-outline',
+      route: '/(private)/perfil/ajuda',
+    },
+    {
+      title: 'Sobre o Moven',
+      icon: 'information-circle-outline',
+      route: '/(private)/perfil/sobre',
+    },
+  ];
+
+  if (!profile) return null;
+
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={
-        styles.content
-      }
-      showsVerticalScrollIndicator={
-        false
-      }
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
     >
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Ionicons
-            name="person"
-            size={42}
-            color="#FFFFFF"
-          />
+      <View style={styles.profileHeader}>
+        {profile.avatar_url ? (
+          <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+        ) : (
+          <View style={styles.avatarFallback}>
+            <Ionicons name="person" size={30} color="#FFFFFF" />
+          </View>
+        )}
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.name}>{profile.full_name}</Text>
+          <Text style={styles.email}>{profile.email}</Text>
+
+          <View style={styles.planBadge}>
+            <Ionicons
+              name={profile.premium ? 'diamond' : 'ellipse-outline'}
+              size={12}
+              color={profile.premium ? '#FACC15' : '#A1A1AA'}
+            />
+
+            <Text
+              style={[
+                styles.planBadgeText,
+                profile.premium && { color: '#FACC15' },
+              ]}
+            >
+              {profile.premium ? 'Premium' : 'Free'}
+            </Text>
+          </View>
         </View>
-
-        <Text style={styles.name}>
-          {user?.email?.split(
-            '@',
-          )[0] ?? 'Usuário'}
-        </Text>
-
-        <Text style={styles.email}>
-          {user?.email}
-        </Text>
       </View>
 
-      <View style={styles.section}>
-        <Text
-          style={
-            styles.sectionTitle
-          }
-        >
-          Conta
-        </Text>
-
-        <TouchableOpacity
-          style={styles.option}
-        >
-          <Ionicons
-            name="person-outline"
-            size={22}
-            color="#22C55E"
-          />
-
-          <Text
-            style={
-              styles.optionText
-            }
+      <View style={styles.menuCard}>
+        {menuItems.map((item) => (
+          <TouchableOpacity
+            key={item.title}
+            style={styles.menuItem}
+            onPress={() => router.push(item.route as never)}
           >
-            Editar perfil
-          </Text>
-        </TouchableOpacity>
+            <View style={styles.menuLeft}>
+              <Ionicons name={item.icon as any} size={18} color="#A1A1AA" />
 
-        <TouchableOpacity
-          style={styles.option}
-        >
-          <Ionicons
-            name="car-outline"
-            size={22}
-            color="#22C55E"
-          />
+              <Text style={styles.menuText}>{item.title}</Text>
+            </View>
 
-          <Text
-            style={
-              styles.optionText
-            }
-          >
-            Veículos
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.option}
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={22}
-            color="#22C55E"
-          />
-
-          <Text
-            style={
-              styles.optionText
-            }
-          >
-            Notificações
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.option}
-        >
-          <Ionicons
-            name="shield-outline"
-            size={22}
-            color="#22C55E"
-          />
-
-          <Text
-            style={
-              styles.optionText
-            }
-          >
-            Privacidade
-          </Text>
-        </TouchableOpacity>
+            <Ionicons name="chevron-forward" size={18} color="#71717A" />
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <View style={styles.section}>
-        <Text
-          style={
-            styles.sectionTitle
-          }
-        >
-          Aplicativo
-        </Text>
-
-        <TouchableOpacity
-          style={styles.option}
-        >
-          <Ionicons
-            name="star-outline"
-            size={22}
-            color="#22C55E"
-          />
-
-          <Text
-            style={
-              styles.optionText
-            }
-          >
-            Avaliar aplicativo
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.option}
-        >
-          <Ionicons
-            name="help-circle-outline"
-            size={22}
-            color="#22C55E"
-          />
-
-          <Text
-            style={
-              styles.optionText
-            }
-          >
-            Suporte
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={handleLogout}
-      >
-        <Ionicons
-          name="log-out-outline"
-          size={22}
-          color="#FFFFFF"
-        />
-
-        <Text
-          style={
-            styles.logoutText
-          }
-        >
-          Sair da conta
-        </Text>
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+        <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -243,87 +161,119 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor:
-      colors.background,
+    backgroundColor: '#09090B',
   },
 
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 140,
+    paddingHorizontal: 18,
+    paddingTop: 54,
+    paddingBottom: 120,
   },
 
-  header: {
+  profileHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: 22,
   },
 
   avatar: {
-    width: 100,
-    height: 100,
+    width: 62,
+    height: 62,
     borderRadius: 999,
-    backgroundColor:
-      '#18181B',
+    marginRight: 14,
+  },
+
+  avatarFallback: {
+    width: 62,
+    height: 62,
+    borderRadius: 999,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 18,
+    marginRight: 14,
   },
 
   name: {
     color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
   },
 
   email: {
-    color: '#71717A',
-    marginTop: 6,
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 3,
   },
 
-  section: {
-    marginBottom: 26,
-  },
-
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 14,
-  },
-
-  option: {
-    height: 62,
-    borderRadius: 20,
-    backgroundColor:
-      '#18181B',
-    paddingHorizontal: 18,
+  planBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 7,
+    paddingHorizontal: 9,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    marginBottom: 12,
+    gap: 5,
   },
 
-  optionText: {
+  planBadgeText: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  menuCard: {
+    backgroundColor: '#111827',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    overflow: 'hidden',
+  },
+
+  menuItem: {
+    minHeight: 54,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1F2937',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  menuLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  menuText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
   },
 
   logoutButton: {
-    height: 58,
+    height: 56,
     borderRadius: 18,
-    backgroundColor:
-      '#EF4444',
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    marginTop: 18,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 10,
-    marginTop: 10,
   },
 
   logoutText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '900',
   },
 });

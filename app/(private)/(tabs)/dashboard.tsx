@@ -332,7 +332,10 @@ export default function DashboardScreen() {
   const profitPercent =
     data.revenue > 0 ? Math.round((Number(data.profit) / Number(data.revenue)) * 100) : 0;
 
-  const avatarUrl = user?.user_metadata?.avatar_url;
+  const avatarUrl =
+  user?.avatar_url ||
+  user?.user_metadata?.avatar_url ||
+  user?.user_metadata?.picture;
 
   function formatHours(value: number) {
     const totalMinutes = Math.round((value ?? 0) * 60);
@@ -396,7 +399,10 @@ export default function DashboardScreen() {
               onPress={() => router.push("/(private)/(tabs)/perfil" as never)}
             >
               {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.userAvatar} />
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={styles.userAvatar}
+                />
               ) : (
                 <View style={styles.userAvatarFallback}>
                   <Ionicons name="person" size={24} color="#FFFFFF" />
