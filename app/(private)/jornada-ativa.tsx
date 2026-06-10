@@ -16,7 +16,8 @@ import {
 
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
+import { searchMunicipalities } from '../../src/features/municipalities/services/searchMunicipalities';
+import { updateSessionMunicipality } from '../../src/features/municipalities/services/updateSessionMunicipality';
 import { getActiveSession } from '../../src/features/workSessions/services/getActiveSession';
 import { createEarning } from '../../src/features/workSessions/services/createEarning';
 import { updateEarning } from '../../src/features/workSessions/services/updateEarning';
@@ -39,6 +40,7 @@ import { deleteFinishedRide } from '../../src/features/rides/services/deleteFini
 import { getPlatforms } from '../../src/features/platforms/services/getPlatforms';
 import { getUserPlatforms } from '../../src/features/platforms/services/getUserPlatforms';
 import { toggleUserPlatform } from '../../src/features/platforms/services/toggleUserPlatform';
+import { supabase } from '../../src/database/supabase';
 
 
 const platforms = [
@@ -160,6 +162,36 @@ export default function ActiveSessionScreen() {
   const [onlineDrivers, setOnlineDrivers] = useState<any[]>([]);
   const [driversModalVisible, setDriversModalVisible] = useState(false);
   const [municipalityModalVisible, setMunicipalityModalVisible] = useState(false);
+
+  const [municipalitySearch, setMunicipalitySearch] = useState('');
+  const [municipalities, setMunicipalities] = useState<any[]>([]);
+
+  async function handleSearchMunicipalities(text: string) {
+    setMunicipalitySearch(text);
+
+    if (text.trim().length < 2) {
+      setMunicipalities([]);
+      return;
+    }
+
+    const response = await searchMunicipalities(text);
+
+    setMunicipalities(response);
+  }
+
+  async function handleChangeMunicipality(municipality: any) {
+    const updatedSession = await updateSessionMunicipality(
+      session.id,
+      municipality.id,
+    );
+
+    setSession(updatedSession);
+    setMunicipalityModalVisible(false);
+    setMunicipalitySearch('');
+    setMunicipalities([]);
+
+    await loadOnlineDrivers(municipality.id);
+  }
 
   function openPlatformDrawerFromGainModal() {
     setReturnToGainModalAfterPlatforms(true);
@@ -866,6 +898,31 @@ export default function ActiveSessionScreen() {
 
     return Number(ride.amount) / hours;
   }
+
+  useEffect(() => {
+    if (!session?.municipality_id) return;
+
+    loadOnlineDrivers(session.municipality_id);
+
+    const channel = supabase
+      .channel(`online-drivers-${session.municipality_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'work_sessions',
+        },
+        async () => {
+          await loadOnlineDrivers(session.municipality_id);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.municipality_id]);
 
   if (!session) return null;
 
@@ -2018,17 +2075,13 @@ export default function ActiveSessionScreen() {
                     />
                   ) : (
                     <View style={styles.driverAvatarFallback}>
-                      <Ionicons
-                        name="person"
-                        size={22}
-                        color="#FFFFFF"
-                      />
+                      <Ionicons name="person" size={22} color="#FFFFFF" />
                     </View>
                   )}
 
                   <View style={{ flex: 1 }}>
                     <Text style={styles.driverName}>
-                      {item.user?.full_name ?? 'Motorista'}
+                      {item.user?.full_name || item.user?.name || 'Motorista'}
                     </Text>
 
                     <Text style={styles.driverStatus}>
@@ -2047,6 +2100,65 @@ export default function ActiveSessionScreen() {
                   />
                 </View>
               ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={municipalityModalVisible} transparent animationType="slide">
+        <View style={styles.cityModalOverlay}>
+          <View style={styles.cityModalContent}>
+            <View style={styles.cityModalHeader}>
+              <Text style={styles.cityModalTitle}>
+                Alterar cidade
+              </Text>
+
+              <TouchableOpacity onPress={() => setMunicipalityModalVisible(false)}>
+                <Ionicons name="close" size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              value={municipalitySearch}
+              onChangeText={handleSearchMunicipalities}
+              placeholder="Buscar cidade"
+              placeholderTextColor="#71717A"
+              style={styles.citySearchInput}
+            />
+
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {municipalities.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.cityOptionItem}
+                  onPress={() => handleChangeMunicipality(item)}
+                >
+                  <View>
+                    <Text style={styles.cityOptionName}>
+                      {item.name} - {item.uf}
+                    </Text>
+
+                    <Text style={styles.cityOptionRegion}>
+                      Região: {item.immediate_region}
+                    </Text>
+                  </View>
+
+                  {session?.municipality_id === item.id && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={22}
+                      color="#22C55E"
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+
+              {municipalitySearch.trim().length >= 2 &&
+                municipalities.length === 0 && (
+                  <Text style={styles.emptyText}>
+                    Nenhuma cidade encontrada.
+                  </Text>
+                )}
             </ScrollView>
           </View>
         </View>
@@ -3511,5 +3623,44 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 999,
+  },
+  citySearchInput: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    color: '#FFFFFF',
+    paddingHorizontal: 16,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+
+  cityOptionItem: {
+    minHeight: 66,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  cityOptionName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  cityOptionRegion: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
   },
 });
