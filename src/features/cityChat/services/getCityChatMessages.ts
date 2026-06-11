@@ -5,7 +5,7 @@ export async function getCityChatMessages(municipalityId: string) {
 
   const { data: messages, error } = await supabase
     .from('city_chat_messages')
-    .select('id, municipality_id, user_id, message, created_at')
+    .select('id, municipality_id, user_id, message, reply_to_message_id, created_at')
     .eq('municipality_id', municipalityId)
     .gte('created_at', oneHourAgo)
     .order('created_at', { ascending: true });
@@ -18,11 +18,20 @@ export async function getCityChatMessages(municipalityId: string) {
 
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, name, full_name, avatar_url')
+    .select('id, name, full_name, avatar_url',)
     .in('id', userIds);
 
-  return (messages ?? []).map((message) => ({
-    ...message,
-    user: profiles?.find((profile) => profile.id === message.user_id) ?? null,
-  }));
+  return (messages ?? []).map((message) => {
+    const repliedMessage = messages?.find(
+      (item) => item.id === message.reply_to_message_id,
+    );
+
+    return {
+      ...message,
+      repliedMessage,
+      user: profiles?.find(
+        (profile) => profile.id === message.user_id,
+      ) ?? null,
+    };
+  });
 }

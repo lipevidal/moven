@@ -13,7 +13,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-
+import { getPrivateChatMessages } from '../../src/features/privateChat/services/getPrivateChatMessages';
+import { sendPrivateChatMessage } from '../../src/features/privateChat/services/sendPrivateChatMessage';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { searchMunicipalities } from '../../src/features/municipalities/services/searchMunicipalities';
@@ -128,7 +129,13 @@ export default function ActiveSessionScreen() {
   const [gainModalVisible, setGainModalVisible] = useState(false);
   const [kmModalVisible, setKmModalVisible] = useState(false);
   const [finishModalVisible, setFinishModalVisible] = useState(false);
+  const [privateChatVisible, setPrivateChatVisible] = useState(false);
+  const [privateChatUser, setPrivateChatUser] = useState<any>(null);
+  const [privateMessages, setPrivateMessages] = useState<any[]>([]);
+  const [privateMessageText, setPrivateMessageText] = useState('');
 
+  const [replyingCityMessage, setReplyingCityMessage] = useState<any>(null);
+  const [replyingPrivateMessage, setReplyingPrivateMessage] = useState<any>(null);
   const [rideModalVisible, setRideModalVisible] = useState(false);
   const [finishRideModalVisible, setFinishRideModalVisible] = useState(false);
   const [startWaitingRideModalVisible, setStartWaitingRideModalVisible] =
@@ -138,7 +145,7 @@ export default function ActiveSessionScreen() {
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [gainValue, setGainValue] = useState('');
   const [editingEarningId, setEditingEarningId] = useState<string | null>(null);
-
+  
   const [kmValue, setKmValue] = useState('');
 
   const [ridePlatform, setRidePlatform] = useState('');
@@ -185,6 +192,33 @@ export default function ActiveSessionScreen() {
     setMunicipalities(response);
   }
 
+  async function openPrivateChat(user: any) {
+    if (!user?.id) return;
+
+    setPrivateChatUser(user);
+    setPrivateChatVisible(true);
+
+    const response = await getPrivateChatMessages(user.id);
+
+    setPrivateMessages(response);
+  }
+
+  async function handleSendPrivateMessage() {
+    if (!privateMessageText.trim() || !privateChatUser?.id) return;
+
+    await sendPrivateChatMessage({
+      receiverId: privateChatUser.id,
+      message: privateMessageText,
+      replyToMessageId: replyingPrivateMessage?.id ?? null,
+    });
+
+    setPrivateMessageText('');
+    setReplyingPrivateMessage(null);
+
+    const response = await getPrivateChatMessages(privateChatUser.id);
+    setPrivateMessages(response);
+  }
+
   async function loadCityChat() {
     if (!session?.municipality_id) return;
 
@@ -210,7 +244,13 @@ export default function ActiveSessionScreen() {
   async function handleSendCityMessage() {
     if (!chatMessage.trim() || !session?.municipality_id) return;
 
-    await sendCityChatMessage(session.municipality_id, chatMessage);
+    await sendCityChatMessage({
+      municipalityId: session.municipality_id,
+      message: chatMessage,
+      replyToMessageId: replyingCityMessage?.id ?? null,
+    });
+
+  setReplyingCityMessage(null);
 
     setChatMessage('');
     await loadCityChat();
@@ -469,32 +509,6 @@ export default function ActiveSessionScreen() {
     session?.paused_at,
     session?.total_paused_seconds,
   ]);
-
-  useEffect(() => {
-    if (!session?.municipality_id) return;
-
-    loadCityChat();
-
-    const channel = supabase
-      .channel(`city-chat-${session.municipality_id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'city_chat_messages',
-          filter: `municipality_id=eq.${session.municipality_id}`,
-        },
-        async () => {
-          await loadCityChat();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [session?.municipality_id]);
 
   useEffect(() => {
     async function loadUser() {
@@ -998,6 +1012,60 @@ export default function ActiveSessionScreen() {
       supabase.removeChannel(channel);
     };
   }, [session?.municipality_id]);
+
+  useEffect(() => {
+    if (!session?.municipality_id) return;
+
+    const channel = supabase
+      .channel(`city-chat-${session.municipality_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'city_chat_messages',
+          filter: `municipality_id=eq.${session.municipality_id}`,
+        },
+        async () => {
+          await loadCityChat();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.municipality_id]);
+
+  useEffect(() => {
+    if (session?.municipality_id) {
+      loadCityChat();
+    }
+  }, [session?.municipality_id]);
+
+  useEffect(() => {
+    if (!privateChatVisible || !privateChatUser?.id) return;
+
+    const channel = supabase
+      .channel(`private-chat-${currentUserId}-${privateChatUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'private_chat_messages',
+        },
+        async () => {
+          const response = await getPrivateChatMessages(privateChatUser.id);
+          setPrivateMessages(response);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [privateChatVisible, privateChatUser?.id, currentUserId]);
 
   if (!session) return null;
 
@@ -2140,7 +2208,7 @@ export default function ActiveSessionScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled">
               {onlineDrivers.map((item) => (
                 <View key={item.id} style={styles.driverOnlineItem}>
                   {item.user?.avatar_url ? (
@@ -2163,6 +2231,26 @@ export default function ActiveSessionScreen() {
                       {item.status === 'active' ? 'Rodando' : 'Em pausa'}
                     </Text>
                   </View>
+
+                  {item.user?.id !== currentUserId && (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={styles.privateChatIconButton}
+                      onPress={() => {
+                        setDriversModalVisible(false);
+
+                        setTimeout(() => {
+                          openPrivateChat(item.user);
+                        }, 350);
+                      }}
+                    >
+                      <Ionicons
+                        name="chatbubble-ellipses-outline"
+                        size={20}
+                        color="#FFFFFF"
+                      />
+                    </TouchableOpacity>
+                  )}
 
                   <View
                     style={[
@@ -2286,7 +2374,34 @@ export default function ActiveSessionScreen() {
                         )
                       )}
 
-                      <View
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          Alert.alert(
+                            'Mensagem',
+                            undefined,
+                            [
+                              {
+                                text: 'Responder',
+                                onPress: () => setReplyingCityMessage(item),
+                              },
+
+                              ...(item.user?.id !== currentUserId
+                                ? [
+                                    {
+                                      text: 'Enviar mensagem no privado',
+                                      onPress: () => openPrivateChat(item.user),
+                                    },
+                                  ]
+                                : []),
+
+                              {
+                                text: 'Cancelar',
+                                style: 'cancel',
+                              },
+                            ],
+                          );
+                        }}
                         style={[
                           styles.chatBubble,
                           {
@@ -2302,6 +2417,14 @@ export default function ActiveSessionScreen() {
                           </Text>
                         )}
 
+                        {item.repliedMessage && (
+                          <View style={styles.replyPreview}>
+                            <Text style={styles.replyPreviewText} numberOfLines={1}>
+                              {item.repliedMessage.message}
+                            </Text>
+                          </View>
+                        )}
+
                         <Text style={styles.chatText}>{item.message}</Text>
 
                         <Text style={styles.chatHour}>
@@ -2310,11 +2433,26 @@ export default function ActiveSessionScreen() {
                             minute: '2-digit',
                           })}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     </View>
                   );
                 })}
               </ScrollView>
+
+              {replyingCityMessage && (
+                <View style={styles.replyingBox}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.replyingLabel}>Respondendo</Text>
+                    <Text style={styles.replyingText} numberOfLines={1}>
+                      {replyingCityMessage.message}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity onPress={() => setReplyingCityMessage(null)}>
+                    <Ionicons name="close" size={22} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <View style={styles.chatInputRow}>
                 <TextInput
@@ -2328,6 +2466,156 @@ export default function ActiveSessionScreen() {
                 <TouchableOpacity
                   style={styles.chatSendButton}
                   onPress={handleSendCityMessage}
+                >
+                  <Ionicons name="send" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={privateChatVisible} transparent animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.cityModalOverlay}>
+            <View style={styles.cityChatContent}>
+              <View style={styles.cityModalHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  {privateChatUser?.avatar_url ? (
+                    <Image
+                      source={{ uri: privateChatUser.avatar_url }}
+                      style={styles.chatAvatar}
+                    />
+                  ) : (
+                    <View style={styles.chatAvatarFallback}>
+                      <Ionicons name="person" size={18} color="#FFFFFF" />
+                    </View>
+                  )}
+
+                  <View>
+                    <Text style={styles.cityModalTitle}>
+                      {privateChatUser?.full_name ||
+                        privateChatUser?.name ||
+                        'Motorista'}
+                    </Text>
+
+                    <Text style={styles.cityBottomSubtitle}>
+                      Chat privado
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity onPress={() => setPrivateChatVisible(false)}>
+                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                {privateMessages.map((item) => {
+                  const isMe = item.sender_id === currentUserId;
+
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.chatMessageItem,
+                        {
+                          justifyContent: isMe ? 'flex-end' : 'flex-start',
+                        },
+                      ]}
+                    >
+                      {!isMe &&
+                        (item.sender?.avatar_url ? (
+                          <Image
+                            source={{ uri: item.sender.avatar_url }}
+                            style={styles.chatAvatar}
+                          />
+                        ) : (
+                          <View style={styles.chatAvatarFallback}>
+                            <Ionicons name="person" size={18} color="#FFFFFF" />
+                          </View>
+                        ))}
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onLongPress={() => {
+                          Alert.alert(
+                            'Mensagem',
+                            'O que deseja fazer?',
+                            [
+                              {
+                                text: 'Responder',
+                                onPress: () => setReplyingPrivateMessage(item),
+                              },
+                              {
+                                text: 'Cancelar',
+                                style: 'cancel',
+                              },
+                            ],
+                          );
+                        }}
+                        style={[
+                          styles.chatBubble,
+                          {
+                            backgroundColor: isMe ? '#22C55E' : '#18181B',
+                            marginLeft: isMe ? 10 : 0,
+                            marginRight: isMe ? 0 : 10,
+                          },
+                        ]}
+                      >
+                        {item.repliedMessage && (
+                          <View style={styles.replyPreview}>
+                            <Text style={styles.replyPreviewText} numberOfLines={1}>
+                              {item.repliedMessage.message}
+                            </Text>
+                          </View>
+                        )}
+
+                        <Text style={styles.chatText}>{item.message}</Text>
+
+                        <Text style={styles.chatHour}>
+                          {new Date(item.created_at).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {replyingPrivateMessage && (
+                <View style={styles.replyingBox}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.replyingLabel}>Respondendo</Text>
+                    <Text style={styles.replyingText} numberOfLines={1}>
+                      {replyingPrivateMessage.message}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity onPress={() => setReplyingPrivateMessage(null)}>
+                    <Ionicons name="close" size={22} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={styles.chatInputRow}>
+                <TextInput
+                  value={privateMessageText}
+                  onChangeText={setPrivateMessageText}
+                  placeholder="Digite uma mensagem..."
+                  placeholderTextColor="#71717A"
+                  style={styles.chatInput}
+                />
+
+                <TouchableOpacity
+                  style={styles.chatSendButton}
+                  onPress={handleSendPrivateMessage}
                 >
                   <Ionicons name="send" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
@@ -3969,5 +4257,57 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  privateChatIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+
+  replyingBox: {
+    minHeight: 54,
+    borderRadius: 16,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  replyingLabel: {
+    color: '#22C55E',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  replyingText: {
+    color: '#E5E7EB',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  replyPreview: {
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+
+  replyPreviewText: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

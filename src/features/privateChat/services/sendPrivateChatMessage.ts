@@ -1,11 +1,11 @@
 import { supabase } from '../../../database/supabase';
 
-export async function sendCityChatMessage({
-  municipalityId,
+export async function sendPrivateChatMessage({
+  receiverId,
   message,
   replyToMessageId,
 }: {
-  municipalityId: string;
+  receiverId: string;
   message: string;
   replyToMessageId?: string | null;
 }) {
@@ -16,10 +16,10 @@ export async function sendCityChatMessage({
   if (!user) throw new Error('Usuário não encontrado.');
 
   const { error } = await supabase
-    .from('city_chat_messages')
+    .from('private_chat_messages')
     .insert({
-      municipality_id: municipalityId,
-      user_id: user.id,
+      sender_id: user.id,
+      receiver_id: receiverId,
       message: message.trim(),
       reply_to_message_id: replyToMessageId ?? null,
     });
