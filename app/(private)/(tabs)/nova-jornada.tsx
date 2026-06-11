@@ -242,13 +242,22 @@ export default function NewJourneyScreen() {
         return;
       }
 
+      if (!selectedMunicipality?.id) {
+        Alert.alert(
+          'Cidade obrigatória',
+          'Selecione uma cidade para iniciar a jornada.',
+        );
+
+        return;
+      }
+
       setLoading(true);
 
       const session = await createWorkSession({
         vehicle_id: selectedVehicle.id,
         start_km: parseKm(kmInitial),
         started_at: startDate,
-        municipality_id: selectedMunicipality?.id ?? null,
+        municipality_id: selectedMunicipality.id,
       });
 
       router.replace({
