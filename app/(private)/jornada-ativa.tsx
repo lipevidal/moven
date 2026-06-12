@@ -2209,30 +2209,43 @@ export default function ActiveSessionScreen() {
             </View>
 
             <ScrollView keyboardShouldPersistTaps="handled">
-              {onlineDrivers.map((item) => (
-                <View key={item.id} style={styles.driverOnlineItem}>
-                  {item.user?.avatar_url ? (
-                    <Image
-                      source={{ uri: item.user.avatar_url }}
-                      style={styles.driverAvatar}
-                    />
-                  ) : (
-                    <View style={styles.driverAvatarFallback}>
-                      <Ionicons name="person" size={22} color="#FFFFFF" />
+              {onlineDrivers
+                .filter((item) => item.user?.id !== currentUserId)
+                .map((item) => (
+                  <View key={item.id} style={styles.driverOnlineItem}>
+                    {item.user?.avatar_url ? (
+                      <Image
+                        source={{ uri: item.user.avatar_url }}
+                        style={styles.driverAvatar}
+                      />
+                    ) : (
+                      <View style={styles.driverAvatarFallback}>
+                        <Ionicons name="person" size={22} color="#FFFFFF" />
+                      </View>
+                    )}
+
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.driverNameRow}>
+                        <Text style={styles.driverName}>
+                          {item.user?.full_name || item.user?.name || 'Motorista'}
+                        </Text>
+
+                        <View
+                          style={[
+                            styles.driverStatusDot,
+                            {
+                              backgroundColor:
+                                item.status === 'active' ? '#22C55E' : '#F59E0B',
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <Text style={styles.driverStatus}>
+                        {item.status === 'active' ? 'Rodando' : 'Em pausa'}
+                      </Text>
                     </View>
-                  )}
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.driverName}>
-                      {item.user?.full_name || item.user?.name || 'Motorista'}
-                    </Text>
-
-                    <Text style={styles.driverStatus}>
-                      {item.status === 'active' ? 'Rodando' : 'Em pausa'}
-                    </Text>
-                  </View>
-
-                  {item.user?.id !== currentUserId && (
                     <TouchableOpacity
                       activeOpacity={0.8}
                       style={styles.privateChatIconButton}
@@ -2250,19 +2263,8 @@ export default function ActiveSessionScreen() {
                         color="#FFFFFF"
                       />
                     </TouchableOpacity>
-                  )}
-
-                  <View
-                    style={[
-                      styles.driverStatusDot,
-                      {
-                        backgroundColor:
-                          item.status === 'active' ? '#22C55E' : '#F59E0B',
-                      },
-                    ]}
-                  />
-                </View>
-              ))}
+                  </View>
+                ))}
             </ScrollView>
           </View>
         </View>
@@ -2629,10 +2631,14 @@ export default function ActiveSessionScreen() {
         <View style={styles.cityBottomMenu}>
           <TouchableOpacity
             style={{ flex: 1 }}
-            onPress={() => setDriversModalVisible(true)}
+            onPress={() => setDriversModalVisible(true)} 
           >
             <Text style={styles.cityBottomTitle}>
-              {onlineDrivers.length} rodando agora
+              {
+                onlineDrivers.filter(
+                  (item) => item.user?.id !== currentUserId,
+                ).length
+              } rodando agora
             </Text>
 
             <Text style={styles.cityBottomSubtitle}>
@@ -4309,5 +4315,10 @@ const styles = StyleSheet.create({
     color: '#E5E7EB',
     fontSize: 12,
     fontWeight: '800',
+  },
+  driverNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });
