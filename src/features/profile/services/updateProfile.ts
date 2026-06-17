@@ -14,6 +14,7 @@ type UpdateProfileParams = {
   allow_private_messages?: boolean;
   show_avatar?: boolean;
   share_statistics?: boolean;
+  bio?: string | null;
 };
 
 export async function updateProfile(params: UpdateProfileParams) {

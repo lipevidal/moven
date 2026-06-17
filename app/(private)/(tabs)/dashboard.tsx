@@ -378,23 +378,9 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>
-              Olá, {user?.user_metadata?.name?.split(' ')[0] ?? 'Motorista'} 👋
-            </Text>
-            <Text style={styles.title}>Dashboard</Text>
-          </View>
-
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.notificationButton}>
-              <Ionicons
-                name="notifications-outline"
-                size={24}
-                color="#FFFFFF"
-              />
-            </TouchableOpacity>
-
+          <View style={{flexDirection: 'row'}}>
             <TouchableOpacity
               onPress={() => router.push("/(private)/(tabs)/perfil" as never)}
             >
@@ -408,6 +394,47 @@ export default function DashboardScreen() {
                   <Ionicons name="person" size={24} color="#FFFFFF" />
                 </View>
               )}
+            </TouchableOpacity>
+
+            <View style={{marginLeft: 10}}>
+              <Text style={styles.greeting}>
+                Olá, {user?.user_metadata?.name?.split(' ')[0] ?? 'Motorista'} 👋
+              </Text>
+              <Text style={styles.title}>Dashboard</Text>
+            </View>
+          </View>
+
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.headerIconButton}>
+              <Ionicons
+                name="notifications-outline"
+                size={24}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => router.push('/(private)/timeline')}
+            >
+              <Ionicons
+                name="newspaper-outline"
+                size={22}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() =>
+                router.push('/(private)/conversas')
+              }
+            >
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={24}
+                color="#FFFFFF"
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -895,8 +922,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   greeting: { color: "#A1A1AA", fontSize: 14, fontWeight: "700" },
-  title: { color: "#FFFFFF", fontSize: 30, fontWeight: "900", marginTop: 4 },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  title: { color: "#FFFFFF", fontSize: 30, fontWeight: "900" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 5 },
   notificationButton: {
     width: 52,
     height: 52,
@@ -1422,5 +1449,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 10,
     textAlign: 'center',
+  },
+  headerIconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

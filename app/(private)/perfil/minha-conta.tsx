@@ -38,7 +38,7 @@ function formatPhone(value: string) {
 
 export default function MinhaContaScreen() {
   const [profile, setProfile] = useState<any>(null);
-
+  const [bio, setBio] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -53,7 +53,7 @@ export default function MinhaContaScreen() {
 
   async function loadProfile() {
     const response = await getProfile();
-
+    setBio(response?.bio ?? '');
     setProfile(response);
     setFullName(response?.full_name ?? '');
     setEmail(response?.email ?? '');
@@ -200,6 +200,7 @@ export default function MinhaContaScreen() {
         full_name: fullName,
         phone: phone.replace(/\D/g, ''),
         avatar_url: avatarUrl,
+        bio,
     });
 
     setPassword('');
@@ -276,6 +277,17 @@ export default function MinhaContaScreen() {
         placeholderTextColor="#71717A"
         keyboardType="phone-pad"
         style={styles.input}
+      />
+
+      <Text style={styles.label}>Descrição</Text>
+
+      <TextInput
+        value={bio}
+        onChangeText={setBio}
+        placeholder="Fale um pouco sobre você"
+        placeholderTextColor="#71717A"
+        multiline
+        style={styles.textArea}
       />
 
       <Text style={styles.sectionTitle}>Alterar senha</Text>
@@ -435,8 +447,23 @@ const styles = StyleSheet.create({
     },
 
     removePhotoText: {
-    color: '#EF4444',
-    fontSize: 13,
-    fontWeight: '900',
+      color: '#EF4444',
+      fontSize: 13,
+      fontWeight: '900',
+    },
+
+    textArea: {
+      minHeight: 96,
+      borderRadius: 16,
+      backgroundColor: '#18181B',
+      borderWidth: 1,
+      borderColor: '#27272A',
+      color: '#FFFFFF',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 15,
+      fontWeight: '700',
+      marginBottom: 16,
+      textAlignVertical: 'top',
     },
 });
