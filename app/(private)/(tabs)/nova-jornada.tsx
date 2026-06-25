@@ -21,6 +21,7 @@ import { colors } from '../../../src/constants/colors';
 
 import { getVehicles } from '../../../src/features/vehicles/services/getVehicles';
 import { createWorkSession } from '../../../src/features/workSessions/services/createWorkSession';
+import { supabase } from '../../../src/database/supabase';
 
 function vehicleImage(type: string) {
   switch (type) {
@@ -147,15 +148,59 @@ export default function NewJourneyScreen() {
     setMunicipalities(response);
   }
 
-  async function loadLastMunicipality() {
+  async function loadUserDefaultMunicipality() {
     try {
-      const lastMunicipality =
-        await getLastMunicipality();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user?.id) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('default_municipality_id, city')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          console.log('Erro ao buscar perfil:', profileError);
+        }
+
+        if (profile?.default_municipality_id) {
+          const { data: municipality, error: municipalityError } = await supabase
+            .from('municipalities')
+            .select('id, name, uf, state_name, immediate_region')
+            .eq('id', profile.default_municipality_id)
+            .maybeSingle();
+
+          if (municipalityError) {
+            console.log('Erro ao buscar cidade do usuário:', municipalityError);
+          }
+
+          if (municipality) {
+            setSelectedMunicipality(municipality);
+            return;
+          }
+        }
+
+        if (profile?.city) {
+          const response = await searchMunicipalities(profile.city);
+
+          const municipality = response.find(
+            (item: any) =>
+              item.name?.toLowerCase() === profile.city?.toLowerCase(),
+          ) ?? response[0];
+
+          if (municipality) {
+            setSelectedMunicipality(municipality);
+            return;
+          }
+        }
+      }
+
+      const lastMunicipality = await getLastMunicipality();
 
       if (lastMunicipality) {
-        setSelectedMunicipality(
-          lastMunicipality,
-        );
+        setSelectedMunicipality(lastMunicipality);
       }
     } catch (error) {
       console.log(error);
@@ -164,7 +209,7 @@ export default function NewJourneyScreen() {
 
   useEffect(() => {
     loadVehicles();
-    loadLastMunicipality();
+    loadUserDefaultMunicipality();
   }, []);
 
   async function loadVehicles() {

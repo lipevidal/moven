@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Moven",
-    "slug": "moven",
+    "name": "MovenApp",
+    "slug": "movenApp",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "scheme": "moven",
+    "scheme": "movenapp",
     "jsEngine": "jsc",
     "android": {
       "package": "com.lipevidal.moven"

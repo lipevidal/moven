@@ -1,725 +1,692 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
+
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
+import { ProfileLevelCard } from '../../../src/features/gamification/components/ProfileLevelCard';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Modal, Alert } from 'react-native';
-import { supabase } from '../../../src/database/supabase';
-import { getSharedResults } from '../../../src/features/sharedResults/services/getSharedResults';
-import { removeFriend } from '../../../src/features/friendships/services/removeFriend';
-import { blockUser } from '../../../src/features/friendships/services/blockUser';
-import { reportUser } from '../../../src/features/friendships/services/reportUser';
-import { getFriendshipStatus } from '../../../src/features/friendships/services/getFriendshipStatus';
-import { sendFriendRequest } from '../../../src/features/friendships/services/sendFriendRequest';
-import { respondFriendRequest } from '../../../src/features/friendships/services/respondFriendRequest';
-import { cancelFriendRequest } from '../../../src/features/friendships/services/cancelFriendRequest';
+import { getPublicProfile } from '../../../src/features/profile/services/getPublicProfile';
+import { ProfileAchievementRewardsCard } from '../../../src/features/achievements/components/ProfileAchievementRewardsCard';
 
-export default function FriendProfileScreen() {
-  const { userId } = useLocalSearchParams<{ userId: string }>();
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
-  const [feed, setFeed] = useState<any[]>([]);
-  const [feedType, setFeedType] = useState<'session' | 'day' | 'week' | 'month' | 'year'>('session');
-  const [friendshipStatus, setFriendshipStatus] = useState<any>('none');
-  const [friendshipId, setFriendshipId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadProfile();
-    loadRelationship();
-  }, [userId]);
+export default function PublicProfileScreen() {
+  const { userId } = useLocalSearchParams<{
+    userId: string;
+  }>();
 
-  useEffect(() => {
-    loadFeed();
-  }, [userId, feedType]);
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [data, setData] =
+    useState<any>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [userId]),
+  );
 
   async function loadProfile() {
     if (!userId) return;
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, name, full_name, avatar_url, bio')
-      .eq('id', userId)
-      .single();
+    try {
+      setLoading(true);
 
-    setProfile(data);
+      const response = await getPublicProfile(userId);
+
+      setData(response);
+    } catch (error) {
+      console.log(error);
+      setData(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }
 
-  async function handleRelationshipAction() {
-    if (!profile?.id) return;
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadProfile();
+  }
 
-    if (friendshipStatus === 'friends') {
-        router.push({
-            pathname: '/(private)/chat-privado',
-            params: {
-            userId: profile.id,
-        },
-    });
+  function getLevelProgress(): `${number}%` {
+    const level = Number(data?.level?.level ?? 1);
+    const xp = Number(data?.level?.xp ?? 0);
+    const requiredXp = level * 100;
 
-  return;
-}
+    if (!requiredXp) return '0%';
 
-    if (friendshipStatus === 'none') {
-        await sendFriendRequest(profile.id);
-        Alert.alert('Solicitação enviada', 'Agora é só aguardar a pessoa aceitar.');
-        await loadRelationship();
-        return;
-    }
+    const progress = Math.min((xp / requiredXp) * 100, 100);
 
-    if (friendshipStatus === 'request_sent') {
-        Alert.alert(
-            'Cancelar solicitação',
-            'Deseja cancelar esta solicitação de amizade?',
-            [
-            {
-                text: 'Não',
-                style: 'cancel',
-            },
-            {
-                text: 'Cancelar solicitação',
-                style: 'destructive',
-                onPress: async () => {
-                if (!friendshipId) return;
+    return `${progress}%`;
+  }
 
-                await cancelFriendRequest(friendshipId);
+  function getChallengeLabel(value?: string) {
+    if (value === 'day') return 'Diário';
+    if (value === 'week') return 'Semanal';
+    if (value === 'month') return 'Mensal';
 
-                await loadRelationship();
+    return 'Desafio';
+  }
 
-                Alert.alert(
-                    'Pronto',
-                    'Solicitação cancelada.',
-                );
-                },
-            },
-        ],
+  function getMedalIcon(medal?: string) {
+    if (medal === 'gold') return '🥇';
+    if (medal === 'silver') return '🥈';
+    if (medal === 'bronze') return '🥉';
+
+    return '🏁';
+  }
+
+  function formatCurrency(value: number) {
+    return Number(value ?? 0)
+      .toFixed(2)
+      .replace('.', ',');
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.loadingPage}>
+        <ActivityIndicator color="#22C55E" />
+      </View>
     );
-
-    return;
-    }
-
-    if (friendshipStatus === 'request_received') {
-        Alert.alert(
-        'Solicitação recebida',
-        'Deseja aceitar essa solicitação de amizade?',
-        [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-            text: 'Aceitar',
-            onPress: async () => {
-                if (!friendshipId) return;
-
-                await respondFriendRequest(friendshipId, 'accepted');
-                await loadRelationship();
-            },
-            },
-            {
-            text: 'Recusar',
-            style: 'destructive',
-            onPress: async () => {
-                if (!friendshipId) return;
-
-                await respondFriendRequest(friendshipId, 'rejected');
-                await loadRelationship();
-            },
-            },
-        ],
-        );
-    }
   }
 
-  async function loadFeed() {
-    if (!userId) return;
+  if (!data?.profile) {
+    return (
+      <View style={styles.loadingPage}>
+        <Ionicons
+          name="person-circle-outline"
+          size={52}
+          color="#71717A"
+        />
 
-    const response = await getSharedResults(feedType);
-    setFeed(response.filter((item: any) => item.user_id === userId));
+        <Text style={styles.notFoundTitle}>
+          Perfil não encontrado
+        </Text>
+
+        <TouchableOpacity
+          style={styles.backHomeButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backHomeButtonText}>
+            Voltar
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
-  if (!profile) return null;
-
-  const tabs = [
-    { label: 'Jornadas', value: 'session' },
-    { label: 'Dias', value: 'day' },
-    { label: 'Semanas', value: 'week' },
-    { label: 'Meses', value: 'month' },
-    { label: 'Anos', value: 'year' },
-  ] as const;
-
-function getRelationshipButtonLabel() {
-  if (friendshipStatus === 'friends') return 'Mensagem';
-  if (friendshipStatus === 'none') return 'Solicitar amizade';
-  if (friendshipStatus === 'request_sent') return 'Cancelar solicitação';
-  if (friendshipStatus === 'request_received') return 'Responder solicitação';
-  if (friendshipStatus === 'blocked') return 'Usuário bloqueado';
-
-  return 'Solicitar amizade';
-}
-
-async function loadRelationship() {
-  if (!userId) return;
-
-  const response = await getFriendshipStatus(userId);
-
-  setFriendshipStatus(response.status);
-  setFriendshipId(response.friendshipId);
-}
-
-function handleRemoveFriend() {
-  Alert.alert(
-    'Remover amizade',
-    'Deseja remover esta pessoa da sua lista de amigos?',
-    [
-      {
-        text: 'Cancelar',
-        style: 'cancel',
-      },
-      {
-        text: 'Remover',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removeFriend(profile.id);
-
-            setMenuVisible(false);
-
-            Alert.alert(
-              'Amizade removida',
-              'Este usuário foi removido da sua lista de amigos.'
-            );
-
-            router.back();
-          } catch (error: any) {
-            Alert.alert(
-              'Erro',
-              error.message ?? 'Não foi possível remover a amizade.'
-            );
-          }
-        },
-      },
-    ],
-  );
-}
-
-function handleBlockUser() {
-  Alert.alert(
-    'Bloquear usuário',
-    'Essa pessoa não poderá mais interagir com você. Deseja continuar?',
-    [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Bloquear',
-        style: 'destructive',
-        onPress: async () => {
-          await blockUser(profile.id);
-          setMenuVisible(false);
-          Alert.alert('Usuário bloqueado', 'Essa pessoa foi bloqueada.');
-          router.back();
-        },
-      },
-    ],
-  );
-}
-
-function handleReportUser() {
-  Alert.alert(
-    'Denunciar usuário',
-    'Deseja denunciar este perfil por comportamento inadequado?',
-    [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Denunciar',
-        style: 'destructive',
-        onPress: async () => {
-          await reportUser(profile.id, 'Comportamento inadequado');
-          setMenuVisible(false);
-          Alert.alert(
-            'Denúncia enviada',
-            'Obrigado por ajudar a manter a comunidade segura.',
-          );
-        },
-      },
-    ],
-  );
-}
-
+  const profile = data.profile;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor="#22C55E"
+        />
+      }
+    >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={26} color="#FFFFFF" />
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons
+            name="arrow-back"
+            size={24}
+            color="#FFFFFF"
+          />
         </TouchableOpacity>
 
-        <Text style={styles.title}>Perfil</Text>
-
-        {friendshipStatus === 'friends' && (
-            <TouchableOpacity
-                style={styles.headerSideButton}
-                onPress={() => setMenuVisible(true)}
-            >
-                <Ionicons
-                name="ellipsis-horizontal"
-                size={24}
-                color="#FFFFFF"
-                />
-            </TouchableOpacity>
-            )}
+        <Text style={styles.headerTitle}>
+          Perfil
+        </Text>
       </View>
 
-      <View style={styles.profileTop}>
+      <View style={styles.profileCard}>
         {profile.avatar_url ? (
-          <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+          <Image
+            source={{ uri: profile.avatar_url }}
+            style={styles.avatar}
+          />
         ) : (
           <View style={styles.avatarFallback}>
-            <Ionicons name="person" size={42} color="#FFFFFF" />
+            <Ionicons
+              name="person"
+              size={44}
+              color="#FFFFFF"
+            />
           </View>
         )}
 
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Amigos</Text>
-          </View>
+        <Text style={styles.name}>
+          {profile.full_name || profile.name || 'Motorista'}
+        </Text>
 
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{feed.length}</Text>
-            <Text style={styles.statLabel}>Posts</Text>
-          </View>
-        </View>
-      </View>
+        {profile.username ? (
+          <Text style={styles.username}>
+            @{profile.username}
+          </Text>
+        ) : null}
 
-      <Text style={styles.name}>
-        {profile.full_name || profile.name || 'Motorista'}
-      </Text>
+        {profile.bio ? (
+          <Text style={styles.bio}>
+            {profile.bio}
+          </Text>
+        ) : null}
 
-      <Text style={styles.bio}>
-        {profile.bio || 'Motorista/entregador'}
-      </Text>
+        <View style={styles.profileMetaRow}>
+          {profile.city || profile.region ? (
+            <View style={styles.metaBadge}>
+              <Ionicons
+                name="location-outline"
+                size={15}
+                color="#A1A1AA"
+              />
 
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-            style={[
-                styles.messageButton,
-                friendshipStatus === 'request_sent' && { backgroundColor: '#27272A' },
-                friendshipStatus === 'blocked' && { backgroundColor: '#3F1D1D' },
-            ]}
-            disabled={friendshipStatus === 'blocked'}
-            onPress={handleRelationshipAction}
-        >
-            <Ionicons
-                name={
-                friendshipStatus === 'friends'
-                    ? 'chatbubble-ellipses-outline'
-                    : friendshipStatus === 'request_received'
-                    ? 'person-add-outline'
-                    : friendshipStatus === 'request_sent'
-                        ? 'close-circle-outline'
-                        : 'person-add-outline'
-                }
-                size={18}
-                color="#FFFFFF"
-            />
-
-            <Text style={styles.messageButtonText}>
-                {getRelationshipButtonLabel()}
-            </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.feedTabs}>
-        {tabs.map((tab) => {
-          const active = feedType === tab.value;
-
-          return (
-            <TouchableOpacity
-              key={tab.value}
-              style={[styles.feedTab, active && styles.feedTabActive]}
-              onPress={() => setFeedType(tab.value)}
-            >
-              <Text style={[styles.feedTabText, active && styles.feedTabTextActive]}>
-                {tab.label}
+              <Text style={styles.metaBadgeText}>
+                {profile.city || profile.region}
               </Text>
-            </TouchableOpacity>
-          );
-        })}
+            </View>
+          ) : null}
+
+          {profile.vehicle_type ? (
+            <View style={styles.metaBadge}>
+              <Ionicons
+                name="car-outline"
+                size={15}
+                color="#A1A1AA"
+              />
+
+              <Text style={styles.metaBadgeText}>
+                {profile.vehicle_type}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
-      {friendshipStatus !== 'friends' && friendshipStatus !== 'self' ? (
-        <View style={styles.lockedProfileBox}>
-            <Ionicons name="lock-closed-outline" size={42} color="#71717A" />
+      <ProfileLevelCard userId={userId} />
+      <ProfileAchievementRewardsCard userId={userId} />
 
-            <Text style={styles.lockedProfileTitle}>
-            Perfil privado
+      <View style={styles.levelCard}>
+        <View style={styles.levelTop}>
+          <View>
+            <Text style={styles.levelLabel}>
+              Nível
             </Text>
 
-            <Text style={styles.lockedProfileText}>
-            Envie uma solicitação de amizade para ver este perfil.
+            <Text style={styles.levelValue}>
+              {data.level.level}
             </Text>
+          </View>
+
+          <View style={styles.xpBox}>
+            <Text style={styles.xpText}>
+              {data.level.total_xp} XP total
+            </Text>
+          </View>
         </View>
-        ) : feed.length === 0 ? (
-        <View style={styles.emptyFeed}>
-          <Ionicons name="bar-chart-outline" size={42} color="#71717A" />
 
-          <Text style={styles.emptyFeedTitle}>Nenhum resultado compartilhado</Text>
-          <Text style={styles.emptyFeedText}>
-            Esse motorista ainda não compartilhou resultados desse tipo.
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: getLevelProgress(),
+              },
+            ]}
+          />
+        </View>
+      </View>
+
+      <View style={styles.metricsRow}>
+        <Metric
+          label="Medalhas"
+          value={String(data.medalsCount)}
+          icon="medal-outline"
+        />
+
+        <Metric
+          label="Troféus"
+          value={String(data.trophiesCount)}
+          icon="trophy-outline"
+        />
+
+        <Metric
+          label="Desafios"
+          value={String(data.challenges.length)}
+          icon="flag-outline"
+        />
+      </View>
+
+      <Text style={styles.sectionTitle}>
+        Histórico competitivo
+      </Text>
+
+      {data.challenges.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <Ionicons
+            name="podium-outline"
+            size={42}
+            color="#71717A"
+          />
+
+          <Text style={styles.emptyTitle}>
+            Nenhum desafio concluído
+          </Text>
+
+          <Text style={styles.emptyText}>
+            Quando este usuário concluir desafios, os resultados aparecerão aqui.
           </Text>
         </View>
       ) : (
-        feed.map((item) => (
-          <View key={item.id} style={styles.feedCard}>
-            <Text style={styles.feedTitle}>{item.title}</Text>
-            <Text style={styles.feedDate}>{item.period_label}</Text>
+        data.challenges.map((challenge: any) => (
+          <View key={challenge.id} style={styles.challengeCard}>
+            <View style={styles.medalBox}>
+              <Text style={styles.medalText}>
+                {getMedalIcon(challenge.medal)}
+              </Text>
+            </View>
 
-            <View style={styles.metricsGrid}>
-              <Metric label="Faturamento" value={`R$ ${Number(item.revenue).toFixed(2).replace('.', ',')}`} />
-              <Metric label="Despesas" value={`R$ ${Number(item.expenses).toFixed(2).replace('.', ',')}`} />
-              <Metric label="Lucro" value={`R$ ${Number(item.profit).toFixed(2).replace('.', ',')}`} />
-              <Metric label="KM" value={`${Number(item.km_driven ?? 0)} km`} />
+            <View style={styles.challengeInfo}>
+              <Text style={styles.challengeTitle}>
+                Desafio {getChallengeLabel(challenge.challenge_type)}
+              </Text>
+
+              <Text style={styles.challengeSubtitle}>
+                {challenge.vehicle_type === 'moto' ? 'Moto' : 'Carro'} • {challenge.region ?? 'Região'}
+              </Text>
+            </View>
+
+            <View style={styles.challengeAmountBox}>
+              <Text style={styles.challengeAmount}>
+                R$ {formatCurrency(challenge.approved_amount)}
+              </Text>
+
+              <Text style={styles.challengePosition}>
+                {challenge.position ? `${challenge.position}º lugar` : 'Ranking'}
+              </Text>
             </View>
           </View>
         ))
       )}
-
-      <Modal
-        visible={menuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMenuVisible(false)}
-        >
-        <TouchableOpacity
-            style={styles.menuOverlay}
-            activeOpacity={1}
-            onPress={() => setMenuVisible(false)}
-        >
-            <View style={styles.menuContent}>
-                <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => {
-                    setMenuVisible(false);
-
-                    router.push({
-                        pathname: '/(private)/perfil/[userId]',
-                        params: { userId: profile.id },
-                    })
-                    }}
-                >
-                    <Ionicons name="chatbubble-ellipses-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.menuItemText}>Enviar mensagem</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.menuItem} onPress={handleRemoveFriend}>
-                    <Ionicons name="person-remove-outline" size={20} color="#F59E0B" />
-                    <Text style={styles.menuItemText}>Remover amizade</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.menuItem} onPress={handleBlockUser}>
-                    <Ionicons name="ban-outline" size={20} color="#EF4444" />
-                    <Text style={styles.menuDangerText}>Bloquear</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.menuItem} onPress={handleReportUser}>
-                    <Ionicons name="flag-outline" size={20} color="#EF4444" />
-                    <Text style={styles.menuDangerText}>Denunciar usuário</Text>
-                </TouchableOpacity>
-            </View>
-        </TouchableOpacity>
-        </Modal>
     </ScrollView>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}) {
   return (
     <View style={styles.metricCard}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
+      <Ionicons
+        name={icon}
+        size={22}
+        color="#22C55E"
+      />
+
+      <Text style={styles.metricValue}>
+        {value}
+      </Text>
+
+      <Text style={styles.metricLabel}>
+        {label}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#09090B' },
-  content: { padding: 18, paddingTop: 54, paddingBottom: 120 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 24 },
-  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '900' },
+  loadingPage: {
+    flex: 1,
+    backgroundColor: '#09090B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
 
-  profileTop: {
+  notFoundTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 14,
+  },
+
+  backHomeButton: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+  },
+
+  backHomeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  container: {
+    flex: 1,
+    backgroundColor: '#09090B',
+  },
+
+  content: {
+    padding: 18,
+    paddingTop: 54,
+    paddingBottom: 130,
+  },
+
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 14,
+    marginBottom: 22,
+  },
+
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+
+  profileCard: {
+    backgroundColor: '#111827',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    alignItems: 'center',
+    padding: 22,
     marginBottom: 14,
   },
 
   avatar: {
-    width: 92,
-    height: 92,
+    width: 98,
+    height: 98,
     borderRadius: 999,
-    marginRight: 18,
+    marginBottom: 14,
   },
 
   avatarFallback: {
-    width: 92,
-    height: 92,
+    width: 98,
+    height: 98,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#27272A',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#3F3F46',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 18,
-  },
-
-  statsRow: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-
-  statItem: { alignItems: 'center' },
-
-  statNumber: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-
-  statLabel: {
-    color: '#A1A1AA',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 4,
+    marginBottom: 14,
   },
 
   name: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 21,
     fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  username: {
+    color: '#22C55E',
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 4,
   },
 
   bio: {
     color: '#A1A1AA',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    marginTop: 6,
-    lineHeight: 20,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginTop: 10,
   },
 
-  actionsRow: {
+  profileMetaRow: {
     flexDirection: 'row',
-    marginTop: 18,
-    marginBottom: 22,
-  },
-
-  messageButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#22C55E',
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'center',
-    gap: 8,
+    marginTop: 14,
   },
 
-  messageButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-
-  feedTabs: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-
-  feedTab: {
-    paddingHorizontal: 12,
-    height: 36,
+  metaBadge: {
+    minHeight: 30,
     borderRadius: 999,
     backgroundColor: '#18181B',
     borderWidth: 1,
     borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+  },
+
+  metaBadgeText: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  levelCard: {
+    backgroundColor: '#052E16',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#166534',
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  levelTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  levelLabel: {
+    color: '#BBF7D0',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  levelValue: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  xpBox: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: '#064E3B',
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  feedTabActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
-  },
-
-  feedTabText: {
-    color: '#A1A1AA',
+  xpText: {
+    color: '#BBF7D0',
     fontSize: 12,
     fontWeight: '900',
   },
 
-  feedTabTextActive: { color: '#FFFFFF' },
+  progressTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#064E3B',
+    overflow: 'hidden',
+    marginTop: 14,
+  },
 
-  emptyFeed: {
-    minHeight: 220,
-    borderRadius: 22,
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 18,
+  },
+
+  metricCard: {
+    flex: 1,
+    minHeight: 90,
+    borderRadius: 20,
     backgroundColor: '#111827',
     borderWidth: 1,
     borderColor: '#1F2937',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 22,
+    padding: 10,
   },
 
-  emptyFeedTitle: {
+  metricValue: {
+    color: '#FFFFFF',
+    fontSize: 19,
+    fontWeight: '900',
+    marginTop: 7,
+  },
+
+  metricLabel: {
+    color: '#A1A1AA',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+
+  sectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 12,
+  },
+
+  emptyBox: {
+    minHeight: 220,
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+
+  emptyTitle: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 12,
   },
 
-  emptyFeedText: {
+  emptyText: {
     color: '#A1A1AA',
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: 8,
     lineHeight: 19,
+    marginTop: 8,
   },
 
-  feedCard: {
+  challengeCard: {
+    minHeight: 80,
     borderRadius: 22,
     backgroundColor: '#111827',
     borderWidth: 1,
     borderColor: '#1F2937',
-    padding: 16,
-    marginBottom: 14,
-  },
-
-  feedTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-
-  feedDate: {
-    color: '#A1A1AA',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 4,
+    padding: 12,
     marginBottom: 12,
-  },
-
-  metricsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    alignItems: 'center',
   },
 
-  metricCard: {
-    width: '48%',
-    minHeight: 70,
+  medalBox: {
+    width: 46,
+    height: 46,
     borderRadius: 16,
     backgroundColor: '#18181B',
     borderWidth: 1,
     borderColor: '#27272A',
-    padding: 12,
-    marginBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
 
-  metricLabel: {
+  medalText: {
+    fontSize: 22,
+  },
+
+  challengeInfo: {
+    flex: 1,
+  },
+
+  challengeTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  challengeSubtitle: {
     color: '#A1A1AA',
     fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+
+  challengeAmountBox: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
+  },
+
+  challengeAmount: {
+    color: '#22C55E',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  challengePosition: {
+    color: '#71717A',
+    fontSize: 10,
     fontWeight: '800',
+    marginTop: 4,
   },
-
-  metricValue: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
-    marginTop: 8,
-  },
-
-    headerSideButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    },
-
-    menuButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    },
-
-    menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'flex-end',
-    },
-
-    menuContent: {
-    backgroundColor: '#111827',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    borderColor: '#1F2937',
-    padding: 18,
-    paddingBottom: 34,
-    },
-
-    menuItem: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: '#27272A',
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 10,
-    },
-
-    menuItemText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
-    },
-
-    menuDangerText: {
-    color: '#EF4444',
-    fontSize: 14,
-    fontWeight: '900',
-    },
-    lockedProfileBox: {
-  minHeight: 240,
-  borderRadius: 22,
-  backgroundColor: '#111827',
-  borderWidth: 1,
-  borderColor: '#1F2937',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 24,
-},
-
-lockedProfileTitle: {
-  color: '#FFFFFF',
-  fontSize: 17,
-  fontWeight: '900',
-  marginTop: 14,
-},
-
-lockedProfileText: {
-  color: '#A1A1AA',
-  fontSize: 13,
-  fontWeight: '600',
-  textAlign: 'center',
-  marginTop: 8,
-  lineHeight: 20,
-},
 });

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 
 import {
+  View,
   Text,
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
 
 import { router, usePathname } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { getActiveSession } from '../features/workSessions/services/getActiveSession';
 
@@ -25,8 +27,13 @@ export function ActiveSessionFloatingTimer() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadSession() {
       const response = await getActiveSession();
+
+      if (!mounted) return;
+
       setSession(response);
     }
 
@@ -34,7 +41,10 @@ export function ActiveSessionFloatingTimer() {
 
     const interval = setInterval(loadSession, 5000);
 
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -80,52 +90,137 @@ export function ActiveSessionFloatingTimer() {
     return null;
   }
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.floatingButton,
-        session.status === 'paused' && {
-          backgroundColor: '#F59E0B',
-        },
-      ]}
-      activeOpacity={0.85}
-      onPress={() => router.push('/(private)/jornada-ativa')}
-    >
-      <Text style={styles.status}>
-        {session.status === 'paused' ? 'Pausada' : 'Ativa'}
-      </Text>
+  const paused = session.status === 'paused';
 
-      <Text style={styles.timer}>
-        {formatTimer(elapsedSeconds)}
-      </Text>
-    </TouchableOpacity>
+  return (
+    <View pointerEvents="box-none" style={styles.wrapper}>
+      <TouchableOpacity
+        style={[
+          styles.floatingButton,
+          paused ? styles.floatingButtonPaused : styles.floatingButtonActive,
+        ]}
+        activeOpacity={0.88}
+        onPress={() => router.push('/(private)/jornada-ativa')}
+      >
+        <View style={[styles.iconBox, paused && styles.iconBoxPaused]}>
+          <Ionicons
+            name={paused ? 'pause-circle-outline' : 'timer-outline'}
+            size={23}
+            color="#FFFFFF"
+          />
+        </View>
+
+        <View style={styles.infoBox}>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, paused && styles.statusDotPaused]} />
+
+            <Text style={styles.status} numberOfLines={1}>
+              {paused ? 'Jornada pausada' : 'Jornada ativa'}
+            </Text>
+          </View>
+
+          <Text style={styles.timer} numberOfLines={1}>
+            {formatTimer(elapsedSeconds)}
+          </Text>
+        </View>
+
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color="rgba(255,255,255,0.75)"
+        />
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+    elevation: 50,
+  },
+
   floatingButton: {
     position: 'absolute',
-    right: 18,
+    right: 0,
     bottom: 96,
-    backgroundColor: '#22C55E',
-    borderRadius: 999,
-    paddingHorizontal: 18,
+    minHeight: 68,
+    minWidth: 210,
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
+    paddingLeft: 12,
+    paddingRight: 10,
     paddingVertical: 10,
-    zIndex: 999,
-    elevation: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+  },
+
+  floatingButtonActive: {
+    backgroundColor: '#052E16',
+    borderColor: '#166534',
+    shadowColor: '#22C55E',
+  },
+
+  floatingButtonPaused: {
+    backgroundColor: '#2A1605',
+    borderColor: '#B45309',
+    shadowColor: '#F59E0B',
+  },
+
+  iconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  iconBoxPaused: {
+    backgroundColor: '#F59E0B',
+  },
+
+  infoBox: {
+    flex: 1,
+  },
+
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+
+  statusDotPaused: {
+    backgroundColor: '#F59E0B',
   },
 
   status: {
-    color: '#FFFFFF',
+    color: '#DCFCE7',
     fontSize: 11,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: '900',
   },
 
   timer: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: 0.4,
   },
 });

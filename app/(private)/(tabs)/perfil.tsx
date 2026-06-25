@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../../../src/database/supabase'
-import { getSharedResults } from '../../../src/features/sharedResults/services/getSharedResults';
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import {
   View,
   Text,
@@ -8,22 +7,82 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-} from 'react-native';
-import { toggleLikeSharedResult } from '../../../src/features/sharedResults/services/toggleLikeSharedResult';
-import { markSharedResultView } from '../../../src/features/sharedResults/services/markSharedResultView';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { getFriendshipStats } from '../../../src/features/friendships/services/getFriendshipStats';
-import { getProfile } from '../../../src/features/profile/services/getProfile';
-import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+} from "react-native";
+
+import { router, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+
+import { supabase } from "../../../src/database/supabase";
+import { getProfile } from "../../../src/features/profile/services/getProfile";
+import { PublicProfileNameLine } from "../../../src/features/profile/components/PublicProfileNameLine";
+
+type ProfileStats = {
+  totalKm: number;
+  totalHours: number;
+  finishedSessions: number;
+  workedDays: number;
+  averageKmPerDay: number;
+  averageHoursPerDay: number;
+};
+
+function formatNumber(value: number) {
+  return Number(value ?? 0).toLocaleString("pt-BR", {
+    maximumFractionDigits: 0,
+  });
+}
+
+function formatHours(value: number) {
+  const totalMinutes = Math.round(Number(value ?? 0) * 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function calculateSessionHours(session: any) {
+  if (!session?.started_at || !session?.finished_at) return 0;
+
+  const startedAt = new Date(session.started_at).getTime();
+  const finishedAt = new Date(session.finished_at).getTime();
+
+  if (Number.isNaN(startedAt) || Number.isNaN(finishedAt)) return 0;
+
+  const pausedSeconds = Number(session.total_paused_seconds ?? 0);
+  const totalSeconds = Math.max(
+    (finishedAt - startedAt) / 1000 - pausedSeconds,
+    0,
+  );
+
+  return totalSeconds / 3600;
+}
+
+function getSessionDayKey(session: any) {
+  const baseDate = session?.started_at || session?.finished_at;
+
+  if (!baseDate) return null;
+
+  const date = new Date(baseDate);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 export default function SocialProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
-  const [friendsCount, setFriendsCount] = useState(0);
-  const [requestsCount, setRequestsCount] = useState(0);
-  const [feedType, setFeedType] = useState<'session' | 'day' | 'week' | 'month' | 'year'>('session');
-  const [feed, setFeed] = useState<any[]>([]);
+  const [stats, setStats] = useState<ProfileStats>({
+    totalKm: 0,
+    totalHours: 0,
+    finishedSessions: 0,
+    workedDays: 0,
+    averageKmPerDay: 0,
+    averageHoursPerDay: 0,
+  });
+  const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -32,21 +91,20 @@ export default function SocialProfileScreen() {
   );
 
   useEffect(() => {
-    loadFeed(feedType);
-  }, [feedType]);
+    if (!profile?.id) return;
 
-  useEffect(() => {
     const channel = supabase
-      .channel('friendships-profile')
+      .channel(`profile-work-sessions-${profile.id}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'friendships',
+          event: "*",
+          schema: "public",
+          table: "work_sessions",
+          filter: `user_id=eq.${profile.id}`,
         },
-        () => {
-          loadProfile();
+        async () => {
+          await loadProfileStats(profile.id);
         },
       )
       .subscribe();
@@ -54,57 +112,100 @@ export default function SocialProfileScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [profile?.id]);
 
   async function loadProfile() {
-    const response = await getProfile();
+    try {
+      setLoading(true);
 
-    setProfile(response);
-    // Depois vamos ligar nos services reais
-    const stats = await getFriendshipStats();
-    setFriendsCount(stats.friendsCount);
-    setRequestsCount(stats.requestsCount);
+      const response = await getProfile();
+
+      setProfile(response);
+
+      if (response?.id) {
+        await loadProfileStats(response.id);
+      }
+    } catch (error) {
+      console.log("Erro ao carregar perfil:", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function loadFeed(type: any) {
-    const response = await getSharedResults(type);
-    setFeed(response);
+  async function loadProfileStats(userId: string) {
+    const { data, error } = await supabase
+      .from("work_sessions")
+      .select(
+        "id, start_km, end_km, started_at, finished_at, total_paused_seconds",
+      )
+      .eq("user_id", userId)
+      .eq("status", "finished");
+
+    if (error) {
+      console.log("Erro ao carregar estatísticas do perfil:", error);
+      return;
+    }
+
+    const sessions = data ?? [];
+
+    const totalKm = sessions.reduce((total: number, session: any) => {
+      const startKm = Number(session.start_km ?? 0);
+      const endKm = Number(session.end_km ?? 0);
+
+      return total + Math.max(endKm - startKm, 0);
+    }, 0);
+
+    const totalHours = sessions.reduce((total: number, session: any) => {
+      return total + calculateSessionHours(session);
+    }, 0);
+
+    const workedDaysSet = new Set<string>();
+
+    sessions.forEach((session: any) => {
+      const dayKey = getSessionDayKey(session);
+
+      if (dayKey) {
+        workedDaysSet.add(dayKey);
+      }
+    });
+
+    const workedDays = workedDaysSet.size;
+    const averageKmPerDay = workedDays > 0 ? totalKm / workedDays : 0;
+    const averageHoursPerDay = workedDays > 0 ? totalHours / workedDays : 0;
+
+    setStats({
+      totalKm,
+      totalHours,
+      finishedSessions: sessions.length,
+      workedDays,
+      averageKmPerDay,
+      averageHoursPerDay,
+    });
   }
 
-  if (!profile) return null;
-
-  const tabs = [
-    { label: 'Jornadas', value: 'session' },
-    { label: 'Dias', value: 'day' },
-    { label: 'Semanas', value: 'week' },
-    { label: 'Meses', value: 'month' },
-    { label: 'Anos', value: 'year' },
-  ] as const;
-
-  function Metric({ label, value }: { label: string; value: string }) {
+  const avatarUrl = useMemo(() => {
     return (
-      <View style={styles.feedMetricCard}>
-        <Text style={styles.feedMetricLabel}>{label}</Text>
-        <Text style={styles.feedMetricValue}>{value}</Text>
+      profile?.avatar_url ||
+      profile?.photo_url ||
+      profile?.picture ||
+      profile?.user_metadata?.avatar_url ||
+      profile?.user_metadata?.picture ||
+      null
+    );
+  }, [profile]);
+
+  if (loading && !profile) {
+    return (
+      <View style={styles.loadingContainer}>
+        <View style={styles.loadingIcon}>
+          <Ionicons name="person-circle-outline" size={38} color="#22C55E" />
+        </View>
+        <Text style={styles.loadingText}>Carregando perfil...</Text>
       </View>
     );
   }
 
-  async function handleLike(itemId: string) {
-    await toggleLikeSharedResult(itemId);
-    await loadFeed(feedType);
-  }
-
-  async function handleOpenComments(item: any) {
-    await markSharedResultView(item.id);
-
-    router.push({
-      pathname: '/(private)/perfil/comentarios',
-      params: {
-        sharedResultId: item.id,
-      },
-    });
-  }
+  if (!profile) return null;
 
   return (
     <ScrollView
@@ -113,534 +214,507 @@ export default function SocialProfileScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Perfil</Text>
+        <View>
+          <Text style={styles.headerEyebrow}>Minha conta</Text>
+          <Text style={styles.headerTitle}>Perfil</Text>
+        </View>
 
         <TouchableOpacity
+          activeOpacity={0.85}
           style={styles.headerIconButton}
-          onPress={() => router.push('/(private)/perfil/configuracoes')}
+          onPress={() =>
+            router.push("/(private)/perfil/configuracoes" as never)
+          }
         >
           <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.profileTop}>
-        {profile.avatar_url ? (
-          <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarFallback}>
-            <Ionicons name="person" size={42} color="#FFFFFF" />
-          </View>
-        )}
+      <View style={styles.profileHero}>
+        <View style={styles.profileTop}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarFallback}>
+              <Ionicons name="person" size={42} color="#FFFFFF" />
+            </View>
+          )}
 
-        <View style={styles.statsRow}>
-          <TouchableOpacity 
-            style={styles.statItem} 
-            onPress={() => router.push('/(private)/perfil/amigos')}
+          <View style={styles.profileInfo}>
+            <PublicProfileNameLine
+              userId={profile.id}
+              name={profile.full_name || profile.name || "Motorista"}
+            />
+
+            <View style={styles.cityRow}>
+              <Ionicons name="location-outline" size={16} color="#22C55E" />
+              <Text style={styles.cityText} numberOfLines={1}>
+                {profile.city || "Cidade não informada"}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.profileActions}>
+          <TouchableOpacity
+            activeOpacity={0.88}
+            style={styles.editButton}
+            onPress={() =>
+              router.push("/(private)/perfil/minha-conta" as never)
+            }
           >
-            <Text style={styles.statNumber}>{friendsCount}</Text>
-            <Text style={styles.statLabel}>Amigos</Text>
+            <Ionicons name="create-outline" size={18} color="#06130B" />
+            <Text style={styles.editButtonText}>Editar perfil</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.statItem}
-            onPress={() => router.push('/(private)/perfil/solicitacoes')}
+            activeOpacity={0.88}
+            style={styles.searchButton}
+            onPress={() => router.push("/(private)/buscar-motoristas" as never)}
           >
-            <Text style={styles.statNumber}>{requestsCount}</Text>
-            <Text style={styles.statLabel}>Solicitações</Text>
+            <Ionicons name="search-outline" size={20} color="#FFFFFF" />
           </TouchableOpacity>
+        </View>
+      </View>
 
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Posts</Text>
+      <View style={styles.statsGrid}>
+        <View style={styles.statCardLarge}>
+          <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+            <View style={styles.statIconGreen}>
+              <Ionicons name="speedometer-outline" size={24} color="#22C55E" />
+            </View>
+            <Text style={styles.statLabel}>KM rodados</Text>
           </View>
+          <Text style={styles.statValue}>{formatNumber(stats.totalKm)} km</Text>
+          <Text style={styles.statHint}>Total em jornadas finalizadas</Text>
+        </View>
+
+        <View style={styles.statCardLarge}>
+          <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+            <View style={styles.statIconBlue}>
+              <Ionicons name="time-outline" size={24} color="#60A5FA" />
+            </View>
+            <Text style={styles.statLabel}>Horas trabalhadas</Text>
+          </View>
+          <Text style={styles.statValue}>{formatHours(stats.totalHours)}h</Text>
+          <Text style={styles.statHint}>Descontando pausas registradas</Text>
         </View>
       </View>
 
-      <Text style={styles.name}>
-        {profile.full_name || profile.name || 'Motorista'}
-      </Text>
-
-      <Text style={styles.bio}>
-        {profile.bio || 'Adicione uma descrição ao seu perfil.'}
-      </Text>
-
-      <View style={styles.profileActions}>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => router.push('/(private)/perfil/minha-conta')}
-        >
-          <Text style={styles.editButtonText}>Editar perfil</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.addFriendButton}
-          onPress={() => router.push('/(private)/buscar-motoristas')}
-        >
-          <Ionicons name="people-outline" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.shareCard}>
-        <Text style={styles.shareTitle}>Compartilhar resultado</Text>
-
-        <View style={styles.shareGrid}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.value}
-              style={styles.shareButton}
-              onPress={() =>
-                router.push({
-                  pathname: '/(private)/perfil/compartilhar',
-                  params: { type: tab.value },
-                })
-              }
-            >
-              <Ionicons name="share-social-outline" size={18} color="#22C55E" />
-              <Text style={styles.shareButtonText}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.feedTabs}>
-        {tabs.map((tab) => {
-          const active = feedType === tab.value;
-
-          return (
-            <TouchableOpacity
-              key={tab.value}
-              style={[
-                styles.feedTab,
-                active && styles.feedTabActive,
-              ]}
-              onPress={() => setFeedType(tab.value)}
-            >
-              <Text
-                style={[
-                  styles.feedTabText,
-                  active && styles.feedTabTextActive,
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {feed.length === 0 ? (
-        <View style={styles.emptyFeed}>
-          <Ionicons name="bar-chart-outline" size={42} color="#71717A" />
-
-          <Text style={styles.emptyFeedTitle}>
-            Nenhum resultado compartilhado
+      <View style={styles.statsGrid}>
+        <View style={styles.statCardLarge}>
+          <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+            <View style={styles.statIconPurple}>
+              <Ionicons name="analytics-outline" size={24} color="#A78BFA" />
+            </View>
+            <Text style={styles.statLabel}>Média KM/dia</Text>
+          </View>
+          <Text style={styles.statValue}>
+            {formatNumber(stats.averageKmPerDay)} km
           </Text>
-
-          <Text style={styles.emptyFeedText}>
-            Compartilhe suas jornadas, dias, semanas, meses ou anos para aparecerem aqui.
+          <Text style={styles.statHint}>
+            Média baseada nos dias com jornada finalizada
           </Text>
         </View>
-      ) : (
-        feed.map((item) => (
-          <View key={item.id} style={styles.feedCard}>
-            <View style={styles.feedHeader}>
-              {item.user?.avatar_url ? (
-                <Image source={{ uri: item.user.avatar_url }} style={styles.feedAvatar} />
-              ) : (
-                <View style={styles.feedAvatarFallback}>
-                  <Ionicons name="person" size={20} color="#FFFFFF" />
-                </View>
-              )}
 
-              <View>
-                <Text style={styles.feedName}>
-                  {item.user?.full_name || item.user?.name || 'Motorista'}
-                </Text>
-                <Text style={styles.feedDate}>{item.period_label}</Text>
-              </View>
+        <View style={styles.statCardLarge}>
+          <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+            <View style={styles.statIconOrange}>
+              <Ionicons name="calendar-outline" size={24} color="#F59E0B" />
             </View>
-
-            <Text style={styles.feedTitle}>{item.title}</Text>
-
-            <View style={styles.metricsGrid}>
-              <Metric label="Faturamento" value={`R$ ${Number(item.revenue).toFixed(2).replace('.', ',')}`} />
-              <Metric label="Despesas" value={`R$ ${Number(item.expenses).toFixed(2).replace('.', ',')}`} />
-              <Metric label="Lucro" value={`R$ ${Number(item.profit).toFixed(2).replace('.', ',')}`} />
-              <Metric label="KM" value={`${Number(item.km_driven ?? 0)} km`} />
-            </View>
-
-            <View style={styles.feedActions}>
-              <TouchableOpacity
-                style={styles.feedActionButton}
-                onPress={() => handleLike(item.id)}
-              >
-                <Ionicons
-                  name={item.liked_by_me ? 'heart' : 'heart-outline'}
-                  size={21}
-                  color={item.liked_by_me ? '#EF4444' : '#FFFFFF'}
-                />
-
-                <Text style={styles.feedActionText}>
-                  {item.likes_count}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.feedActionButton}
-                onPress={() => handleOpenComments(item)}
-              >
-                <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
-
-                <Text style={styles.feedActionText}>
-                  {item.comments_count}
-                </Text>
-              </TouchableOpacity>
-
-              <View style={styles.feedActionButton}>
-                <Ionicons name="eye-outline" size={21} color="#FFFFFF" />
-
-                <Text style={styles.feedActionText}>
-                  {item.views_count}
-                </Text>
-              </View>
-            </View>
+            <Text style={styles.statLabel}>Média horas/dia</Text>
           </View>
-        ))
-      )}
+          <Text style={styles.statValue}>
+            {formatHours(stats.averageHoursPerDay)}h
+          </Text>
+          <Text style={styles.statHint}>
+            Calculada sobre {stats.workedDays} {stats.workedDays === 1 ? "dia trabalhado" : "dias trabalhados"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryIcon}>
+          <Ionicons name="briefcase-outline" size={24} color="#F59E0B" />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.summaryTitle}>Jornadas finalizadas</Text>
+          <Text style={styles.summaryText}>
+            {stats.finishedSessions}{" "}
+            {stats.finishedSessions === 1
+              ? "turno registrado"
+              : "turnos registrados"}{" "}
+            no seu histórico.
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Conta e preferências</Text>
+
+      <View style={styles.menuCard}>
+        <ProfileMenuItem
+          icon="person-outline"
+          title="Informações pessoais"
+          description="Nome, cidade, foto, e-mail e senha"
+          onPress={() => router.push("/(private)/perfil/minha-conta" as never)}
+        />
+
+        <ProfileMenuItem
+          icon="card-outline"
+          title="Assinaturas"
+          description="Plano atual, pagamentos e cobrança"
+          onPress={() =>
+            router.push(
+              "/(private)/perfil/configuracoes?aba=assinaturas" as never,
+            )
+          }
+        />
+
+        <ProfileMenuItem
+          icon="lock-closed-outline"
+          title="Privacidade"
+          description="Controle quem pode ver e falar com você"
+          onPress={() =>
+            router.push(
+              "/(private)/perfil/configuracoes?aba=privacidade" as never,
+            )
+          }
+        />
+
+        <ProfileMenuItem
+          icon="help-circle-outline"
+          title="Central de ajuda"
+          description="Suporte, erros, sugestões e documentos"
+          onPress={() =>
+            router.push("/(private)/perfil/configuracoes?aba=ajuda" as never)
+          }
+        />
+
+        <ProfileMenuItem
+          icon="information-circle-outline"
+          title="Sobre o MovenApp"
+          description="Versão, redes sociais e informações do aplicativo"
+          onPress={() =>
+            router.push("/(private)/perfil/configuracoes?aba=sobre" as never)
+          }
+          last
+        />
+      </View>
+
+      <TouchableOpacity
+        activeOpacity={0.88}
+        style={styles.findDriversCard}
+        onPress={() => router.push("/(private)/buscar-motoristas" as never)}
+      >
+        <View style={styles.findDriversIcon}>
+          <Ionicons name="people-outline" size={26} color="#FFFFFF" />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.findDriversTitle}>Buscar motoristas</Text>
+          <Text style={styles.findDriversText}>
+            Encontre outros motoristas e entregadores pelo nome, username ou
+            cidade.
+          </Text>
+        </View>
+
+        <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
+function ProfileMenuItem({
+  icon,
+  title,
+  description,
+  onPress,
+  last,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  description: string;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.86}
+      style={[styles.menuItem, last && styles.menuItemLast]}
+      onPress={onPress}
+    >
+      <View style={styles.menuIcon}>
+        <Ionicons name={icon} size={21} color="#22C55E" />
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <Text style={styles.menuTitle}>{title}</Text>
+        <Text style={styles.menuDescription}>{description}</Text>
+      </View>
+
+      <Ionicons name="chevron-forward" size={20} color="#71717A" />
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: "#09090B" },
+  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 140 },
+  loadingContainer: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: "#09090B",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  content: {
-    paddingHorizontal: 18,
-    paddingTop: 54,
-    paddingBottom: 130,
-  },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '900',
-  },
-
-  headerIconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#18181B',
+  loadingIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 26,
+    backgroundColor: "rgba(34,197,94,0.12)",
     borderWidth: 1,
-    borderColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "rgba(34,197,94,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  profileTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
+  loadingText: {
+    color: "#A1A1AA",
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 14,
   },
-
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+  headerEyebrow: {
+    color: "#22C55E",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 28,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  headerIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileHero: {
+    backgroundColor: "#111827",
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    padding: 18,
+    marginBottom: 16,
+  },
+  profileTop: { flexDirection: "row", alignItems: "center" },
   avatar: {
     width: 92,
     height: 92,
     borderRadius: 999,
-    marginRight: 18,
+    marginRight: 16,
+    borderWidth: 3,
+    borderColor: "#22C55E",
   },
-
   avatarFallback: {
     width: 92,
     height: 92,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: "#18181B",
     borderWidth: 1,
-    borderColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 18,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
   },
-
-  statsRow: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  statItem: {
-    alignItems: 'center',
-  },
-
-  statNumber: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-
-  statLabel: {
-    color: '#A1A1AA',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-
-  name: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-
-  bio: {
-    color: '#A1A1AA',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 6,
-    lineHeight: 20,
-  },
-
-  profileActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 18,
-    marginBottom: 22,
-  },
-
+  profileInfo: { flex: 1 },
+  cityRow: { flexDirection: "row", alignItems: "center", marginTop: 7, gap: 5 },
+  cityText: { color: "#A1A1AA", fontSize: 14, fontWeight: "700", flex: 1 },
+  profileActions: { flexDirection: "row", gap: 10, marginTop: 18 },
   editButton: {
     flex: 1,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  editButtonText: { color: "#06130B", fontSize: 14, fontWeight: "900" },
+  searchButton: {
+    width: 52,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statsGrid: { flexDirection: "row", gap: 12, marginBottom: 14 },
+  statCardLarge: {
+    flex: 1,
+    minHeight: 102,
+    backgroundColor: "#18181B",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#27272A",
+    padding: 10,
+  },
+  statIconGreen: {
+    width: 44,
     height: 44,
-    borderRadius: 14,
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: "rgba(34,197,94,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  editButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-
-  addFriendButton: {
-    width: 48,
+  statIconBlue: {
+    width: 44,
     height: 44,
-    borderRadius: 14,
-    backgroundColor: '#22C55E',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: "rgba(96,165,250,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  shareCard: {
-    backgroundColor: '#111827',
+  statIconPurple: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "rgba(167,139,250,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  statIconOrange: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statLabel: { color: "#A1A1AA", fontSize: 12, fontWeight: "900" },
+  statValue: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "900",
+    marginTop: 8,
+  },
+  statHint: {
+    color: "#71717A",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  summaryCard: {
+    minHeight: 78,
+    borderRadius: 24,
+    backgroundColor: "#1A1305",
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 22,
-    padding: 16,
-    marginBottom: 18,
+    borderColor: "#713F12",
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 22,
   },
-
-  shareTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-    marginBottom: 14,
+  summaryIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: "rgba(245,158,11,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  shareGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  summaryTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
+  summaryText: {
+    color: "#FCD34D",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 4,
+    lineHeight: 17,
   },
-
-  shareButton: {
-    width: '48%',
-    minHeight: 46,
-    borderRadius: 14,
-    backgroundColor: '#18181B',
+  sectionTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 12,
+  },
+  menuCard: {
+    backgroundColor: "#111827",
+    borderRadius: 26,
     borderWidth: 1,
-    borderColor: '#27272A',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-
-  shareButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-
-  feedTabs: {
-    flexDirection: 'row',
-    gap: 8,
+    borderColor: "#1F2937",
+    paddingHorizontal: 14,
     marginBottom: 16,
   },
-
-  feedTab: {
-    paddingHorizontal: 12,
-    height: 36,
-    borderRadius: 999,
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
+  menuItem: {
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1F2937",
   },
-
-  feedTabActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+  menuItemLast: { borderBottomWidth: 0 },
+  menuIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: "rgba(34,197,94,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  feedTabText: {
-    color: '#A1A1AA',
+  menuTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  menuDescription: {
+    color: "#A1A1AA",
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: "700",
+    marginTop: 4,
+    lineHeight: 17,
   },
-
-  feedTabTextActive: {
-    color: '#FFFFFF',
-  },
-
-  emptyFeed: {
-    minHeight: 220,
-    borderRadius: 22,
-    backgroundColor: '#111827',
+  findDriversCard: {
+    minHeight: 96,
+    borderRadius: 26,
+    backgroundColor: "#052E16",
     borderWidth: 1,
-    borderColor: '#1F2937',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 22,
-  },
-
-  emptyFeedTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-    marginTop: 12,
-  },
-
-  emptyFeedText: {
-    color: '#A1A1AA',
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 19,
-  },
-  feedCard: {
-    borderRadius: 22,
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: "#166534",
     padding: 16,
-    marginBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
   },
-
-  feedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
+  findDriversIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: "rgba(34,197,94,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  feedAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 999,
-  },
-
-  feedAvatarFallback: {
-    width: 42,
-    height: 42,
-    borderRadius: 999,
-    backgroundColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  feedName: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-
-  feedDate: {
-    color: '#A1A1AA',
+  findDriversTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
+  findDriversText: {
+    color: "#BBF7D0",
     fontSize: 12,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-
-  feedTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-    marginBottom: 12,
-  },
-
-  feedMetricCard: {
-    width: '48%',
-    minHeight: 70,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: '#27272A',
-    padding: 12,
-  },
-
-  feedMetricLabel: {
-    color: '#A1A1AA',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-
-  feedMetricValue: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
-    marginTop: 8,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  feedActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 18,
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#27272A',
-  },
-
-  feedActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  feedActionText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
+    fontWeight: "700",
+    marginTop: 4,
+    lineHeight: 17,
   },
 });

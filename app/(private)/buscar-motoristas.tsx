@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 import {
   View,
@@ -8,18 +8,16 @@ import {
   StyleSheet,
   TextInput,
   Image,
-  Alert,
-} from 'react-native';
-
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-
-import { searchUsers } from '../../src/features/friendships/services/searchUsers';
-import { sendFriendRequest } from '../../src/features/friendships/services/sendFriendRequest';
+  ActivityIndicator,
+} from "react-native";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { supabase } from "../../src/database/supabase";
 
 export default function SearchDriversScreen() {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   async function handleSearch(text: string) {
     setSearch(text);
@@ -29,26 +27,32 @@ export default function SearchDriversScreen() {
       return;
     }
 
-    const response = await searchUsers(text);
-    setDrivers(response);
+    try {
+      setLoading(true);
+      const query = text.trim();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, name, username, city, avatar_url")
+        .or(
+          `full_name.ilike.%${query}%,name.ilike.%${query}%,username.ilike.%${query}%,city.ilike.%${query}%`,
+        )
+        .limit(30);
+
+      if (error) throw error;
+      setDrivers(data ?? []);
+    } catch (error) {
+      console.log("Erro ao buscar motoristas:", error);
+      setDrivers([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function handleSendRequest(userId: string) {
-    try {
-      await sendFriendRequest(userId);
-
-      Alert.alert(
-        'Solicitação enviada',
-        'Agora é só aguardar a pessoa aceitar.',
-      );
-
-      setDrivers((prev) => prev.filter((item) => item.id !== userId));
-    } catch (error: any) {
-      Alert.alert(
-        'Erro',
-        error.message ?? 'Não foi possível enviar a solicitação.',
-      );
-    }
+  function openPublicProfile(userId: string) {
+    router.push({
+      pathname: "/(private)/perfil-publico/[userId]",
+      params: { userId },
+    } as never);
   }
 
   return (
@@ -56,202 +60,227 @@ export default function SearchDriversScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={26} color="#FFFFFF" />
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-
-        <Text style={styles.title}>Buscar motoristas</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerEyebrow}>Comunidade</Text>
+          <Text style={styles.headerTitle}>Buscar motoristas</Text>
+        </View>
       </View>
 
-      <TextInput
-        value={search}
-        onChangeText={handleSearch}
-        placeholder="Buscar por nome"
-        placeholderTextColor="#71717A"
-        style={styles.input}
-      />
+      <View style={styles.searchCard}>
+        <View style={styles.searchIcon}>
+          <Ionicons name="search-outline" size={24} color="#22C55E" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.searchTitle}>Encontre perfis</Text>
+          <Text style={styles.searchText}>
+            Busque por nome, username ou cidade.
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.inputBox}>
+        <Ionicons name="search-outline" size={20} color="#A1A1AA" />
+        <TextInput
+          value={search}
+          onChangeText={handleSearch}
+          placeholder="Digite pelo menos 2 letras"
+          placeholderTextColor="#71717A"
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.input}
+        />
+        {loading && <ActivityIndicator color="#22C55E" />}
+      </View>
 
       {search.trim().length < 2 ? (
         <View style={styles.emptyBox}>
-          <Ionicons name="search-outline" size={44} color="#71717A" />
-
-          <Text style={styles.emptyTitle}>Encontre motoristas</Text>
-
+          <Ionicons name="people-outline" size={42} color="#52525B" />
+          <Text style={styles.emptyTitle}>Busque outros motoristas</Text>
           <Text style={styles.emptyText}>
-            Digite pelo menos 2 letras para buscar pessoas na comunidade.
+            Você poderá abrir o perfil público, ver cidade e iniciar conexões
+            futuras.
           </Text>
         </View>
-      ) : drivers.length === 0 ? (
+      ) : drivers.length === 0 && !loading ? (
         <View style={styles.emptyBox}>
-          <Ionicons name="person-outline" size={44} color="#71717A" />
-
-          <Text style={styles.emptyTitle}>Nenhum motorista encontrado</Text>
-
+          <Ionicons name="alert-circle-outline" size={42} color="#52525B" />
+          <Text style={styles.emptyTitle}>Nenhum perfil encontrado</Text>
           <Text style={styles.emptyText}>
-            Tente buscar por outro nome.
+            Tente buscar por outro nome, username ou cidade.
           </Text>
         </View>
       ) : (
-        drivers.map((item) => (
-          <View key={item.id} style={styles.card}>
+        <View style={styles.resultsList}>
+          {drivers.map((driver) => (
             <TouchableOpacity
-              style={styles.userInfo}
-              onPress={() =>
-                router.push({
-                  pathname: '/(private)/perfil/[userId]',
-                  params: { userId: item.id },
-                })
-              }
+              key={driver.id}
+              activeOpacity={0.86}
+              style={styles.driverCard}
+              onPress={() => openPublicProfile(driver.id)}
             >
-              {item.avatar_url ? (
-                <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
+              {driver.avatar_url ? (
+                <Image
+                  source={{ uri: driver.avatar_url }}
+                  style={styles.driverAvatar}
+                />
               ) : (
-                <View style={styles.avatarFallback}>
-                  <Ionicons name="person" size={22} color="#FFFFFF" />
+                <View style={styles.driverAvatarFallback}>
+                  <Ionicons name="person" size={23} color="#FFFFFF" />
                 </View>
               )}
-
               <View style={{ flex: 1 }}>
-                <Text style={styles.name}>
-                  {item.full_name || item.name || 'Motorista'}
+                <Text style={styles.driverName} numberOfLines={1}>
+                  {driver.full_name || driver.name || "Motorista"}
                 </Text>
-
-                <Text style={styles.bio} numberOfLines={1}>
-                  {item.bio || 'Motorista/entregador'}
+                <Text style={styles.driverMeta} numberOfLines={1}>
+                  @{driver.username || "usuario"} ·{" "}
+                  {driver.city || "Cidade não informada"}
                 </Text>
               </View>
+              <Ionicons name="chevron-forward" size={20} color="#71717A" />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => handleSendRequest(item.id)}
-            >
-              <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        ))
+          ))}
+        </View>
       )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#09090B',
-  },
-
-  content: {
-    padding: 18,
-    paddingTop: 54,
-    paddingBottom: 120,
-  },
-
+  container: { flex: 1, backgroundColor: "#09090B" },
+  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 140 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 22,
-  },
-
-  title: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '900',
-  },
-
-  input: {
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: '#27272A',
-    color: '#FFFFFF',
-    paddingHorizontal: 16,
-    fontSize: 15,
-    fontWeight: '700',
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     marginBottom: 18,
   },
-
-  card: {
-    minHeight: 74,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "#18181B",
     borderWidth: 1,
-    borderColor: '#27272A',
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    marginBottom: 10,
-    gap: 10,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  userInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 999,
-  },
-
-  avatarFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  name: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-
-  bio: {
-    color: '#A1A1AA',
+  headerEyebrow: {
+    color: "#22C55E",
     fontSize: 12,
-    fontWeight: '600',
-    marginTop: 3,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
-
-  addButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#22C55E',
-    alignItems: 'center',
-    justifyContent: 'center',
+  headerTitle: { color: "#FFFFFF", fontSize: 26, fontWeight: "900" },
+  searchCard: {
+    minHeight: 96,
+    borderRadius: 28,
+    backgroundColor: "#052E16",
+    borderWidth: 1,
+    borderColor: "#166534",
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    marginBottom: 14,
   },
-
+  searchIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: "rgba(34,197,94,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
+  searchText: {
+    color: "#BBF7D0",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 5,
+  },
+  inputBox: {
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
+  },
+  input: {
+    flex: 1,
+    height: "100%",
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
   emptyBox: {
-    minHeight: 280,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 26,
+    minHeight: 260,
+    borderRadius: 28,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
   },
-
   emptyTitle: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 17,
-    fontWeight: '900',
-    marginTop: 14,
+    fontWeight: "900",
+    marginTop: 13,
   },
-
   emptyText: {
-    color: '#71717A',
+    color: "#A1A1AA",
     fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 7,
+    lineHeight: 19,
+  },
+  resultsList: { gap: 10 },
+  driverCard: {
+    minHeight: 76,
+    borderRadius: 22,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    padding: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  driverAvatar: { width: 50, height: 50, borderRadius: 999 },
+  driverAvatarFallback: {
+    width: 50,
+    height: 50,
+    borderRadius: 999,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  driverName: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
+  driverMeta: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 4,
   },
 });

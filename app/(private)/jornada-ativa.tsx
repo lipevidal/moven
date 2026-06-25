@@ -116,6 +116,81 @@ function parseMoney(value: string) {
   return Number(value.replace(/\./g, '').replace(',', '.')) || 0;
 }
 
+function formatDateInput(date: Date) {
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function formatTimeInput(date: Date) {
+  return date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function maskDateInput(value: string) {
+  const numbers = value.replace(/\D/g, '').slice(0, 8);
+
+  if (numbers.length <= 2) return numbers;
+  if (numbers.length <= 4) {
+    return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+  }
+
+  return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4)}`;
+}
+
+function maskTimeInput(value: string) {
+  const numbers = value.replace(/\D/g, '').slice(0, 4);
+
+  if (numbers.length <= 2) return numbers;
+
+  return `${numbers.slice(0, 2)}:${numbers.slice(2)}`;
+}
+
+function parseDateTimeInput(dateValue: string, timeValue: string) {
+  const [day, month, year] = dateValue.split('/').map(Number);
+  const [hour, minute] = timeValue.split(':').map(Number);
+
+  if (!day || !month || !year || Number.isNaN(hour) || Number.isNaN(minute)) {
+    return null;
+  }
+
+  const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+
+  const validDate =
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day &&
+    date.getHours() === hour &&
+    date.getMinutes() === minute;
+
+  return validDate ? date : null;
+}
+
+function getUserAvatarUrl(user: any) {
+  return (
+    user?.avatar_url ||
+    user?.photo_url ||
+    user?.picture ||
+    user?.user_metadata?.avatar_url ||
+    user?.user_metadata?.picture ||
+    null
+  );
+}
+
+function getUserDisplayName(user: any) {
+  return (
+    user?.full_name ||
+    user?.name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    'Motorista'
+  );
+}
+
 export default function ActiveSessionScreen() {
   const [session, setSession] = useState<any>(null);
   const [rides, setRides] = useState<any[]>([]);
@@ -171,6 +246,12 @@ export default function ActiveSessionScreen() {
   useState(false);
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
   const [finishPlatformValues, setFinishPlatformValues] = useState<Record<string, string>>({});
+  const [finishDateValue, setFinishDateValue] = useState('');
+  const [finishTimeValue, setFinishTimeValue] = useState('');
+  const [finishTimeEditModalVisible, setFinishTimeEditModalVisible] =
+    useState(false);
+  const [draftFinishDateValue, setDraftFinishDateValue] = useState('');
+  const [draftFinishTimeValue, setDraftFinishTimeValue] = useState('');
 
   const [onlineDrivers, setOnlineDrivers] = useState<any[]>([]);
   const [driversModalVisible, setDriversModalVisible] = useState(false);
@@ -178,6 +259,97 @@ export default function ActiveSessionScreen() {
 
   const [municipalitySearch, setMunicipalitySearch] = useState('');
   const [municipalities, setMunicipalities] = useState<any[]>([]);
+  const [privateChatPreviews, setPrivateChatPreviews] = useState<
+    Record<string, { lastMessage: string; unread: number; createdAt?: string }>
+  >({});
+
+  async function loadPrivateChatPreviews() {
+    if (!currentUserId) return;
+
+    type PrivatePreviewMessage = {
+      id: any;
+      sender_id: any;
+      receiver_id: any;
+      message: any;
+      created_at: any;
+      read_at: any | null;
+    };
+
+    let data: PrivatePreviewMessage[] | null = null;
+
+    const response = await supabase
+      .from('private_chat_messages')
+      .select('id,sender_id,receiver_id,message,created_at,read_at')
+      .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+      .order('created_at', { ascending: false });
+
+    if (response.error) {
+      // Fallback para projetos que ainda não rodaram o SQL do read_at.
+      // Mapeamos read_at como null para não quebrar o TypeScript.
+      const fallback = await supabase
+        .from('private_chat_messages')
+        .select('id,sender_id,receiver_id,message,created_at')
+        .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+        .order('created_at', { ascending: false });
+
+      if (fallback.error) {
+        console.log(fallback.error);
+        return;
+      }
+
+      data = (fallback.data ?? []).map((message: any) => ({
+        ...message,
+        read_at: null,
+      }));
+    } else {
+      data = response.data ?? [];
+    }
+
+    const previews: Record<
+      string,
+      { lastMessage: string; unread: number; createdAt?: string }
+    > = {};
+
+    (data ?? []).forEach((message: PrivatePreviewMessage) => {
+      const otherUserId =
+        message.sender_id === currentUserId
+          ? message.receiver_id
+          : message.sender_id;
+
+      if (!otherUserId) return;
+
+      if (!previews[otherUserId]) {
+        previews[otherUserId] = {
+          lastMessage: `${message.sender_id === currentUserId ? 'Você: ' : ''}${message.message ?? ''}`,
+          unread: 0,
+          createdAt: message.created_at,
+        };
+      }
+
+      if (message.receiver_id === currentUserId && !message.read_at) {
+        previews[otherUserId].unread += 1;
+      }
+    });
+
+    setPrivateChatPreviews(previews);
+  }
+
+  async function markPrivateMessagesAsRead(senderId: string) {
+    if (!currentUserId || !senderId) return;
+
+    const { error } = await supabase
+      .from('private_chat_messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('sender_id', senderId)
+      .eq('receiver_id', currentUserId)
+      .is('read_at', null);
+
+    if (error) {
+      console.log(error);
+    }
+
+    await loadPrivateChatPreviews();
+  }
 
   async function handleSearchMunicipalities(text: string) {
     setMunicipalitySearch(text);
@@ -199,8 +371,9 @@ export default function ActiveSessionScreen() {
     setPrivateChatVisible(true);
 
     const response = await getPrivateChatMessages(user.id);
-
     setPrivateMessages(response);
+
+    await markPrivateMessagesAsRead(user.id);
   }
 
   async function handleSendPrivateMessage() {
@@ -217,15 +390,22 @@ export default function ActiveSessionScreen() {
 
     const response = await getPrivateChatMessages(privateChatUser.id);
     setPrivateMessages(response);
+    await loadPrivateChatPreviews();
   }
 
-  async function loadCityChat() {
+  async function loadCityChat(markAsRead = false) {
     if (!session?.municipality_id) return;
 
     const response = await getCityChatMessages(session.municipality_id);
-    const unread = await getUnreadCityChatCount(session.municipality_id);
-
     setChatMessages(response);
+
+    if (markAsRead) {
+      await markCityChatAsRead(session.municipality_id);
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const unread = await getUnreadCityChatCount(session.municipality_id);
     setUnreadChatCount(unread);
   }
 
@@ -233,27 +413,24 @@ export default function ActiveSessionScreen() {
     if (!session?.municipality_id) return;
 
     setCityChatVisible(true);
-
-    const response = await getCityChatMessages(session.municipality_id);
-    setChatMessages(response);
-
-    await markCityChatAsRead(session.municipality_id);
-    setUnreadChatCount(0);
+    await loadCityChat(true);
   }
 
   async function handleSendCityMessage() {
     if (!chatMessage.trim() || !session?.municipality_id) return;
 
+    const messageToSend = chatMessage.trim();
+
+    setChatMessage('');
+    setReplyingCityMessage(null);
+
     await sendCityChatMessage({
       municipalityId: session.municipality_id,
-      message: chatMessage,
+      message: messageToSend,
       replyToMessageId: replyingCityMessage?.id ?? null,
     });
 
-  setReplyingCityMessage(null);
-
-    setChatMessage('');
-    await loadCityChat();
+    await loadCityChat(true);
   }
 
   async function handleChangeMunicipality(municipality: any) {
@@ -280,6 +457,21 @@ export default function ActiveSessionScreen() {
   }
 
   function openFinishSessionModal() {
+    if (activeRide || waitingRides.length > 0) {
+      Alert.alert(
+        'Corrida pendente',
+        'Finalize ou exclua a corrida em andamento e resolva as corridas aguardando início antes de concluir a jornada.',
+      );
+      return;
+    }
+
+    const now = new Date();
+
+    setFinishDateValue(formatDateInput(now));
+    setFinishTimeValue(formatTimeInput(now));
+    setDraftFinishDateValue(formatDateInput(now));
+    setDraftFinishTimeValue(formatTimeInput(now));
+
     const values: Record<string, string> = {};
 
     userPlatforms.forEach((item: any) => {
@@ -298,6 +490,58 @@ export default function ActiveSessionScreen() {
 
     setFinishPlatformValues(values);
     setFinishModalVisible(true);
+  }
+
+  function validateFinishDateTime(dateValue: string, timeValue: string) {
+    const finishDate = parseDateTimeInput(dateValue, timeValue);
+
+    if (!finishDate) {
+      Alert.alert(
+        'Horário inválido',
+        'Informe uma data e um horário de finalização válidos.',
+      );
+      return null;
+    }
+
+    const startDate = new Date(session.started_at);
+    const now = new Date();
+
+    if (finishDate.getTime() < startDate.getTime()) {
+      Alert.alert(
+        'Horário inválido',
+        'O horário de finalização não pode ser antes do horário inicial da jornada.',
+      );
+      return null;
+    }
+
+    if (finishDate.getTime() > now.getTime()) {
+      Alert.alert(
+        'Horário inválido',
+        'O horário de finalização não pode ser depois do horário atual.',
+      );
+      return null;
+    }
+
+    return finishDate;
+  }
+
+  function openFinishTimeEditModal() {
+    setDraftFinishDateValue(finishDateValue);
+    setDraftFinishTimeValue(finishTimeValue);
+    setFinishTimeEditModalVisible(true);
+  }
+
+  function handleSaveFinishTimeEdit() {
+    const finishDate = validateFinishDateTime(
+      draftFinishDateValue,
+      draftFinishTimeValue,
+    );
+
+    if (!finishDate) return;
+
+    setFinishDateValue(formatDateInput(finishDate));
+    setFinishTimeValue(formatTimeInput(finishDate));
+    setFinishTimeEditModalVisible(false);
   }
 
 
@@ -380,17 +624,15 @@ export default function ActiveSessionScreen() {
 
   
   function openEditFinishedRideModal(ride: any) {
-    setFinishedDrawerVisible(false);
+    // Mantém o modal de corridas concluídas aberto por trás.
+    // Assim, ao fechar ou salvar a edição, o usuário volta direto para a lista.
+    setEditingFinishedRide(ride);
 
-    setTimeout(() => {
-      setEditingFinishedRide(ride);
+    setFinishedRideAmount(
+      String(ride.amount).replace('.', ','),
+    );
 
-      setFinishedRideAmount(
-        String(ride.amount).replace('.', ','),
-      );
-
-      setEditFinishedRideModalVisible(true);
-    }, 300);
+    setEditFinishedRideModalVisible(true);
   }
 
   async function handleUpdateFinishedRide() {
@@ -858,15 +1100,13 @@ export default function ActiveSessionScreen() {
   }
 
   async function handleTogglePause() {
-
-    if (activeRide) {
+    if (activeRide || waitingRides.length > 0) {
       Alert.alert(
-        'Corrida em andamento',
-        'Finalize ou exclua a corrida em andamento antes de pausar a jornada.',
+        'Corrida pendente',
+        'Finalize ou exclua a corrida em andamento e resolva as corridas aguardando início antes de pausar a jornada.',
       );
       return;
     }
-
 
     if (session.status === 'paused') {
       await resumeWorkSession(session.id);
@@ -878,10 +1118,10 @@ export default function ActiveSessionScreen() {
   }
 
   function handleDeleteSession() {
-    if (activeRide) {
+    if (activeRide || waitingRides.length > 0) {
       Alert.alert(
-        'Corrida em andamento',
-        'Finalize ou exclua a corrida em andamento antes de deletar a jornada.',
+        'Corrida pendente',
+        'Finalize ou exclua a corrida em andamento e resolva as corridas aguardando início antes de excluir a jornada.',
       );
       return;
     }
@@ -900,13 +1140,20 @@ export default function ActiveSessionScreen() {
   }
 
   async function handleFinishSession() {
-    if (activeRide) {
+    if (activeRide || waitingRides.length > 0) {
       Alert.alert(
-        'Corrida em andamento',
-        'Finalize ou exclua a corrida em andamento antes de finalizar a jornada.',
+        'Corrida pendente',
+        'Finalize ou exclua a corrida em andamento e resolva as corridas aguardando início antes de concluir a jornada.',
       );
       return;
     }
+
+    const finishDate = validateFinishDateTime(
+      finishDateValue,
+      finishTimeValue,
+    );
+
+    if (!finishDate) return;
 
     const parsedKm = onlyNumbers(kmValue);
 
@@ -962,6 +1209,7 @@ export default function ActiveSessionScreen() {
     await finishWorkSession({
       session_id: session.id,
       end_km: parsedKm,
+      finished_at: finishDate.toISOString(),
     });
 
     router.replace('/(private)/(tabs)/dashboard');
@@ -1027,7 +1275,7 @@ export default function ActiveSessionScreen() {
           filter: `municipality_id=eq.${session.municipality_id}`,
         },
         async () => {
-          await loadCityChat();
+          await loadCityChat(cityChatVisible);
         },
       )
       .subscribe();
@@ -1035,19 +1283,21 @@ export default function ActiveSessionScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.municipality_id]);
+  }, [session?.municipality_id, cityChatVisible]);
 
   useEffect(() => {
     if (session?.municipality_id) {
-      loadCityChat();
+      loadCityChat(cityChatVisible);
     }
-  }, [session?.municipality_id]);
+  }, [session?.municipality_id, cityChatVisible]);
 
   useEffect(() => {
-    if (!privateChatVisible || !privateChatUser?.id) return;
+    if (!currentUserId) return;
+
+    loadPrivateChatPreviews();
 
     const channel = supabase
-      .channel(`private-chat-${currentUserId}-${privateChatUser.id}`)
+      .channel(`private-chat-realtime-${currentUserId}`)
       .on(
         'postgres_changes',
         {
@@ -1056,8 +1306,13 @@ export default function ActiveSessionScreen() {
           table: 'private_chat_messages',
         },
         async () => {
-          const response = await getPrivateChatMessages(privateChatUser.id);
-          setPrivateMessages(response);
+          await loadPrivateChatPreviews();
+
+          if (privateChatVisible && privateChatUser?.id) {
+            const response = await getPrivateChatMessages(privateChatUser.id);
+            setPrivateMessages(response);
+            await markPrivateMessagesAsRead(privateChatUser.id);
+          }
         },
       )
       .subscribe();
@@ -1065,7 +1320,7 @@ export default function ActiveSessionScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [privateChatVisible, privateChatUser?.id, currentUserId]);
+  }, [currentUserId, privateChatVisible, privateChatUser?.id]);
 
   if (!session) return null;
 
@@ -1073,6 +1328,8 @@ export default function ActiveSessionScreen() {
     ? getPlatformByName(activeRide.platform)
     : null;
 
+  const privateChatAvatarUrl = getUserAvatarUrl(privateChatUser);
+  const privateChatDisplayName = getUserDisplayName(privateChatUser);
 
   async function loadOnlineDrivers(municipalityId: string) {
     const response = await getOnlineDriversByMunicipality(municipalityId);
@@ -1082,45 +1339,16 @@ export default function ActiveSessionScreen() {
     <>
       <ScrollView
         style={[
-          styles.container,
-          {
-            backgroundColor:
-              session.status === 'paused' ? '#3B1F0B' : '#001B12',
-          },
+          styles.activeModernContainer,
+          session.status === 'paused' && styles.activeModernContainerPaused,
         ]}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={styles.activeModernContent}
         showsVerticalScrollIndicator={false}
       >
-
-        <View style={{alignItems: 'center', justifyContent: 'center'}}>
-          <View style={styles.statusRow}>
-            <View style={{justifyContent: 'center', alignItems: 'center'}}>
-              <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    session.status === 'paused' && { backgroundColor: '#F59E0B' },
-                  ]}
-                />
-                <Text style={styles.statusTitle}>
-                  {session.status === 'paused'
-                    ? 'Jornada pausada'
-                    : 'Jornada ativa'}
-                </Text>
-              </View>
-
-              <Text style={styles.startedText}>
-                Iniciada às{' '}
-                {new Date(session.started_at).toLocaleTimeString('pt-BR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </Text>
-            </View>
-          </View>
-
+        <View style={styles.activeModernHeader}>
           <TouchableOpacity
-            style={styles.closeButton}
+            activeOpacity={0.85}
+            style={styles.activeModernHeaderButton}
             onPress={() =>
               router.replace({
                 pathname: '/(private)/(tabs)/dashboard',
@@ -1128,107 +1356,320 @@ export default function ActiveSessionScreen() {
               })
             }
           >
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <View style={styles.activeModernHeaderTitleBlock}>
+            <Text style={styles.activeModernHeaderEyebrow}>
+              {session.status === 'paused' ? 'Turno pausado' : 'Turno em andamento'}
+            </Text>
+            <Text style={styles.activeModernHeaderTitle}>
+              Jornada ativa
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.activeModernHeaderCityButton}
+            onPress={() => setMunicipalityModalVisible(true)}
+          >
+            <Ionicons name="location-outline" size={18} color="#22C55E" />
+
+            <Text style={styles.activeModernHeaderCityText} numberOfLines={1}>
+              {session.municipality
+                ? `${session.municipality.name} - ${session.municipality.uf}`
+                : 'Definir cidade'}
+            </Text>
+
+            <Ionicons name="chevron-down" size={15} color="#A1A1AA" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.hero}>
-          <Text style={styles.timer}>{formatTimer(elapsedSeconds)}</Text>
-          <Text style={styles.timerLabel}>Tempo de trabalho</Text>
-        </View>
-      
-        {activeRide && (
-          <View style={styles.rideCardActive}>
-            <View style={styles.rideActiveBadge}>
-              <Ionicons name="car-sport-outline" size={14} color="#8BFFBF" />
-              <Text style={styles.rideActiveBadgeText}>CORRIDA EM ANDAMENTO</Text>
+        <View
+          style={[
+            styles.activeModernHeroCard,
+            session.status === 'paused' && styles.activeModernHeroCardPaused,
+          ]}
+        >
+          <View style={styles.activeModernHeroTop}>
+            <View
+              style={[
+                styles.activeModernStatusPill,
+                session.status === 'paused' && styles.activeModernStatusPillPaused,
+              ]}
+            >
+              <View
+                style={[
+                  styles.activeModernStatusDot,
+                  session.status === 'paused' && styles.activeModernStatusDotPaused,
+                ]}
+              />
+              <Text style={styles.activeModernStatusText}>
+                {session.status === 'paused' ? 'PAUSADA' : 'ATIVA'}
+              </Text>
             </View>
 
-            <View style={styles.rideHeader}>
-              <View style={styles.ridePlatformRow}>
-                {activeRidePlatform?.logo_url ? (
-                  <Image
-                    source={{ uri: activeRidePlatform.logo_url }}
-                    style={styles.rideLogo}
-                  />
-                ) : (
-                  <View style={styles.rideLogoFallback}>
-                    <Text style={styles.rideLogoFallbackText}>
-                      {activeRide.platform.slice(0, 2)}
-                    </Text>
-                  </View>
-                )}
+            <Text style={styles.activeModernStartedText}>
+              Início {new Date(session.started_at).toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+          </View>
 
-                <View>
-                  <Text style={styles.ridePlatform}>{activeRide.platform}</Text>
-                  <Text style={styles.rideValue}>
-                    R$ {formatCurrency(Number(activeRide.amount))}
-                  </Text>
-                </View>
-              </View>
+          <View style={styles.activeModernHeroBody}>
+            <View style={styles.activeModernTimerColumn}>
+              <Text style={styles.activeModernTimerLabel}>Tempo de jornada</Text>
+              <Text style={styles.activeModernTimerValue}>
+                {formatTimer(elapsedSeconds)}
+              </Text>
 
-              <View style={styles.rideCircleIcon}>
-                <Ionicons name="speedometer-outline" size={42} color="#22C55E" />
-              </View>
-            </View>
-
-            <View style={styles.rideStatsBox}>
-              <View style={styles.rideStatsRow}>
-                <View style={styles.rideStatItem}>
-                  <Text style={styles.rideStatLabel}>Tempo em andamento</Text>
-                  <Text style={styles.rideStatValue}>
-                    {formatTimer(getRideElapsedSeconds(activeRide))}
-                  </Text>
-                </View>
-
-                <View style={styles.rideStatDivider} />
-
-                <View style={styles.rideStatItem}>
-                  <Text style={styles.rideStatLabel}>Ganho/hora agora</Text>
-                  <Text style={styles.rideStatValue}>
-                    R$ {Number(getRideGainPerHour(activeRide) ?? 0).toFixed(2).replace('.', ',')}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.rideKmBox}>
-                <Text style={styles.rideStatLabel}>KM inicial</Text>
-                <Text style={styles.rideStatValue}>
-                  {Number(activeRide.start_km ?? 0).toLocaleString('pt-BR')} km
+              <View style={styles.activeModernTimerHintRow}>
+                <Ionicons
+                  name={session.status === 'paused' ? 'pause-circle-outline' : 'time-outline'}
+                  size={20}
+                  color={session.status === 'paused' ? '#F59E0B' : '#22C55E'}
+                />
+                <Text style={styles.activeModernTimerHintText}>
+                  {session.status === 'paused' ? 'Cronômetro pausado' : 'Cronômetro rodando'}
                 </Text>
               </View>
             </View>
 
-            <View style={styles.rideActions}>
+            <View style={styles.activeModernHeroDivider} />
+
+            {/*<View style={styles.activeModernInfoColumn}>
               <TouchableOpacity
-                style={styles.rideActionEdit}
-                onPress={() => openEditRideModal(activeRide)}
+                activeOpacity={0.85}
+                style={[styles.activeModernInfoRowCidade, session.status === 'paused' && styles.activeModernInfoRowCidadePaused,]}
+                onPress={() => setMunicipalityModalVisible(true)}
               >
-                <Ionicons name="create-outline" size={18} color="#4DA3FF" />
-                <Text style={styles.rideActionTextBlue}>Editar</Text>
+                <View style={styles.activeModernInfoIcon}>
+                  <Ionicons name="location-outline" size={24} color="#22C55E" />
+                </View>
+                <View style={{ flex: 1,}}>
+                  <Text style={styles.activeModernInfoLabel}>Cidade base</Text>
+                  <Text style={styles.activeModernInfoValue} numberOfLines={1}>
+                    {session.municipality
+                      ? `${session.municipality.name}, ${session.municipality.uf}`
+                      : 'Definir cidade'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#A1A1AA" />
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.rideActionDelete}
-                onPress={() => handleDeleteRide(activeRide)}
-              >
-                <Ionicons name="trash-outline" size={18} color="#FF5B5B" />
-                <Text style={styles.rideActionTextRed}>Excluir</Text>
-              </TouchableOpacity>
+              <View style={styles.activeModernInfoRow}>
+                <View style={styles.activeModernInfoIcon}>
+                  <Ionicons name="car-sport-outline" size={24} color="#A1A1AA" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activeModernInfoLabel}>Veículo</Text>
+                  <Text style={styles.activeModernInfoValue} numberOfLines={1}>
+                    {session.vehicle?.model ?? 'Veículo'}
+                  </Text>
+                </View>
+                {!!session.vehicle?.plate && (
+                    <View style={styles.activeModernPlateBadge}>
+                      <Text style={styles.activeModernPlateText}>
+                        {session.vehicle.plate}
+                      </Text>
+                    </View>
+                )}
+              </View>
+            </View>*/}
+          </View>
+        </View>
+
+        <View style={styles.activeModernMetricsGrid}>
+
+          <View style={styles.activeModernMetricCard}>
+            <View style={{flexDirection: 'row', gap: 10}}>
+              <View style={styles.activeModernMetricIconGreen}>
+                <Ionicons name="cash-outline" size={24} color="#22C55E" />
+              </View>
+              <Text style={styles.activeModernMetricLabel}>Faturamento</Text>
+            </View>
+            <Text style={styles.activeModernMetricValueGreen}>
+              R$ {formatCurrency(totalEarnings)}
+            </Text>
+          </View>
+
+          <View style={styles.activeModernMetricCard}>
+            <View style={{flexDirection: 'row', gap: 10}}>
+              <View style={styles.activeModernMetricIconOrange}>
+                <Ionicons name="speedometer-outline" size={24} color="#F59E0B" />
+              </View>
+              <Text style={styles.activeModernMetricLabel}>KM rodado</Text>
+            </View>
+            <Text style={styles.activeModernMetricValueOrange}>
+              {Math.max(kmDriven, 0).toLocaleString('pt-BR')} km
+            </Text>
+          </View>
+
+          <View style={styles.activeModernMetricCard}>
+            <View style={{flexDirection: 'row', gap: 10}}>
+              <View style={styles.activeModernMetricIconBlue}>
+                <Ionicons name="analytics-outline" size={24} color="#3B82F6" />
+              </View>
+              <Text style={styles.activeModernMetricLabel}>Ganho/h</Text>
+            </View>
+            <Text style={styles.activeModernMetricValueBlue}>
+              R$ {Number(gainPerHour ?? 0).toFixed(2).replace('.', ',')}
+            </Text>
+          </View>
+
+          <View style={styles.activeModernMetricCard}>
+            <View style={{flexDirection: 'row', gap: 10}}>
+              <View style={styles.activeModernMetricIconPurple}>
+                <Ionicons name="navigate-outline" size={24} color="#A855F7" />
+              </View>
+              <Text style={styles.activeModernMetricLabel}>Ganho/km</Text>
+            </View>
+            <Text style={styles.activeModernMetricValuePurple}>
+              R$ {Number(gainPerKm ?? 0).toFixed(2).replace('.', ',')}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.activeModernSectionHeaderRow}>
+          <Text style={styles.activeModernSectionTitle}>Ações rápidas</Text>
+          <Text style={styles.activeModernSectionSubtitle}>Registre sem perder tempo</Text>
+        </View>
+
+        <View style={styles.activeModernQuickGrid}>
+          <TouchableOpacity
+            activeOpacity={0.88}
+            style={[styles.activeModernQuickButton, styles.activeModernQuickButtonGain]}
+            onPress={openCreateGainModal}
+          >
+            <View style={styles.activeModernQuickIconGreen}>
+              <Ionicons name="add" size={30} color="#06130B" />
+            </View>
+            <Text style={styles.activeModernQuickText}>Novo ganho</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.88}
+            style={[styles.activeModernQuickButton, styles.activeModernQuickButtonKm]}
+            onPress={() => setKmModalVisible(true)}
+          >
+            <View style={styles.activeModernQuickIconBlue}>
+              <Ionicons name="speedometer-outline" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={styles.activeModernQuickText}>Atualizar KM</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.88}
+            style={[styles.activeModernQuickButton, styles.activeModernQuickButtonRide]}
+            onPress={openCreateRideModal}
+          >
+            <View style={styles.activeModernQuickIconPurple}>
+              <Ionicons name="navigate-outline" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={styles.activeModernQuickText}>Nova corrida</Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeRide && (
+          <View style={styles.activeModernRideCardActive}>
+            <View style={styles.activeModernRideBadgeActive}>
+              <Ionicons name="radio-button-on" size={12} color="#8BFFBF" />
+              <Text style={styles.activeModernRideBadgeText}>CORRIDA EM ANDAMENTO</Text>
+            </View>
+
+            <View style={styles.activeModernRideTopRow}>
+              <View style={styles.activeModernRidePlatformRow}>
+                {activeRidePlatform?.logo_url ? (
+                  <Image
+                    source={{ uri: activeRidePlatform.logo_url }}
+                    style={styles.activeModernRideLogo}
+                  />
+                ) : (
+                  <View style={styles.activeModernRideLogoFallback}>
+                    <Text style={styles.activeModernRideLogoFallbackText}>
+                      {activeRide.platform?.slice(0, 2) ?? '--'}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activeModernRideTitle}>{activeRide.platform}</Text>
+                  <Text style={styles.activeModernRideSubtitle}>Viagem em andamento</Text>
+                </View>
+              </View>
 
               <TouchableOpacity
-                style={styles.rideActionFinish}
+                activeOpacity={0.9}
+                style={styles.activeModernRideFinishButton}
                 onPress={() => openFinishRideModal(activeRide)}
               >
                 <Ionicons name="flag-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.rideActionTextGreen}>Finalizar corrida</Text>
+                <Text style={styles.activeModernRideFinishText}>Finalizar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.activeModernRideStatsGrid}>
+              <View style={styles.activeModernRideStatBox}>
+                <Text style={styles.activeModernRideStatLabel}>Valor estimado</Text>
+                <Text style={styles.activeModernRideStatValueGreen}>
+                  R$ {formatCurrency(Number(activeRide.amount))}
+                </Text>
+              </View>
+
+              <View style={styles.activeModernRideStatBox}>
+                <Text style={styles.activeModernRideStatLabel}>KM inicial</Text>
+                <Text style={styles.activeModernRideStatValue}>
+                  {Number(activeRide.start_km ?? 0).toLocaleString('pt-BR')} km
+                </Text>
+              </View>
+
+              <View style={styles.activeModernRideStatBox}>
+                <Text style={styles.activeModernRideStatLabel}>Tempo</Text>
+                <Text style={styles.activeModernRideStatValue}>
+                  {formatTimer(getRideElapsedSeconds(activeRide))}
+                </Text>
+              </View>
+
+              <View style={styles.activeModernRideStatBox}>
+                <Text style={styles.activeModernRideStatLabel}>Ganho/h agora</Text>
+                <Text style={styles.activeModernRideStatValueBlue}>
+                  R$ {Number(getRideGainPerHour(activeRide) ?? 0).toFixed(2).replace('.', ',')}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.activeModernRideActionsRow}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.activeModernRideActionButton}
+                onPress={() => openEditRideModal(activeRide)}
+              >
+                <Ionicons name="create-outline" size={19} color="#60A5FA" />
+                <Text style={styles.activeModernRideActionTextBlue}>Editar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.activeModernRideActionButton}
+                onPress={() => handleDeleteRide(activeRide)}
+              >
+                <Ionicons name="trash-outline" size={19} color="#FF5B5B" />
+                <Text style={styles.activeModernRideActionTextRed}>Excluir</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
         {waitingRides.length > 0 && (
-          <View>
+          <View style={styles.activeModernSectionBlock}>
+            <View style={styles.activeModernSectionHeaderRowCompact}>
+              <Text style={styles.activeModernSectionTitle}>Aguardando início</Text>
+              <View style={styles.activeModernCountBadgeBlue}>
+                <Text style={styles.activeModernCountBadgeText}>{waitingRides.length}</Text>
+              </View>
+            </View>
+
             {waitingRides.map((ride) => {
               if (!ride) return null;
 
@@ -1237,72 +1678,58 @@ export default function ActiveSessionScreen() {
                 : null;
 
               return (
-                <View key={ride.id} style={styles.rideWaitingItem}>
-                  <View style={styles.rideWaitingBadge}>
-                    <Ionicons name="time-outline" size={14} color="#60A5FA" />
-
-                    <Text style={styles.rideWaitingBadgeText}>
-                      AGUARDANDO INÍCIO
-                    </Text>
-                  </View>
-
-                  <View style={styles.rideHeader}>
-                    <View style={styles.ridePlatformRow}>
-                      {ridePlatformData?.logo_url ? (
-                        <Image
-                          source={{ uri: ridePlatformData.logo_url }}
-                          style={styles.rideLogo}
-                        />
-                      ) : (
-                        <View style={styles.rideLogoFallbackYellow}>
-                          <Text style={styles.rideLogoFallbackYellowText}>
-                            {ride.platform?.slice(0, 2) ?? '--'}
-                          </Text>
-                        </View>
-                      )}
-
-                      <View>
-                        <Text style={styles.ridePlatform}>
-                          {ride.platform ?? 'Plataforma'}
-                        </Text>
-
-                        <Text style={styles.rideWaitingValue}>
-                          R$ {formatCurrency(Number(ride.amount ?? 0))}
+                <View key={ride.id} style={styles.activeModernWaitingCard}>
+                  <View style={styles.activeModernWaitingLeft}>
+                    {ridePlatformData?.logo_url ? (
+                      <Image
+                        source={{ uri: ridePlatformData.logo_url }}
+                        style={styles.activeModernWaitingLogo}
+                      />
+                    ) : (
+                      <View style={styles.activeModernWaitingLogoFallback}>
+                        <Text style={styles.activeModernWaitingLogoFallbackText}>
+                          {ride.platform?.slice(0, 2) ?? '--'}
                         </Text>
                       </View>
-                    </View>
+                    )}
 
-                    <View style={styles.rideWaitingCircleIcon}>
-                      <Ionicons name="hourglass-outline" size={42} color="#3B82F6" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.activeModernWaitingTitle}>
+                        {ride.platform ?? 'Plataforma'}
+                      </Text>
+                      <Text style={styles.activeModernWaitingSubtitle}>Valor estimado</Text>
+                      <Text style={styles.activeModernWaitingValue}>
+                        R$ {formatCurrency(Number(ride.amount ?? 0))}
+                      </Text>
                     </View>
                   </View>
 
-                  <View style={styles.rideWaitingActions}>
-                    <TouchableOpacity
-                      style={styles.rideActionEdit}
-                      onPress={() => openEditRideModal(ride)}
-                    >
-                      <Ionicons name="create-outline" size={18} color="#4DA3FF" />
-                      <Text style={styles.rideActionTextBlue}>Editar</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.rideActionDelete}
-                      onPress={() => handleDeleteRide(ride)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#FF5B5B" />
-                      <Text style={styles.rideActionTextRed}>Excluir</Text>
-                    </TouchableOpacity>
-
+                  <View style={styles.activeModernWaitingActions}>
                     {!activeRide && oldestWaitingRide?.id === ride.id && (
                       <TouchableOpacity
-                        style={styles.startRideButton}
+                        activeOpacity={0.85}
+                        style={styles.activeModernSmallActionGreen}
                         onPress={() => openStartWaitingRideModal(ride)}
                       >
-                        <Ionicons name="play-outline" size={18} color="#FFFFFF" />
-                        <Text style={styles.startRideButtonText}>Iniciar</Text>
+                        <Ionicons name="play" size={17} color="#FFFFFF" />
                       </TouchableOpacity>
                     )}
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.activeModernSmallAction}
+                      onPress={() => openEditRideModal(ride)}
+                    >
+                      <Ionicons name="create-outline" size={17} color="#FFFFFF" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.activeModernSmallActionDanger}
+                      onPress={() => handleDeleteRide(ride)}
+                    >
+                      <Ionicons name="trash-outline" size={17} color="#FF5B5B" />
+                    </TouchableOpacity>
                   </View>
                 </View>
               );
@@ -1310,229 +1737,445 @@ export default function ActiveSessionScreen() {
           </View>
         )}
 
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>FATURAMENTO</Text>
-            <Text style={styles.metricValue}>R$ {formatCurrency(totalEarnings)}</Text>
-          </View>
-
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>KM RODADOS</Text>
-            <Text style={styles.metricValue}>{Math.max(kmDriven, 0)} km</Text>
-          </View>
-
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>GANHO/HORA</Text>
-            <Text style={styles.metricValue}>R$ {Number(gainPerHour ?? 0).toFixed(2).replace('.', ',')}</Text>
-          </View>
-
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>GANHO/KM</Text>
-            <Text style={styles.metricValue}>R$ {Number(gainPerKm ?? 0).toFixed(2).replace('.', ',')}</Text>
-          </View>
-        </View>
-
-        <View style={styles.bottomActions}>
-          <TouchableOpacity style={styles.bottomButton} onPress={handleTogglePause}>
-            <Ionicons
-              name={session.status === 'paused' ? 'play' : 'pause'}
-              size={18}
-              color="#FFFFFF"
-            />
-
-            <Text style={styles.bottomButtonText}>
-              {session.status === 'paused' ? 'Retomar' : 'Pausar'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.bottomButton} onPress={handleDeleteSession}>
-            <Ionicons name="stop" size={16} color="#FFFFFF" />
-            <Text style={styles.bottomButtonText}>Deletar</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={styles.finishButton}
-          onPress={openFinishSessionModal}
-        >
-          <Text style={styles.finishButtonText}>Finalizar jornada</Text>
-        </TouchableOpacity>
-
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.secondaryButton} onPress={openCreateGainModal}>
-            <Ionicons name="cash-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.secondaryButtonText}>Adicionar ganho</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => setKmModalVisible(true)}
-          >
-            <Ionicons name="speedometer-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.secondaryButtonText}>Atualizar KM</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.earningsCard}>
-          <Text style={styles.sectionTitle}>Ganhos da jornada</Text>
-
-          {earnings.length === 0 ? (
-            <Text style={styles.emptyText}>Nenhum ganho registrado.</Text>
-          ) : (
-            earnings.map((earning: any) => (
-              <View key={earning.id} style={styles.earningItem}>
-                <View>
-                  <Text style={styles.earningPlatform}>{earning.platform}</Text>
-                  <Text style={styles.earningAmount}>
-                    R$ {formatCurrency(Number(earning.amount))}
-                  </Text>
-                </View>
-
-                <View style={styles.earningActions}>
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => openEditGainModal(earning)}
-                  >
-                    <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.iconButtonDanger}
-                    onPress={() => handleDeleteGain(earning.id)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
+        {/*{finishedRides.length > 0 && (
+          <View style={styles.activeModernFinishedCard}>
+            <View style={styles.activeModernSectionHeaderRowCompact}>
+              <View>
+                <Text style={styles.activeModernSectionTitle}>Corridas concluídas</Text>
+                <Text style={styles.activeModernSectionSubtitle}>Resumo das últimas finalizadas</Text>
               </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
 
-      <TouchableOpacity style={styles.floatingRideButton} onPress={openCreateRideModal}>
-        <Ionicons name="navigate-outline" size={26} color="#FFFFFF" />
-      </TouchableOpacity>
-
-      {finishedRides.length > 0 && (
-        <TouchableOpacity
-          style={styles.finishedDrawerButton}
-          onPress={() => setFinishedDrawerVisible(true)}
-        >
-          <Ionicons name="list-outline" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
-
-      <Modal visible={rideModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContentLarge}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingRide ? 'Editar corrida/entrega' : activeRide ? 'Registrar corrida/entrega' : 'Iniciar corrida/entrega'}
-              </Text>
-
-              <TouchableOpacity onPress={() => setRideModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.activeModernSeeAllButton}
+                onPress={() => setFinishedDrawerVisible(true)}
+              >
+                <Text style={styles.activeModernSeeAllText}>Ver todas</Text>
+                <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.platformsGrid}>
-              {userPlatforms.map((item) => {
-                const platform = item.platform;
-                if (!platform) return null;
+            {[...finishedRides].slice(-3).reverse().map((ride) => {
+              const platformData = getPlatformByName(ride.platform);
 
-                const selected = ridePlatform === platform.name;
+              return (
+                <View key={ride.id} style={styles.activeModernFinishedItem}>
+                  {platformData?.logo_url ? (
+                    <Image
+                      source={{ uri: platformData.logo_url }}
+                      style={styles.activeModernFinishedLogo}
+                    />
+                  ) : (
+                    <View style={styles.activeModernFinishedLogoFallback}>
+                      <Text style={styles.activeModernFinishedLogoFallbackText}>
+                        {ride.platform?.slice(0, 2) ?? '--'}
+                      </Text>
+                    </View>
+                  )}
 
-                return (
-                  <TouchableOpacity
-                    key={platform.id}
-                    style={[
-                      styles.platformGridCard,
-                      selected && styles.platformGridCardActive,
-                    ]}
-                    onPress={() => setRidePlatform(platform.name)}
-                  >
-                    {platform.logo_url ? (
-                      <Image source={{ uri: platform.logo_url }} style={styles.platformGridLogo} />
-                    ) : (
-                      <View style={styles.platformGridLogoFallback}>
-                        <Text style={styles.platformGridLogoFallbackText}>
-                          {platform.name.slice(0, 1)}
-                        </Text>
-                      </View>
-                    )}
-
-                    <Text style={styles.platformGridName} numberOfLines={1}>
-                      {platform.name}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.activeModernFinishedTitle}>
+                      {formatRideHour(ride.started_at)} - {formatRideHour(ride.finished_at)} · {ride.platform}
                     </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                    <Text style={styles.activeModernFinishedSubtitle}>Concluída</Text>
+                  </View>
 
-            <Text style={styles.finishInputLabel}>
-              Valor da corrida/entrega
-            </Text>
-
-            <TextInput
-              value={rideAmount}
-              onChangeText={(text) => {
-                let sanitized = text.replace(/[^0-9,]/g, '');
-
-                const parts = sanitized.split(',');
-                if (parts.length > 2) {
-                  sanitized = parts[0] + ',' + parts[1];
-                }
-                if (parts[1]?.length > 2) {
-                  sanitized =
-                    parts[0] + ',' + parts[1].slice(0, 2);
-                }
-                setRideAmount(sanitized);
-              }}
-              placeholder="0,00"
-              placeholderTextColor="#71717A"
-              keyboardType="numeric"
-              style={styles.input}
-            />
-
-            {(!activeRide || editingRide?.start_km) && (
-              <>
-                <Text style={styles.finishInputLabel}>KM inicial</Text>
-
-                <TextInput
-                  value={rideStartKm}
-                  onChangeText={(text) => setRideStartKm(formatKm(text))}
-                  placeholder="KM inicial"
-                  placeholderTextColor="#71717A"
-                  keyboardType="numeric"
-                  style={styles.input}
-                />
-              </>
-            )}
-
-            <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveRide}>
-              <Text style={styles.modalSaveButtonText}>
-                {editingRide ? 'Salvar alterações' : activeRide ? 'Registrar corrida/entrega' : 'Iniciar corrida/entrega'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.addPlatformGridCard}
-              onPress={() => {
-                setRideModalVisible(false);
-
-                setTimeout(() => {
-                  setPlatformDrawerVisible(true);
-                }, 400);
-              }}
-            >
-              <Ionicons name="add" size={24} color="#FFFFFF" />
-
-              <Text style={styles.addPlatformGridText}>
-                Gerenciar plataformas
-              </Text>
-            </TouchableOpacity>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.activeModernFinishedMoney}>
+                      R$ {formatCurrency(Number(ride.amount))}
+                    </Text>
+                    <Text style={styles.activeModernFinishedKm}>
+                      {getFinishedRideKm(ride).toLocaleString('pt-BR')} km
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
+        )}*/}
+
+        <View style={styles.activeModernEarningsCard}>
+          <View style={styles.activeModernSectionHeaderRowCompact}>
+            <View>
+              <Text style={styles.activeModernSectionTitle}>Ganhos da jornada</Text>
+              <Text style={styles.activeModernSectionSubtitle}>Plataformas lançadas no turno</Text>
+            </View>
+            <Text style={styles.activeModernEarningsTotal}>
+              R$ {formatCurrency(totalEarnings)}
+            </Text>
+          </View>
+
+          {earnings.length === 0 ? (
+            <View style={styles.activeModernEmptyState}>
+              <Ionicons name="receipt-outline" size={28} color="#71717A" />
+              <Text style={styles.activeModernEmptyText}>Nenhum ganho registrado ainda.</Text>
+            </View>
+          ) : (
+            earnings.map((earning: any) => {
+              const earningPlatformData = getPlatformByName(earning.platform);
+
+              return (
+                <View key={earning.id} style={styles.activeModernEarningItem}>
+                  <View style={styles.activeModernEarningIcon}>
+                    {earningPlatformData?.logo_url ? (
+                      <Image
+                        source={{ uri: earningPlatformData.logo_url }}
+                        style={styles.activeModernEarningLogo}
+                      />
+                    ) : (
+                      <Text style={styles.activeModernEarningLogoFallbackText}>
+                        {earning.platform?.slice(0, 2) ?? 'R$'}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.activeModernEarningPlatform}>{earning.platform}</Text>
+                    <Text style={styles.activeModernEarningAmount}>
+                      R$ {formatCurrency(Number(earning.amount))}
+                    </Text>
+                  </View>
+
+                  <View style={styles.activeModernEarningActions}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.activeModernEarningAction}
+                      onPress={() => openEditGainModal(earning)}
+                    >
+                      <Ionicons name="create-outline" size={18} color="#60A5FA" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.activeModernEarningActionDanger}
+                      onPress={() => handleDeleteGain(earning.id)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FF5B5B" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })
+          )}
         </View>
+        <View style={styles.activeModernSessionControls}>
+          <TouchableOpacity
+            activeOpacity={0.88}
+            style={[
+              styles.activeModernPauseButton,
+              session.status === 'paused' && styles.activeModernResumeButton,
+            ]}
+            onPress={handleTogglePause}
+          >
+            <Ionicons
+              name={session.status === 'paused' ? 'play-circle-outline' : 'pause-circle-outline'}
+              size={24}
+              color={session.status === 'paused' ? '#FFFFFF' : '#F59E0B'}
+            />
+            <Text
+              style={[
+                styles.activeModernPauseText,
+                session.status === 'paused' && styles.activeModernResumeText,
+              ]}
+            >
+              {session.status === 'paused' ? 'Retomar jornada' : 'Pausar jornada'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.88}
+            style={styles.activeModernDeleteButton}
+            onPress={handleDeleteSession}
+          >
+            <Ionicons name="trash-outline" size={22} color="#FCA5A5" />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.activeModernFinishSessionButton}
+          onPress={openFinishSessionModal}
+        >
+          <Ionicons name="stop-circle-outline" size={24} color="#FFFFFF" />
+          <Text style={styles.activeModernFinishSessionText}>Concluir jornada</Text>
+        </TouchableOpacity>
+
+      </ScrollView>
+
+      <View style={styles.floatingActionsDock} pointerEvents="box-none">
+        {finishedRides.length > 0 && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.finishedDrawerButton}
+            onPress={() => setFinishedDrawerVisible(true)}
+          >
+            <Ionicons name="list-outline" size={21} color="#FFFFFF" />
+            <Text style={styles.finishedDrawerButtonText}>Concluídas</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.floatingRideButton}
+          onPress={openCreateRideModal}
+        >
+          <View style={styles.floatingRideIconBox}>
+            <Ionicons name="add" size={24} color="#06130B" />
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <Text style={styles.floatingRideTitle}>+ Corrida</Text>
+            <Text style={styles.floatingRideSubtitle}>Nova corrida</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <Modal visible={rideModalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.rideModalOverlayModern}>
+            <View style={styles.rideModalSheetModern}>
+              <View style={styles.rideModalHandle} />
+
+              <View style={styles.rideModalHeaderModern}>
+                <View style={styles.rideModalHeaderLeft}>
+                  <View
+                    style={[
+                      styles.rideModalHeaderIcon,
+                      editingRide && styles.rideModalHeaderIconBlue,
+                      activeRide && !editingRide && styles.rideModalHeaderIconPurple,
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        editingRide
+                          ? 'create-outline'
+                          : activeRide
+                            ? 'albums-outline'
+                            : 'navigate-outline'
+                      }
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rideModalEyebrowModern}>
+                      {editingRide
+                        ? 'Editar registro'
+                        : activeRide
+                          ? 'Adicionar à fila'
+                          : 'Começar agora'}
+                    </Text>
+
+                    <Text style={styles.rideModalTitleModern}>
+                      {editingRide
+                        ? 'Editar corrida/entrega'
+                        : activeRide
+                          ? 'Registrar corrida/entrega'
+                          : 'Iniciar corrida/entrega'}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.rideModalCloseButton}
+                  onPress={() => setRideModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.rideModalDescription}>
+                Escolha a plataforma, informe o valor e acompanhe o desempenho da corrida dentro da jornada.
+              </Text>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.rideModalScrollContent}
+              >
+                <View style={styles.rideModalSectionHeader}>
+                  <View>
+                    <Text style={styles.rideModalSectionTitle}>Plataforma</Text>
+                    <Text style={styles.rideModalSectionSubtitle}>
+                      Selecione onde a corrida foi chamada
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.rideModalManageButtonTop}
+                    onPress={() => {
+                      setPlatformDrawerVisible(true);
+                    }}
+                  >
+                    <Ionicons name="apps-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.rideModalManageButtonTopText}>Gerenciar</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {userPlatforms.length === 0 ? (
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    style={styles.rideModalEmptyPlatforms}
+                    onPress={() => {
+                      setPlatformDrawerVisible(true);
+                    }}
+                  >
+                    <View style={styles.rideModalEmptyIcon}>
+                      <Ionicons name="apps-outline" size={30} color="#A1A1AA" />
+                    </View>
+
+                    <Text style={styles.rideModalEmptyTitle}>
+                      Nenhuma plataforma definida
+                    </Text>
+
+                    <Text style={styles.rideModalEmptyText}>
+                      Cadastre suas plataformas para lançar corridas mais rápido.
+                    </Text>
+
+                    <View style={styles.rideModalEmptyButton}>
+                      <Text style={styles.rideModalEmptyButtonText}>
+                        Gerenciar plataformas
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.rideModalPlatformsGridModern}>
+                    {userPlatforms.map((item) => {
+                      const platform = item.platform;
+                      if (!platform) return null;
+
+                      const selected = ridePlatform === platform.name;
+
+                      return (
+                        <TouchableOpacity
+                          key={platform.id}
+                          activeOpacity={0.88}
+                          style={[
+                            styles.rideModalPlatformCardModern,
+                            selected && styles.rideModalPlatformCardModernActive,
+                          ]}
+                          onPress={() => setRidePlatform(platform.name)}
+                        >
+                          <View style={styles.rideModalPlatformLogoWrap}>
+                            {platform.logo_url ? (
+                              <Image
+                                source={{ uri: platform.logo_url }}
+                                style={styles.rideModalPlatformLogoModern}
+                              />
+                            ) : (
+                              <Text style={styles.rideModalPlatformLogoFallbackText}>
+                                {platform.name.slice(0, 1)}
+                              </Text>
+                            )}
+                          </View>
+
+                          <Text style={styles.rideModalPlatformNameModern} numberOfLines={1}>
+                            {platform.name}
+                          </Text>
+
+                          {selected && (
+                            <View style={styles.rideModalPlatformCheck}>
+                              <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <View style={styles.rideModalInputsRow}>
+                  <View style={styles.rideModalInputBlock}>
+                    <Text style={styles.rideModalInputLabel}>Valor</Text>
+
+                    <View style={styles.rideModalMoneyInputCard}>
+                      <View style={styles.rideModalInputIconGreen}>
+                        <Text style={styles.rideModalCurrencyText}>R$</Text>
+                      </View>
+
+                      <TextInput
+                        value={rideAmount}
+                        onChangeText={(text) => {
+                          let sanitized = text.replace(/[^0-9,]/g, '');
+
+                          const parts = sanitized.split(',');
+                          if (parts.length > 2) {
+                            sanitized = parts[0] + ',' + parts[1];
+                          }
+                          if (parts[1]?.length > 2) {
+                            sanitized =
+                              parts[0] + ',' + parts[1].slice(0, 2);
+                          }
+                          setRideAmount(sanitized);
+                        }}
+                        placeholder="0,00"
+                        placeholderTextColor="#4B5563"
+                        keyboardType="numeric"
+                        style={styles.rideModalInputModern}
+                      />
+                    </View>
+                  </View>
+
+                  {(!activeRide || editingRide?.start_km) && (
+                    <View style={styles.rideModalInputBlock}>
+                      <Text style={styles.rideModalInputLabel}>KM inicial</Text>
+
+                      <View style={styles.rideModalMoneyInputCard}>
+                        <View style={styles.rideModalInputIconBlue}>
+                          <Ionicons name="speedometer-outline" size={18} color="#93C5FD" />
+                        </View>
+
+                        <TextInput
+                          value={rideStartKm}
+                          onChangeText={(text) => setRideStartKm(formatKm(text))}
+                          placeholder="0"
+                          placeholderTextColor="#4B5563"
+                          keyboardType="numeric"
+                          style={styles.rideModalInputModern}
+                        />
+                      </View>
+                    </View>
+                  )}
+                </View>
+
+                {activeRide && !editingRide && (
+                  <View style={styles.rideModalInfoCard}>
+                    <Ionicons name="information-circle-outline" size={22} color="#60A5FA" />
+                    <Text style={styles.rideModalInfoText}>
+                      Como já existe uma corrida em andamento, esta nova corrida ficará aguardando início.
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.rideModalPrimaryButton}
+                onPress={handleSaveRide}
+              >
+                <Ionicons
+                  name={editingRide ? 'save-outline' : activeRide ? 'add-circle-outline' : 'play-circle-outline'}
+                  size={22}
+                  color="#FFFFFF"
+                />
+
+                <Text style={styles.rideModalPrimaryButtonText}>
+                  {editingRide
+                    ? 'Salvar alterações'
+                    : activeRide
+                      ? 'Registrar corrida/entrega'
+                      : 'Iniciar corrida/entrega'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={startWaitingRideModalVisible} transparent animationType="fade">
@@ -1563,316 +2206,576 @@ export default function ActiveSessionScreen() {
       </Modal>
 
       <Modal visible={finishedDrawerVisible} transparent animationType="slide">
-        <View style={styles.drawerOverlay}>
-          <View style={styles.drawer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Corridas concluídas</Text>
+        <View style={styles.completedRidesOverlay}>
+          <View style={styles.completedRidesSheetFullList}>
+            <View style={styles.completedRidesHandle} />
 
-              <TouchableOpacity onPress={() => setFinishedDrawerVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+            <View style={styles.completedRidesHeader}>
+              <View style={styles.completedRidesHeaderIcon}>
+                <Ionicons name="checkmark-done-outline" size={24} color="#22C55E" />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.completedRidesEyebrow}>Lista da jornada</Text>
+                <Text style={styles.completedRidesTitle}>Corridas concluídas</Text>
+                <Text style={styles.completedRidesSubtitle}>
+                  Lista compacta com todos os detalhes da corrida.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.completedRidesCloseButton}
+                onPress={() => setFinishedDrawerVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView>
-              {finishedRides.map((ride) => {
-                const platformData = getPlatformByName(ride.platform);
+            <ScrollView
+              style={styles.completedRidesListOnly}
+              contentContainerStyle={styles.completedRidesListOnlyContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {finishedRides.length === 0 ? (
+                <View style={styles.completedRidesEmptyBox}>
+                  <Ionicons name="car-sport-outline" size={34} color="#71717A" />
+                  <Text style={styles.completedRidesEmptyTitle}>Nenhuma corrida concluída</Text>
+                  <Text style={styles.completedRidesEmptyText}>
+                    As corridas finalizadas nesta jornada aparecerão aqui.
+                  </Text>
+                </View>
+              ) : (
+                finishedRides.map((ride) => {
+                  const platformData = getPlatformByName(ride.platform);
+                  const rideAmountValue = Number(ride.amount ?? 0);
+                  const rideKm = getFinishedRideKm(ride);
+                  const rideDuration = getFinishedRideDuration(ride);
+                  const rideGainHour = Number(ride.gain_per_hour ?? 0);
+                  const rideGainKm = Number(ride.gain_per_km ?? 0);
 
-                return (
-                  <View key={ride.id} style={styles.finishedRideCard}>
-                    <View style={styles.finishedRideTop}>
-                      {platformData?.logo_url ? (
-                        <Image
-                          source={{ uri: platformData.logo_url }}
-                          style={styles.finishedRideLogo}
-                        />
-                      ) : (
-                        <View style={styles.finishedRideLogoFallback}>
-                          <Text style={styles.finishedRideLogoFallbackText}>
-                            {ride.platform?.slice(0, 2)}
+                  return (
+                    <View key={ride.id} style={styles.completedRideListCard}>
+                      <View style={styles.completedRideListTop}>
+                        <View style={styles.completedRidePlatformRow}>
+                          {platformData?.logo_url ? (
+                            <Image
+                              source={{ uri: platformData.logo_url }}
+                              style={styles.completedRideLogo}
+                            />
+                          ) : (
+                            <View style={styles.completedRideLogoFallback}>
+                              <Text style={styles.completedRideLogoFallbackText}>
+                                {ride.platform?.slice(0, 2) ?? '--'}
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.completedRidePlatform} numberOfLines={1}>
+                              {ride.platform ?? 'Plataforma'}
+                            </Text>
+
+                            <View style={styles.completedRideStatusRow}>
+                              <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
+                              <Text style={styles.completedRideStatusText}>Status: concluída</Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={styles.completedRideValuePill}>
+                          <Text style={styles.completedRideValuePillLabel}>Valor ganho</Text>
+                          <Text style={styles.completedRideValuePillText}>
+                            R$ {formatCurrency(rideAmountValue)}
                           </Text>
                         </View>
-                      )}
-
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.finishedRideTitle}>
-                          {formatRideHour(ride.started_at)} - {formatRideHour(ride.finished_at)} · {ride.platform}
-                        </Text>
-
-                        <Text style={styles.finishedRideAmount}>
-                          R$ {formatCurrency(Number(ride.amount))}
-                        </Text>
                       </View>
 
-                      <View style={styles.finishedBadge}>
-                        <Text style={styles.finishedBadgeText}>Concluída</Text>
+                      <View style={styles.completedRideCompactDetails}>
+                        <View style={styles.completedRideCompactLine}>
+                          <Text style={styles.completedRideCompactLabel}>Horário</Text>
+                          <Text style={styles.completedRideCompactValue}>
+                            {formatRideHour(ride.started_at)} → {formatRideHour(ride.finished_at)}
+                          </Text>
+                        </View>
+
+                        <View style={styles.completedRideCompactDivider} />
+
+                        <View style={styles.completedRideCompactGrid}>
+                          <View style={styles.completedRideCompactItem}>
+                            <Text style={styles.completedRideCompactLabel}>Tempo total</Text>
+                            <Text style={styles.completedRideCompactValue}>{rideDuration}</Text>
+                          </View>
+
+                          <View style={styles.completedRideCompactItem}>
+                            <Text style={styles.completedRideCompactLabel}>KM rodados</Text>
+                            <Text style={styles.completedRideCompactValue}>
+                              {rideKm.toLocaleString('pt-BR')} km
+                            </Text>
+                          </View>
+
+                          <View style={styles.completedRideCompactItem}>
+                            <Text style={styles.completedRideCompactLabel}>Ganho por hora</Text>
+                            <Text style={styles.completedRideCompactValueGreen}>
+                              R$ {formatCurrency(rideGainHour)}
+                            </Text>
+                          </View>
+
+                          <View style={styles.completedRideCompactItem}>
+                            <Text style={styles.completedRideCompactLabel}>Ganho por km</Text>
+                            <Text style={styles.completedRideCompactValuePurple}>
+                              R$ {formatCurrency(rideGainKm)}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.completedRideFooterActions}>
+                        <TouchableOpacity
+                          activeOpacity={0.85}
+                          style={styles.completedRideEditButton}
+                          onPress={() => openEditFinishedRideModal(ride)}
+                        >
+                          <Ionicons name="create-outline" size={18} color="#FFFFFF" />
+                          <Text style={styles.completedRideEditText}>Editar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          activeOpacity={0.85}
+                          style={styles.completedRideDeleteButton}
+                          onPress={() => handleDeleteFinishedRide(ride)}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#FCA5A5" />
+                          <Text style={styles.completedRideDeleteText}>Excluir</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
-
-                    <View style={styles.finishedDivider} />
-
-                    <View style={styles.finishedStatsRow}>
-                      <Text style={styles.finishedStatText}>
-                        Tempo: {getFinishedRideDuration(ride)}
-                      </Text>
-
-                      <Text style={styles.finishedStatText}>
-                        {getFinishedRideKm(ride).toLocaleString('pt-BR')} km
-                      </Text>
-                    </View>
-
-                    <View style={styles.finishedStatsRow1}>
-                      <View style={styles.finishedStatsRow2}>
-                        <Text style={styles.finishedStatText1}>
-                          Ganho/Hora
-                        </Text>
-
-                        <Text style={styles.finishedStatText2}>
-                          R$ {formatCurrency(Number(ride.gain_per_hour ?? 0))}
-                        </Text>
-                      </View>
-
-                       <View style={styles.finishedStatsRow2}>
-                        <Text style={styles.finishedStatText1}>
-                          Ganho/Km
-                        </Text>
-
-                        <Text style={styles.finishedStatText2}>
-                          R$ {formatCurrency(Number(ride.gain_per_km ?? 0))}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.finishedActions}>
-                      <TouchableOpacity
-                        style={styles.finishedEditButton}
-                        onPress={() => openEditFinishedRideModal(ride)}
-                      >
-                        <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-                        <Text style={styles.finishedEditText}>Editar</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.finishedDeleteButton}
-                        onPress={() => handleDeleteFinishedRide(ride)}
-                      >
-                        <Ionicons name="trash-outline" size={18} color="#FF5B5B" />
-                        <Text style={styles.finishedDeleteText}>Excluir</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              })}
+                  );
+                })
+              )}
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={gainModalVisible} transparent animationType="fade">
+      <Modal visible={gainModalVisible} transparent animationType="slide">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {editingEarningId ? 'Editar ganho' : 'Adicionar ganho'}
-                </Text>
+          <View style={styles.gainModernOverlay}>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.gainModernBackdropTouch}
+              onPress={() => setGainModalVisible(false)}
+            />
 
-                <TouchableOpacity onPress={() => setGainModalVisible(false)}>
-                  <Ionicons name="close" size={26} color="#FFFFFF" />
+            <View style={styles.gainModernSheet}>
+              <View style={styles.gainModernHandle} />
+
+              <View style={styles.gainModernHeader}>
+                <View style={styles.gainModernHeaderLeft}>
+                  <View style={styles.gainModernHeaderIcon}>
+                    <Ionicons
+                      name={editingEarningId ? 'create-outline' : 'cash-outline'}
+                      size={24}
+                      color="#22C55E"
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gainModernEyebrow}>
+                      {editingEarningId ? 'Editar lançamento' : 'Novo lançamento'}
+                    </Text>
+
+                    <Text style={styles.gainModernTitle}>
+                      {editingEarningId ? 'Editar ganho' : 'Adicionar ganho'}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.gainModernCloseButton}
+                  onPress={() => setGainModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
-              {editingEarningId ? (
-                <View style={styles.platformLockedCard}>
-                  {(() => {
-                    const platformItem = userPlatforms.find(
-                      (item) =>
-                        item.platform?.name === selectedPlatform,
-                    );
+              <Text style={styles.gainModernSubtitle}>
+                {editingEarningId
+                  ? 'Altere o valor recebido nesta plataforma.'
+                  : 'Selecione a plataforma e informe o valor recebido nesta jornada.'}
+              </Text>
 
-                    const platform = platformItem?.platform;
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.gainModernScrollContent}
+              >
+                {editingEarningId ? (
+                  <View style={styles.gainModernLockedPlatformCard}>
+                    {(() => {
+                      const platformItem = userPlatforms.find(
+                        (item) => item.platform?.name === selectedPlatform,
+                      );
 
-                    if (!platform) return null;
+                      const platform = platformItem?.platform;
 
-                    return (
-                      <>
-                        {platform.logo_url ? (
-                          <Image
-                            source={{ uri: platform.logo_url }}
-                            style={styles.platformLockedLogo}
-                          />
-                        ) : (
-                          <View style={styles.platformLockedLogoFallback}>
-                            <Text style={styles.platformLockedLogoFallbackText}>
-                              {platform.name.slice(0, 1)}
-                            </Text>
-                          </View>
-                        )}
-
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.platformLockedName}>
-                            {platform.name}
-                          </Text>
-                        </View>
-                      </>
-                    );
-                  })()}
-                </View>
-              ) : (
-                <View style={styles.platformsGrid}>
-                  {userPlatforms.length === 0 ? (
-                    <TouchableOpacity
-                      style={styles.emptyPlatformsBox}
-                      onPress={openPlatformDrawerFromGainModal}
-                    >
-                      <Ionicons
-                        name="apps-outline"
-                        size={34}
-                        color="#A1A1AA"
-                      />
-
-                      <Text style={styles.emptyPlatformsTitle}>
-                        Nenhuma plataforma definida
-                      </Text>
-
-                      <Text style={styles.emptyPlatformsText}>
-                        Clique em gerenciar plataformas e defina ao menos uma plataforma para continuar.
-                      </Text>
-
-                      <View style={styles.emptyPlatformsButton}>
-                        <Text style={styles.emptyPlatformsButtonText}>
-                          Gerenciar plataformas
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={styles.platformsGrid}>
-                      {userPlatforms.map((item) => {
-                        const platform = item.platform;
-
-                        if (!platform) return null;
-
-                        const selected =
-                          selectedPlatform === platform.name;
-
-                        const alreadyHasGain = earnings.some(
-                          (earning: any) =>
-                            earning.platform === platform.name,
-                        );
-
+                      if (!platform) {
                         return (
-                          <TouchableOpacity
-                            key={platform.id}
-                            disabled={alreadyHasGain}
-                            style={[
-                              styles.platformGridCard,
-                              selected &&
-                                styles.platformGridCardActive,
-                              alreadyHasGain && {
-                                opacity: 0.35,
-                              },
-                            ]}
-                            onPress={() => {
-                              if (alreadyHasGain) return;
+                          <>
+                            <View style={styles.gainModernLockedLogoFallback}>
+                              <Ionicons name="apps-outline" size={22} color="#22C55E" />
+                            </View>
 
-                              setSelectedPlatform(platform.name);
-                            }}
-                          >
-                            {platform.logo_url ? (
-                              <Image
-                                source={{
-                                  uri: platform.logo_url,
-                                }}
-                                style={styles.platformGridLogo}
-                              />
-                            ) : (
-                              <View
-                                style={
-                                  styles.platformGridLogoFallback
-                                }
-                              >
-                                <Text
-                                  style={
-                                    styles.platformGridLogoFallbackText
-                                  }
-                                >
-                                  {platform.name.slice(0, 1)}
-                                </Text>
-                              </View>
-                            )}
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.gainModernLockedLabel}>
+                                Plataforma
+                              </Text>
+                              <Text style={styles.gainModernLockedName}>
+                                {selectedPlatform || 'Plataforma selecionada'}
+                              </Text>
+                            </View>
+                          </>
+                        );
+                      }
 
-                            <Text
-                              style={styles.platformGridName}
-                              numberOfLines={1}
-                            >
+                      return (
+                        <>
+                          {platform.logo_url ? (
+                            <Image
+                              source={{ uri: platform.logo_url }}
+                              style={styles.gainModernLockedLogo}
+                            />
+                          ) : (
+                            <View style={styles.gainModernLockedLogoFallback}>
+                              <Text style={styles.gainModernLockedLogoText}>
+                                {platform.name.slice(0, 1)}
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.gainModernLockedLabel}>
+                              Plataforma selecionada
+                            </Text>
+
+                            <Text style={styles.gainModernLockedName} numberOfLines={1}>
                               {platform.name}
                             </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
+                          </View>
+
+                          <View style={styles.gainModernLockedBadge}>
+                            <Text style={styles.gainModernLockedBadgeText}>Fixado</Text>
+                          </View>
+                        </>
+                      );
+                    })()}
+                  </View>
+                ) : (
+                  <View style={styles.gainModernSection}>
+                    <View style={styles.gainModernSectionHeader}>
+                      <View>
+                        <Text style={styles.gainModernSectionTitle}>Plataforma</Text>
+                        <Text style={styles.gainModernSectionHint}>
+                          Escolha onde esse ganho entrou
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={styles.gainModernManageButton}
+                        onPress={openPlatformDrawerFromGainModal}
+                      >
+                        <Ionicons name="options-outline" size={17} color="#FFFFFF" />
+                        <Text style={styles.gainModernManageButtonText}>Gerenciar</Text>
+                      </TouchableOpacity>
                     </View>
-                  )}
+
+                    {userPlatforms.length === 0 ? (
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={styles.gainModernEmptyPlatformsBox}
+                        onPress={openPlatformDrawerFromGainModal}
+                      >
+                        <View style={styles.gainModernEmptyIconBox}>
+                          <Ionicons name="apps-outline" size={30} color="#A1A1AA" />
+                        </View>
+
+                        <Text style={styles.gainModernEmptyTitle}>
+                          Nenhuma plataforma definida
+                        </Text>
+
+                        <Text style={styles.gainModernEmptyText}>
+                          Defina suas plataformas para conseguir lançar ganhos mais rápido.
+                        </Text>
+
+                        <View style={styles.gainModernEmptyButton}>
+                          <Ionicons name="add" size={18} color="#FFFFFF" />
+                          <Text style={styles.gainModernEmptyButtonText}>
+                            Gerenciar plataformas
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.gainModernPlatformsGrid}>
+                        {userPlatforms.map((item) => {
+                          const platform = item.platform;
+
+                          if (!platform) return null;
+
+                          const selected = selectedPlatform === platform.name;
+
+                          const alreadyHasGain = earnings.some(
+                            (earning: any) => earning.platform === platform.name,
+                          );
+
+                          return (
+                            <TouchableOpacity
+                              key={platform.id}
+                              activeOpacity={alreadyHasGain ? 1 : 0.88}
+                              disabled={alreadyHasGain}
+                              style={[
+                                styles.gainModernPlatformCard,
+                                selected && styles.gainModernPlatformCardActive,
+                                alreadyHasGain && styles.gainModernPlatformCardDisabled,
+                              ]}
+                              onPress={() => {
+                                if (alreadyHasGain) return;
+
+                                setSelectedPlatform(platform.name);
+                              }}
+                            >
+                              {platform.logo_url ? (
+                                <Image
+                                  source={{ uri: platform.logo_url }}
+                                  style={styles.gainModernPlatformLogo}
+                                />
+                              ) : (
+                                <View style={styles.gainModernPlatformLogoFallback}>
+                                  <Text style={styles.gainModernPlatformLogoText}>
+                                    {platform.name.slice(0, 1)}
+                                  </Text>
+                                </View>
+                              )}
+
+                              <View style={styles.gainModernPlatformInfo}>
+                                <Text style={styles.gainModernPlatformName} numberOfLines={1}>
+                                  {platform.name}
+                                </Text>
+
+                                {alreadyHasGain ? (
+                                  <Text style={styles.gainModernPlatformHint} numberOfLines={1}>
+                                    Já lançado
+                                  </Text>
+                                ) : selected ? (
+                                  <Text style={styles.gainModernPlatformHintActive} numberOfLines={1}>
+                                    Selecionada
+                                  </Text>
+                                ) : (
+                                  <Text style={styles.gainModernPlatformHint} numberOfLines={1}>
+                                    Tocar para usar
+                                  </Text>
+                                )}
+                              </View>
+
+                              {selected && !alreadyHasGain && (
+                                <View style={styles.gainModernPlatformCheck}>
+                                  <Ionicons name="checkmark" size={14} color="#052E16" />
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.gainModernAmountSection}>
+                  <View style={styles.gainModernAmountHeader}>
+                    <Text style={styles.gainModernSectionTitle}>Valor do ganho</Text>
+                    <Text style={styles.gainModernSectionHint}>Use vírgula para centavos</Text>
+                  </View>
+
+                  <View style={styles.gainModernAmountInputCard}>
+                    <View style={styles.gainModernCurrencyBox}>
+                      <Text style={styles.gainModernCurrencyText}>R$</Text>
+                    </View>
+
+                    <TextInput
+                      value={gainValue}
+                      onChangeText={(text) => {
+                        let sanitized = text.replace(/[^0-9,]/g, '');
+
+                        const parts = sanitized.split(',');
+
+                        if (parts.length > 2) {
+                          sanitized = `${parts[0]},${parts[1]}`;
+                        }
+
+                        if (parts[1]?.length > 2) {
+                          sanitized = `${parts[0]},${parts[1].slice(0, 2)}`;
+                        }
+
+                        setGainValue(sanitized);
+                      }}
+                      placeholder="0,00"
+                      placeholderTextColor="#4B5563"
+                      keyboardType="numeric"
+                      style={styles.gainModernAmountInput}
+                    />
+                  </View>
                 </View>
-              )}
+              </ScrollView>
 
-              <Text style={{color: '#ffffff', marginLeft: 5, marginBottom: 5}}>Valor do ganho</Text>
-              <TextInput
-                value={gainValue}
-                onChangeText={setGainValue}
-                placeholder="Valor do ganho"
-                placeholderTextColor="#71717A"
-                keyboardType="numeric"
-                style={styles.input}
-              />
-
-              {!editingEarningId && (
+              <View style={styles.gainModernFooter}>
                 <TouchableOpacity
-                  style={styles.addPlatformGridCard}
-                  onPress={openPlatformDrawerFromGainModal}
+                  activeOpacity={0.9}
+                  style={[
+                    styles.gainModernSaveButton,
+                    (!selectedPlatform || !gainValue) && styles.gainModernSaveButtonDisabled,
+                  ]}
+                  onPress={handleSaveGain}
                 >
-                  <Ionicons name="add" size={24} color="#FFFFFF" />
+                  <Ionicons
+                    name={editingEarningId ? 'checkmark-circle-outline' : 'add-circle-outline'}
+                    size={22}
+                    color="#FFFFFF"
+                  />
 
-                  <Text style={styles.addPlatformGridText}>
-                    Gerenciar plataformas
+                  <Text style={styles.gainModernSaveButtonText}>
+                    {editingEarningId ? 'Salvar alteração' : 'Salvar ganho'}
                   </Text>
                 </TouchableOpacity>
-              )}
-
-              <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveGain}>
-                <Text style={styles.modalSaveButtonText}>Salvar ganho</Text>
-              </TouchableOpacity>
+              </View>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={kmModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Atualizar KM</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.kmModernOverlay}>
+            <View style={styles.kmModernSheet}>
+              <View style={styles.kmModernHandle} />
 
-              <TouchableOpacity onPress={() => setKmModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
-              </TouchableOpacity>
+              <View style={styles.kmModernHeader}>
+                <View style={styles.kmModernHeaderLeft}>
+                  <View style={styles.kmModernIconBox}>
+                    <Ionicons name="speedometer-outline" size={24} color="#F59E0B" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.kmModernEyebrow}>Quilometragem da jornada</Text>
+                    <Text style={styles.kmModernTitle}>Atualizar KM</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.kmModernCloseButton}
+                  onPress={() => setKmModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.kmModernScrollContent}
+              >
+                <View style={styles.kmModernSummaryCard}>
+                  <View style={styles.kmModernSummaryTop}>
+                    <View>
+                      <Text style={styles.kmModernSummaryLabel}>KM inicial</Text>
+                      <Text style={styles.kmModernSummaryValue}>
+                        {Number(session.start_km ?? 0).toLocaleString('pt-BR')} km
+                      </Text>
+                    </View>
+
+                    <View style={styles.kmModernSummaryArrow}>
+                      <Ionicons name="arrow-forward" size={18} color="#A1A1AA" />
+                    </View>
+
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.kmModernSummaryLabel}>KM informado</Text>
+                      <Text style={styles.kmModernSummaryValueHighlight}>
+                        {onlyNumbers(kmValue).toLocaleString('pt-BR')} km
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.kmModernDrivenBox}>
+                    <View style={styles.kmModernDrivenIcon}>
+                      <Ionicons name="navigate-outline" size={19} color="#3B82F6" />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.kmModernDrivenLabel}>KM rodados nesta jornada</Text>
+                      <Text style={styles.kmModernDrivenValue}>
+                        {Math.max(onlyNumbers(kmValue) - Number(session.start_km ?? 0), 0).toLocaleString('pt-BR')} km
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.kmModernInputSection}>
+                  <View style={styles.kmModernInputLabelRow}>
+                    <Ionicons name="car-sport-outline" size={18} color="#F59E0B" />
+                    <Text style={styles.kmModernInputLabel}>KM atual do veículo</Text>
+                  </View>
+
+                  <View style={styles.kmModernInputCard}>
+                    <TextInput
+                      value={kmValue}
+                      onChangeText={(text) => setKmValue(formatKm(text))}
+                      placeholder="0"
+                      placeholderTextColor="#4B5563"
+                      keyboardType="numeric"
+                      style={styles.kmModernInput}
+                    />
+
+                    <View style={styles.kmModernUnitPill}>
+                      <Text style={styles.kmModernUnitText}>km</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.kmModernHintBox}>
+                    <Ionicons name="information-circle-outline" size={19} color="#A1A1AA" />
+                    <Text style={styles.kmModernHintText}>
+                      O KM atual não pode ser menor que o KM inicial da jornada.
+                    </Text>
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.kmModernFooter}>
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.kmModernCancelButton}
+                  onPress={() => setKmModalVisible(false)}
+                >
+                  <Text style={styles.kmModernCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.kmModernSaveButton}
+                  onPress={handleUpdateKm}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={22} color="#FFFFFF" />
+                  <Text style={styles.kmModernSaveText}>Salvar KM</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <TextInput
-              value={kmValue}
-              onChangeText={(text) => setKmValue(formatKm(text))}
-              placeholder="KM atual"
-              placeholderTextColor="#71717A"
-              keyboardType="numeric"
-              style={styles.input}
-            />
-
-            <TouchableOpacity style={styles.modalSaveButton} onPress={handleUpdateKm}>
-              <Text style={styles.modalSaveButtonText}>Atualizar KM</Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={finishModalVisible} transparent animationType="fade">
@@ -1881,7 +2784,7 @@ export default function ActiveSessionScreen() {
           style={{ flex: 1 }}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContentLarge}>
+            <View style={styles.finishModalContentFull}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Finalizar jornada</Text>
 
@@ -1891,31 +2794,57 @@ export default function ActiveSessionScreen() {
               </View>
 
               <Text style={styles.modalSubtitle}>
-                Confira o KM final e informe os ganhos das plataformas.
+                Confira o KM final, o horário de finalização e informe os ganhos das plataformas.
               </Text>
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.finishTimePreviewCard}
+                onPress={openFinishTimeEditModal}
+              >
+                <View style={styles.finishTimePreviewLeft}>
+                  <View style={styles.finishTimePreviewDot} />
+
+                  <Text style={styles.finishTimePreviewText}>
+                    Jornada finalizará às {finishTimeValue || '--:--'}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.finishTimePreviewButton}
+                  onPress={openFinishTimeEditModal}
+                >
+                  <Text style={styles.finishTimePreviewButtonText}>
+                    Alterar
+                  </Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
 
               <ScrollView>
 
-                <Text style={styles.finishInputLabel}>Km final</Text>
+                <View style={styles.finishKmBlock}>
+                  <Text style={styles.finishKmLabel}>KM final</Text>
 
-                <TextInput
-                  value={kmValue}
-                  onChangeText={(text) => setKmValue(formatKm(text))}
-                  placeholder="KM final"
-                  placeholderTextColor="#71717A"
-                  keyboardType="numeric"
-                  style={styles.input}
-                />
+                  <View style={styles.finishKmInputCard}>
+                    <TextInput
+                      value={kmValue}
+                      onChangeText={(text) => setKmValue(formatKm(text))}
+                      placeholder="0"
+                      placeholderTextColor="#374151"
+                      keyboardType="numeric"
+                      style={styles.finishKmInput}
+                    />
+
+                    <Text style={styles.finishKmUnit}>km</Text>
+                  </View>
+                </View>
 
                 {userPlatforms.length === 0 ? (
                   <TouchableOpacity
                     style={styles.emptyPlatformsBox}
                     onPress={() => {
-                      setFinishModalVisible(false);
-
-                      setTimeout(() => {
-                        setPlatformDrawerVisible(true);
-                      }, 400);
+                      setPlatformDrawerVisible(true);
                     }}
                   >
                     <Ionicons name="apps-outline" size={34} color="#A1A1AA" />
@@ -1929,72 +2858,86 @@ export default function ActiveSessionScreen() {
                     </Text>
                   </TouchableOpacity>
                 ) : (
-                  <View>
+                  <View style={styles.finishPlatformsSection}>
+                    <View style={styles.finishPlatformsHeaderRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.finishPlatformsTitle}>
+                          Ganhos por plataforma
+                        </Text>
+
+                        <Text style={styles.finishPlatformsSubtitle}>
+                          Informe o total recebido em cada app.
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.managePlatformsCompactButton}
+                        onPress={() => {
+                          setPlatformDrawerVisible(true);
+                        }}
+                      >
+                        <Ionicons name="apps-outline" size={17} color="#FFFFFF" />
+
+                        <Text style={styles.managePlatformsCompactText}>
+                          Gerenciar
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
                     {userPlatforms.map((item: any) => {
                       const platform = item.platform;
 
                       if (!platform) return null;
 
                       return (
-                        <View key={platform.id} style={styles.finishPlatformItem}>
-                          <View style={styles.finishPlatformHeader}>
-                            {platform.logo_url ? (
-                              <Image
-                                source={{ uri: platform.logo_url }}
-                                style={styles.finishPlatformLogo}
-                              />
-                            ) : (
-                              <View style={styles.finishPlatformLogoFallback}>
-                                <Text style={styles.finishPlatformLogoFallbackText}>
+                        <View key={platform.id} style={styles.finishPlatformModernCard}>
+                          <View style={styles.finishPlatformModernHeader}>
+                            <View style={styles.finishPlatformLogoBox}>
+                              {platform.logo_url ? (
+                                <Image
+                                  source={{ uri: platform.logo_url }}
+                                  style={styles.finishPlatformModernLogo}
+                                />
+                              ) : (
+                                <Text style={styles.finishPlatformModernLogoText}>
                                   {platform.name.slice(0, 1)}
                                 </Text>
-                              </View>
-                            )}
+                              )}
+                            </View>
 
-                            <Text style={styles.finishPlatformName}>
-                              {platform.name}
-                            </Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.finishPlatformModernName}>
+                                {platform.name}
+                              </Text>
+
+                              <Text style={styles.finishPlatformModernHint}>
+                                Valor recebido na jornada
+                              </Text>
+                            </View>
                           </View>
 
-                          <TextInput
-                            value={finishPlatformValues[platform.name] ?? ''}
-                            onChangeText={(text) =>
-                              setFinishPlatformValues((prev) => ({
-                                ...prev,
-                                [platform.name]: text,
-                              }))
-                            }
-                            placeholder="0,00"
-                            placeholderTextColor="#71717A"
-                            keyboardType="numeric"
-                            style={styles.finishPlatformInput}
-                          />
+                          <View style={styles.finishPlatformAmountBox}>
+                            <Text style={styles.finishPlatformCurrency}>R$</Text>
+
+                            <TextInput
+                              value={finishPlatformValues[platform.name] ?? ''}
+                              onChangeText={(text) =>
+                                setFinishPlatformValues((prev) => ({
+                                  ...prev,
+                                  [platform.name]: text,
+                                }))
+                              }
+                              placeholder="0,00"
+                              placeholderTextColor="#4B5563"
+                              keyboardType="numeric"
+                              style={styles.finishPlatformModernInput}
+                            />
+                          </View>
                         </View>
                       );
                     })}
                   </View>
                 )}
-
-                <TouchableOpacity
-                  style={styles.managePlatformsButton}
-                  onPress={() => {
-                    setFinishModalVisible(false);
-
-                    setTimeout(() => {
-                      setPlatformDrawerVisible(true);
-                    }, 400);
-                  }}
-                >
-                  <Ionicons
-                    name="apps-outline"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-
-                  <Text style={styles.managePlatformsButtonText}>
-                    Gerenciar plataformas
-                  </Text>
-                </TouchableOpacity>
 
               </ScrollView>
 
@@ -2002,6 +2945,8 @@ export default function ActiveSessionScreen() {
                 style={styles.modalFinishButton}
                 onPress={handleFinishSession}
               >
+                <Ionicons name="stop-circle-outline" size={22} color="#FFFFFF" />
+
                 <Text style={styles.modalFinishButtonText}>Concluir jornada</Text>
               </TouchableOpacity>
               
@@ -2010,127 +2955,574 @@ export default function ActiveSessionScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={finishRideModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
+      <Modal visible={finishTimeEditModalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Finalizar corrida</Text>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Alterar horário</Text>
 
-                <TouchableOpacity onPress={() => setFinishRideModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+                <TouchableOpacity onPress={() => setFinishTimeEditModalVisible(false)}>
+                  <Ionicons name="close" size={26} color="#FFFFFF" />
                 </TouchableOpacity>
-            </View>
+              </View>
 
-            <TextInput
-                value={rideAmount}
-                onChangeText={setRideAmount}
-                placeholder="Valor da corrida/entrega"
+              <Text style={styles.modalSubtitle}>
+                Escolha um horário entre o início da jornada e o horário atual.
+              </Text>
+
+              <View style={styles.finishTimeEditCard}>
+                <View style={styles.finishTimeEditIconBox}>
+                  <Ionicons name="time-outline" size={24} color="#22C55E" />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.finishTimeEditTitle}>
+                    Jornada finalizará às {draftFinishTimeValue || '--:--'}
+                  </Text>
+
+                  <Text style={styles.finishTimeEditSubtitle}>
+                    Iniciada às{' '}
+                    {new Date(session.started_at).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.finishInputLabel}>Data de finalização</Text>
+
+              <TextInput
+                value={draftFinishDateValue}
+                onChangeText={(text) => setDraftFinishDateValue(maskDateInput(text))}
+                placeholder="dd/mm/aaaa"
                 placeholderTextColor="#71717A"
                 keyboardType="numeric"
+                maxLength={10}
                 style={styles.input}
-            />
+              />
 
-            <TextInput
-                value={rideEndKm}
-                onChangeText={(text) => setRideEndKm(formatKm(text))}
-                placeholder="KM final"
+              <Text style={styles.finishInputLabel}>Hora de finalização</Text>
+
+              <TextInput
+                value={draftFinishTimeValue}
+                onChangeText={(text) => setDraftFinishTimeValue(maskTimeInput(text))}
+                placeholder="00:00"
                 placeholderTextColor="#71717A"
                 keyboardType="numeric"
+                maxLength={5}
                 style={styles.input}
-            />
+              />
 
-            <TouchableOpacity style={styles.modalSaveButton} onPress={handleFinishRide}>
-                <Text style={styles.modalSaveButtonText}>Finalizar corrida</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSaveButton}
+                onPress={handleSaveFinishTimeEdit}
+              >
+                <Text style={styles.modalSaveButtonText}>Salvar horário</Text>
+              </TouchableOpacity>
             </View>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={finishRideModalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.finishRideModernOverlay}>
+            <View style={styles.finishRideModernSheet}>
+              <View style={styles.finishRideModernHandle} />
+
+              <View style={styles.finishRideModernHeader}>
+                <View style={styles.finishRideModernHeaderLeft}>
+                  <View style={styles.finishRideModernHeaderIcon}>
+                    <Ionicons name="flag-outline" size={24} color="#22C55E" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.finishRideModernEyebrow}>
+                      Corrida em andamento
+                    </Text>
+                    <Text style={styles.finishRideModernTitle}>
+                      Finalizar corrida
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.finishRideModernCloseButton}
+                  onPress={() => setFinishRideModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.finishRideModernScroll}
+                contentContainerStyle={styles.finishRideModernScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.finishRideModernSubtitle}>
+                  Confira o valor recebido e informe o KM final para calcular o desempenho da corrida.
+                </Text>
+
+              {finishingRide && (
+                <View style={styles.finishRideModernSummaryCard}>
+                  <View style={styles.finishRideModernSummaryTop}>
+                    <View style={styles.finishRideModernPlatformBox}>
+                      {(() => {
+                        const platformData = finishingRide?.platform
+                          ? getPlatformByName(finishingRide.platform)
+                          : null;
+
+                        if (platformData?.logo_url) {
+                          return (
+                            <Image
+                              source={{ uri: platformData.logo_url }}
+                              style={styles.finishRideModernPlatformLogo}
+                            />
+                          );
+                        }
+
+                        return (
+                          <Text style={styles.finishRideModernPlatformInitial}>
+                            {finishingRide?.platform?.slice(0, 1) ?? '?'}
+                          </Text>
+                        );
+                      })()}
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.finishRideModernPlatformName} numberOfLines={1}>
+                        {finishingRide.platform ?? 'Plataforma'}
+                      </Text>
+                      <Text style={styles.finishRideModernPlatformHint}>
+                        Iniciada às {formatRideHour(finishingRide.started_at)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.finishRideModernLiveBadge}>
+                      <View style={styles.finishRideModernLiveDot} />
+                      <Text style={styles.finishRideModernLiveText}>AO VIVO</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.finishRideModernStatsGrid}>
+                    <View style={styles.finishRideModernStatBox}>
+                      <Text style={styles.finishRideModernStatLabel}>Tempo</Text>
+                      <Text style={styles.finishRideModernStatValue}>
+                        {formatTimer(getRideElapsedSeconds(finishingRide))}
+                      </Text>
+                    </View>
+
+                    <View style={styles.finishRideModernStatBox}>
+                      <Text style={styles.finishRideModernStatLabel}>KM inicial</Text>
+                      <Text style={styles.finishRideModernStatValue}>
+                        {Number(finishingRide.start_km ?? 0).toLocaleString('pt-BR')} km
+                      </Text>
+                    </View>
+
+                    <View style={styles.finishRideModernStatBoxWide}>
+                      <Text style={styles.finishRideModernStatLabel}>Ganho/hora atual</Text>
+                      <Text style={styles.finishRideModernStatValueGreen}>
+                        R$ {Number(getRideGainPerHour(finishingRide) ?? 0).toFixed(2).replace('.', ',')}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.finishRideModernFieldsCard}>
+                <Text style={styles.finishRideModernInputLabel}>Valor recebido</Text>
+
+                <View style={styles.finishRideModernInputBox}>
+                  <View style={styles.finishRideModernInputIcon}>
+                    <Text style={styles.finishRideModernCurrencyText}>R$</Text>
+                  </View>
+
+                  <TextInput
+                    value={rideAmount}
+                    onChangeText={(text) => {
+                      let sanitized = text.replace(/[^0-9,]/g, '');
+
+                      const parts = sanitized.split(',');
+                      if (parts.length > 2) {
+                        sanitized = parts[0] + ',' + parts[1];
+                      }
+                      if (parts[1]?.length > 2) {
+                        sanitized = parts[0] + ',' + parts[1].slice(0, 2);
+                      }
+
+                      setRideAmount(sanitized);
+                    }}
+                    placeholder="0,00"
+                    placeholderTextColor="#4B5563"
+                    keyboardType="numeric"
+                    style={styles.finishRideModernMoneyInput}
+                  />
+                </View>
+
+                <Text style={styles.finishRideModernInputLabel}>KM final</Text>
+
+                <View style={styles.finishRideModernInputBox}>
+                  <View style={styles.finishRideModernInputIconBlue}>
+                    <Ionicons name="speedometer-outline" size={21} color="#60A5FA" />
+                  </View>
+
+                  <TextInput
+                    value={rideEndKm}
+                    onChangeText={(text) => setRideEndKm(formatKm(text))}
+                    placeholder="KM final"
+                    placeholderTextColor="#4B5563"
+                    keyboardType="numeric"
+                    style={styles.finishRideModernKmInput}
+                  />
+
+                  <Text style={styles.finishRideModernKmUnit}>km</Text>
+                </View>
+
+                {finishingRide && (
+                  <View style={styles.finishRideModernHintCard}>
+                    <Ionicons name="information-circle-outline" size={20} color="#A1A1AA" />
+                    <Text style={styles.finishRideModernHintText}>
+                      O KM final precisa ser maior ou igual ao KM inicial da corrida.
+                    </Text>
+                  </View>
+                )}
+              </View>
+              </ScrollView>
+
+              <View style={styles.finishRideModernFooter}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.finishRideModernButton}
+                  onPress={handleFinishRide}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={23} color="#FFFFFF" />
+                  <Text style={styles.finishRideModernButtonText}>Concluir corrida</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={rideResultModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Corrida finalizada</Text>
+        <View style={styles.rideResultModernOverlay}>
+          <View style={styles.rideResultModernSheet}>
+            <View style={styles.rideResultModernHandle} />
 
-                <TouchableOpacity onPress={() => setRideResultModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
-                </TouchableOpacity>
-            </View>
+            <View style={styles.rideResultModernHeader}>
+              <View style={styles.rideResultModernHeaderLeft}>
+                <View style={styles.rideResultModernIconBox}>
+                  <Ionicons name="checkmark-circle" size={30} color="#22C55E" />
+                </View>
 
-            <Text style={styles.modalSubtitle}>
-                Resultado desta corrida/entrega
-            </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rideResultModernEyebrow}>Corrida/entrega concluída</Text>
+                  <Text style={styles.rideResultModernTitle}>Resultado da corrida</Text>
+                </View>
+              </View>
 
-            <View style={styles.resultCard}>
-                <Text style={styles.resultLabel}>Valor recebido</Text>
-                <Text style={styles.resultValue}>
-                R$ {formatCurrency(Number(rideResult?.amount ?? 0))}
-                </Text>
-            </View>
-
-            <View style={styles.resultCard}>
-                <Text style={styles.resultLabel}>Ganho por hora</Text>
-                <Text style={styles.resultValue}>
-                R$ {formatCurrency(Number(rideResult?.gain_per_hour ?? 0))}
-                </Text>
-            </View>
-
-            <View style={styles.resultCard}>
-                <Text style={styles.resultLabel}>Ganho por km</Text>
-                <Text style={styles.resultValue}>
-                R$ {formatCurrency(Number(rideResult?.gain_per_km ?? 0))}
-                </Text>
-            </View>
-
-            <View style={styles.resultCard}>
-                <Text style={styles.resultLabel}>KM rodados</Text>
-                <Text style={styles.resultValue}>
-                {Number(rideResult?.km_driven ?? 0).toLocaleString('pt-BR')} km
-                </Text>
-            </View>
-
-            <TouchableOpacity
-                style={styles.modalSaveButton}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.rideResultModernCloseButton}
                 onPress={() => setRideResultModalVisible(false)}
-            >
-                <Text style={styles.modalSaveButtonText}>Entendi</Text>
-            </TouchableOpacity>
+              >
+                <Ionicons name="close" size={25} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
+
+            <ScrollView
+              style={styles.rideResultModernScroll}
+              contentContainerStyle={styles.rideResultModernScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.rideResultModernHeroCard}>
+                <View style={styles.rideResultModernHeroTop}>
+                  <View>
+                    <Text style={styles.rideResultModernHeroLabel}>Valor recebido</Text>
+                    <Text style={styles.rideResultModernHeroValue}>
+                      R$ {formatCurrency(Number(rideResult?.amount ?? 0))}
+                    </Text>
+                  </View>
+
+                  <View style={styles.rideResultModernSuccessBadge}>
+                    <Ionicons name="sparkles-outline" size={16} color="#86EFAC" />
+                    <Text style={styles.rideResultModernSuccessText}>Salva</Text>
+                  </View>
+                </View>
+
+                <View style={styles.rideResultModernDivider} />
+
+                <View style={styles.rideResultModernHeroHintRow}>
+                  <Ionicons name="information-circle-outline" size={18} color="#A1A1AA" />
+                  <Text style={styles.rideResultModernHeroHintText}>
+                    Este valor foi somado aos ganhos da jornada e usado no cálculo do desempenho.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.rideResultModernStatsGrid}>
+                <View style={styles.rideResultModernStatCard}>
+                  <View style={styles.rideResultModernStatIconGreen}>
+                    <Ionicons name="time-outline" size={21} color="#22C55E" />
+                  </View>
+
+                  <Text style={styles.rideResultModernStatLabel}>Ganho por hora</Text>
+                  <Text style={styles.rideResultModernStatValueGreen}>
+                    R$ {formatCurrency(Number(rideResult?.gain_per_hour ?? 0))}
+                  </Text>
+                </View>
+
+                <View style={styles.rideResultModernStatCard}>
+                  <View style={styles.rideResultModernStatIconBlue}>
+                    <Ionicons name="navigate-outline" size={21} color="#60A5FA" />
+                  </View>
+
+                  <Text style={styles.rideResultModernStatLabel}>Ganho por km</Text>
+                  <Text style={styles.rideResultModernStatValueBlue}>
+                    R$ {formatCurrency(Number(rideResult?.gain_per_km ?? 0))}
+                  </Text>
+                </View>
+
+                <View style={styles.rideResultModernStatCardWide}>
+                  <View style={styles.rideResultModernStatIconPurple}>
+                    <Ionicons name="speedometer-outline" size={21} color="#A855F7" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rideResultModernStatLabel}>KM rodados</Text>
+                    <Text style={styles.rideResultModernStatValue}>
+                      {Number(rideResult?.km_driven ?? 0).toLocaleString('pt-BR')} km
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.rideResultModernFooter}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.rideResultModernSecondaryButton}
+                onPress={() => {
+                  setRideResultModalVisible(false);
+                  setTimeout(() => {
+                    setFinishedDrawerVisible(true);
+                  }, 250);
+                }}
+              >
+                <Ionicons name="list-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.rideResultModernSecondaryButtonText}>Ver concluídas</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.rideResultModernPrimaryButton}
+                onPress={() => setRideResultModalVisible(false)}
+              >
+                <Ionicons name="checkmark-circle-outline" size={21} color="#FFFFFF" />
+                <Text style={styles.rideResultModernPrimaryButtonText}>Entendi</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
 
       <Modal visible={editFinishedRideModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar corrida concluída</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.editFinishedRideModernOverlay}>
+            <View style={styles.editFinishedRideModernSheet}>
+              <View style={styles.editFinishedRideModernHandle} />
 
-              <TouchableOpacity onPress={() => setEditFinishedRideModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
-              </TouchableOpacity>
+              <View style={styles.editFinishedRideModernHeader}>
+                <View style={styles.editFinishedRideModernHeaderLeft}>
+                  <View style={styles.editFinishedRideModernHeaderIcon}>
+                    <Ionicons name="create-outline" size={24} color="#60A5FA" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.editFinishedRideModernEyebrow}>
+                      Corrida concluída
+                    </Text>
+                    <Text style={styles.editFinishedRideModernTitle}>
+                      Editar valor
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.editFinishedRideModernCloseButton}
+                  onPress={() => setEditFinishedRideModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.editFinishedRideModernScrollContent}
+              >
+                <Text style={styles.editFinishedRideModernSubtitle}>
+                  Altere apenas o valor recebido. O desempenho será recalculado na jornada.
+                </Text>
+
+                {editingFinishedRide && (
+                  <View style={styles.editFinishedRideModernSummaryCard}>
+                    <View style={styles.editFinishedRideModernPlatformRow}>
+                      <View style={styles.editFinishedRideModernPlatformLogoBox}>
+                        {(() => {
+                          const platformData = editingFinishedRide?.platform
+                            ? getPlatformByName(editingFinishedRide.platform)
+                            : null;
+
+                          if (platformData?.logo_url) {
+                            return (
+                              <Image
+                                source={{ uri: platformData.logo_url }}
+                                style={styles.editFinishedRideModernPlatformLogo}
+                              />
+                            );
+                          }
+
+                          return (
+                            <Text style={styles.editFinishedRideModernPlatformInitial}>
+                              {editingFinishedRide?.platform?.slice(0, 1) ?? '?'}
+                            </Text>
+                          );
+                        })()}
+                      </View>
+
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.editFinishedRideModernPlatformName}>
+                          {editingFinishedRide.platform}
+                        </Text>
+                        <View style={styles.editFinishedRideModernStatusRow}>
+                          <View style={styles.editFinishedRideModernStatusDot} />
+                          <Text style={styles.editFinishedRideModernStatusText}>
+                            Concluída
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={styles.editFinishedRideModernInfoGrid}>
+                      <View style={styles.editFinishedRideModernInfoCard}>
+                        <View style={styles.editFinishedRideModernInfoTitleRow}>
+                          <Ionicons name="time-outline" size={16} color="#A1A1AA" />
+                          <Text style={styles.editFinishedRideModernInfoLabel}>Início</Text>
+                        </View>
+                        <Text style={styles.editFinishedRideModernInfoValue}>
+                          {formatRideHour(editingFinishedRide.started_at)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.editFinishedRideModernInfoCard}>
+                        <View style={styles.editFinishedRideModernInfoTitleRow}>
+                          <Ionicons name="flag-outline" size={16} color="#A1A1AA" />
+                          <Text style={styles.editFinishedRideModernInfoLabel}>Final</Text>
+                        </View>
+                        <Text style={styles.editFinishedRideModernInfoValue}>
+                          {formatRideHour(editingFinishedRide.finished_at)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.editFinishedRideModernInfoCard}>
+                        <View style={styles.editFinishedRideModernInfoTitleRow}>
+                          <Ionicons name="stopwatch-outline" size={16} color="#A1A1AA" />
+                          <Text style={styles.editFinishedRideModernInfoLabel}>Tempo</Text>
+                        </View>
+                        <Text style={styles.editFinishedRideModernInfoValue}>
+                          {getFinishedRideDuration(editingFinishedRide)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.editFinishedRideModernInfoCard}>
+                        <View style={styles.editFinishedRideModernInfoTitleRow}>
+                          <Ionicons name="navigate-outline" size={16} color="#A1A1AA" />
+                          <Text style={styles.editFinishedRideModernInfoLabel}>KM</Text>
+                        </View>
+                        <Text style={styles.editFinishedRideModernInfoValue}>
+                          {getFinishedRideKm(editingFinishedRide).toLocaleString('pt-BR')} km
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.editFinishedRideModernAmountCard}>
+                  <Text style={styles.editFinishedRideModernInputLabel}>
+                    Valor recebido
+                  </Text>
+
+                  <View style={styles.editFinishedRideModernAmountInputBox}>
+                    <View style={styles.editFinishedRideModernCurrencyBox}>
+                      <Text style={styles.editFinishedRideModernCurrencyText}>R$</Text>
+                    </View>
+
+                    <TextInput
+                      value={finishedRideAmount}
+                      onChangeText={(text) => {
+                        let sanitized = text.replace(/[^0-9,]/g, '');
+
+                        const parts = sanitized.split(',');
+
+                        if (parts.length > 2) {
+                          sanitized = `${parts[0]},${parts[1]}`;
+                        }
+
+                        if (parts[1]?.length > 2) {
+                          sanitized = `${parts[0]},${parts[1].slice(0, 2)}`;
+                        }
+
+                        setFinishedRideAmount(sanitized);
+                      }}
+                      placeholder="0,00"
+                      placeholderTextColor="#4B5563"
+                      keyboardType="numeric"
+                      style={styles.editFinishedRideModernAmountInput}
+                    />
+                  </View>
+
+                  <Text style={styles.editFinishedRideModernInputHint}>
+                    Esse valor será atualizado nos ganhos da plataforma e no total da jornada.
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View style={styles.editFinishedRideModernFooter}>
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.editFinishedRideModernCancelButton}
+                  onPress={() => setEditFinishedRideModalVisible(false)}
+                >
+                  <Text style={styles.editFinishedRideModernCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.editFinishedRideModernSaveButton}
+                  onPress={handleUpdateFinishedRide}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={21} color="#FFFFFF" />
+                  <Text style={styles.editFinishedRideModernSaveText}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <Text style={styles.modalSubtitle}>
-              Plataforma: {editingFinishedRide?.platform}
-            </Text>
-
-            <TextInput
-              value={finishedRideAmount}
-              onChangeText={setFinishedRideAmount}
-              placeholder="Valor da corrida"
-              placeholderTextColor="#71717A"
-              keyboardType="numeric"
-              style={styles.input}
-            />
-
-            <TouchableOpacity
-              style={styles.modalSaveButton}
-              onPress={handleUpdateFinishedRide}
-            >
-              <Text style={styles.modalSaveButtonText}>Salvar alteração</Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={platformDrawerVisible} transparent animationType="slide">
@@ -2211,60 +3603,80 @@ export default function ActiveSessionScreen() {
             <ScrollView keyboardShouldPersistTaps="handled">
               {onlineDrivers
                 .filter((item) => item.user?.id !== currentUserId)
-                .map((item) => (
-                  <View key={item.id} style={styles.driverOnlineItem}>
-                    {item.user?.avatar_url ? (
-                      <Image
-                        source={{ uri: item.user.avatar_url }}
-                        style={styles.driverAvatar}
-                      />
-                    ) : (
-                      <View style={styles.driverAvatarFallback}>
-                        <Ionicons name="person" size={22} color="#FFFFFF" />
-                      </View>
-                    )}
+                .map((item) => {
+                  const preview = item.user?.id
+                    ? privateChatPreviews[item.user.id]
+                    : null;
 
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.driverNameRow}>
-                        <Text style={styles.driverName}>
-                          {item.user?.full_name || item.user?.name || 'Motorista'}
-                        </Text>
-
-                        <View
-                          style={[
-                            styles.driverStatusDot,
-                            {
-                              backgroundColor:
-                                item.status === 'active' ? '#22C55E' : '#F59E0B',
-                            },
-                          ]}
+                  return (
+                    <View key={item.id} style={styles.driverOnlineItem}>
+                      {item.user?.avatar_url ? (
+                        <Image
+                          source={{ uri: item.user.avatar_url }}
+                          style={styles.driverAvatar}
                         />
+                      ) : (
+                        <View style={styles.driverAvatarFallback}>
+                          <Ionicons name="person" size={22} color="#FFFFFF" />
+                        </View>
+                      )}
+
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.driverNameRow}>
+                          <Text style={styles.driverName} numberOfLines={1}>
+                            {item.user?.full_name || item.user?.name || 'Motorista'}
+                          </Text>
+
+                          <View
+                            style={[
+                              styles.driverStatusDot,
+                              {
+                                backgroundColor:
+                                  item.status === 'active' ? '#22C55E' : '#F59E0B',
+                              },
+                            ]}
+                          />
+                        </View>
+
+                        <Text
+                          style={[
+                            styles.driverLastMessage,
+                            preview?.unread ? styles.driverLastMessageUnread : null,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {preview?.lastMessage || 'Toque no chat para conversar'}
+                        </Text>
                       </View>
 
-                      <Text style={styles.driverStatus}>
-                        {item.status === 'active' ? 'Rodando' : 'Em pausa'}
-                      </Text>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={styles.privateChatIconButton}
+                        onPress={() => {
+                          setDriversModalVisible(false);
+
+                          setTimeout(() => {
+                            openPrivateChat(item.user);
+                          }, 350);
+                        }}
+                      >
+                        <Ionicons
+                          name="chatbubble-ellipses-outline"
+                          size={20}
+                          color="#FFFFFF"
+                        />
+
+                        {!!preview?.unread && (
+                          <View style={styles.privateChatUnreadBadge}>
+                            <Text style={styles.privateChatUnreadBadgeText}>
+                              {preview.unread > 9 ? '9+' : preview.unread}
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
                     </View>
-
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={styles.privateChatIconButton}
-                      onPress={() => {
-                        setDriversModalVisible(false);
-
-                        setTimeout(() => {
-                          openPrivateChat(item.user);
-                        }, 350);
-                      }}
-                    >
-                      <Ionicons
-                        name="chatbubble-ellipses-outline"
-                        size={20}
-                        color="#FFFFFF"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                  );
+                })}
             </ScrollView>
           </View>
         </View>
@@ -2329,144 +3741,251 @@ export default function ActiveSessionScreen() {
         </View>
       </Modal>
 
-      <Modal visible={cityChatVisible} transparent animationType="slide">
+      <Modal
+        visible={cityChatVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCityChatVisible(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
           style={{ flex: 1 }}
         >
-          <View style={styles.cityModalOverlay}>
-            <View style={styles.cityChatContent}>
-              <View style={styles.cityModalHeader}>
-                <View>
-                  <Text style={styles.cityModalTitle}>Chat da cidade</Text>
-                  <Text style={styles.cityBottomSubtitle}>
-                    {session?.municipality?.name} - {session?.municipality?.uf}
-                  </Text>
+          <View style={styles.cityChatModernOverlay}>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.cityChatModernBackdrop}
+              onPress={() => setCityChatVisible(false)}
+            />
+
+            <View style={styles.cityChatModernSheet}>
+              <View style={styles.cityChatModernHandle} />
+
+              <View style={styles.cityChatModernHeader}>
+                <View style={styles.cityChatModernHeaderLeft}>
+                  <View style={styles.cityChatModernHeaderIcon}>
+                    <Ionicons name="chatbubbles-outline" size={24} color="#60A5FA" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.cityChatModernTitleRow}>
+                      <Text style={styles.cityChatModernEyebrow}>Comunidade local</Text>
+
+                      <View style={styles.cityChatModernBadge}>
+                        <Ionicons name="people-outline" size={13} color="#BFDBFE" />
+                        <Text style={styles.cityChatModernBadgeText}>Cidade</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.cityChatModernTitle}>Chat da cidade</Text>
+
+                    <Text style={styles.cityChatModernSubtitle} numberOfLines={1}>
+                      {session?.municipality
+                        ? `${session.municipality.name} - ${session.municipality.uf}`
+                        : 'Motoristas próximos'}
+                    </Text>
+                  </View>
                 </View>
 
-                <TouchableOpacity onPress={() => setCityChatVisible(false)}>
-                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.cityChatModernCloseButton}
+                  onPress={() => setCityChatVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                {chatMessages.map((item) => {
-                  const isMe = item.user_id === currentUserId;
-                  return (
-                    <View
-                      key={item.id}
-                      style={[
-                        styles.chatMessageItem,
-                        {
-                          justifyContent: isMe ? 'flex-end' : 'flex-start',
-                        },
-                      ]}
-                    >
-                      {!isMe && (
-                        item.user?.avatar_url ? (
-                          <Image
-                            source={{ uri: item.user.avatar_url }}
-                            style={styles.chatAvatar}
-                          />
-                        ) : (
-                          <View style={styles.chatAvatarFallback}>
-                            <Ionicons name="person" size={18} color="#FFFFFF" />
-                          </View>
-                        )
-                      )}
+              <View style={styles.cityChatModernInfoCard}>
+                <Ionicons name="radio-outline" size={19} color="#60A5FA" />
+                <Text style={styles.cityChatModernInfoText}>
+                  Mensagens em tempo real. Ao abrir este chat, as mensagens da cidade são marcadas como lidas.
+                </Text>
+              </View>
 
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={() => {
-                          Alert.alert(
-                            'Mensagem',
-                            undefined,
-                            [
-                              {
-                                text: 'Responder',
-                                onPress: () => setReplyingCityMessage(item),
-                              },
+              <ScrollView
+                style={styles.cityChatModernMessagesList}
+                contentContainerStyle={styles.cityChatModernMessagesContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {chatMessages.length === 0 ? (
+                  <View style={styles.cityChatModernEmptyBox}>
+                    <View style={styles.cityChatModernEmptyIcon}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={32} color="#71717A" />
+                    </View>
 
-                              ...(item.user?.id !== currentUserId
-                                ? [
-                                    {
-                                      text: 'Enviar mensagem no privado',
-                                      onPress: () => openPrivateChat(item.user),
-                                    },
-                                  ]
-                                : []),
+                    <Text style={styles.cityChatModernEmptyTitle}>
+                      Nenhuma mensagem ainda
+                    </Text>
 
-                              {
-                                text: 'Cancelar',
-                                style: 'cancel',
-                              },
-                            ],
-                          );
-                        }}
+                    <Text style={styles.cityChatModernEmptyText}>
+                      Envie a primeira mensagem para os motoristas da sua cidade.
+                    </Text>
+                  </View>
+                ) : (
+                  chatMessages.map((item) => {
+                    const isMe = item.user_id === currentUserId;
+                    const avatarUrl = getUserAvatarUrl(item.user);
+                    const displayName = getUserDisplayName(item.user);
+
+                    return (
+                      <View
+                        key={item.id}
                         style={[
-                          styles.chatBubble,
-                          {
-                            backgroundColor: isMe ? '#22C55E' : '#18181B',
-                            marginLeft: isMe ? 10 : 0,
-                            marginRight: isMe ? 0 : 10,
-                          },
+                          styles.cityChatModernMessageRow,
+                          isMe && styles.cityChatModernMessageRowMe,
                         ]}
                       >
                         {!isMe && (
-                          <Text style={styles.chatUserName}>
-                            {item.user?.full_name || item.user?.name || 'Motorista'}
-                          </Text>
+                          avatarUrl ? (
+                            <Image
+                              source={{ uri: avatarUrl }}
+                              style={styles.cityChatModernAvatar}
+                            />
+                          ) : (
+                            <View style={styles.cityChatModernAvatarFallback}>
+                              <Text style={styles.cityChatModernAvatarFallbackText}>
+                                {displayName.slice(0, 1).toUpperCase()}
+                              </Text>
+                            </View>
+                          )
                         )}
 
-                        {item.repliedMessage && (
-                          <View style={styles.replyPreview}>
-                            <Text style={styles.replyPreviewText} numberOfLines={1}>
-                              {item.repliedMessage.message}
+                        <TouchableOpacity
+                          activeOpacity={0.88}
+                          onPress={() => {
+                            Alert.alert(
+                              'Mensagem',
+                              undefined,
+                              [
+                                {
+                                  text: 'Responder',
+                                  onPress: () => setReplyingCityMessage(item),
+                                },
+
+                                ...(item.user?.id !== currentUserId
+                                  ? [
+                                      {
+                                        text: 'Enviar mensagem no privado',
+                                        onPress: () => openPrivateChat(item.user),
+                                      },
+                                    ]
+                                  : []),
+
+                                {
+                                  text: 'Cancelar',
+                                  style: 'cancel',
+                                },
+                              ],
+                            );
+                          }}
+                          style={[
+                            styles.cityChatModernBubble,
+                            isMe
+                              ? styles.cityChatModernBubbleMe
+                              : styles.cityChatModernBubbleOther,
+                          ]}
+                        >
+                          {!isMe && (
+                            <Text style={styles.cityChatModernUserName} numberOfLines={1}>
+                              {displayName}
                             </Text>
+                          )}
+
+                          {item.repliedMessage && (
+                            <View
+                              style={[
+                                styles.cityChatModernReplyPreview,
+                                isMe && styles.cityChatModernReplyPreviewMe,
+                              ]}
+                            >
+                              <Text
+                                style={styles.cityChatModernReplyPreviewText}
+                                numberOfLines={1}
+                              >
+                                {item.repliedMessage.message}
+                              </Text>
+                            </View>
+                          )}
+
+                          <Text
+                            style={[
+                              styles.cityChatModernMessageText,
+                              isMe && styles.cityChatModernMessageTextMe,
+                            ]}
+                          >
+                            {item.message}
+                          </Text>
+
+                          <View style={styles.cityChatModernHourRow}>
+                            <Text
+                              style={[
+                                styles.cityChatModernHourText,
+                                isMe && styles.cityChatModernHourTextMe,
+                              ]}
+                            >
+                              {new Date(item.created_at).toLocaleTimeString('pt-BR', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </Text>
+
+                            {isMe && (
+                              <Ionicons name="checkmark-done" size={14} color="#DCFCE7" />
+                            )}
                           </View>
-                        )}
-
-                        <Text style={styles.chatText}>{item.message}</Text>
-
-                        <Text style={styles.chatHour}>
-                          {new Date(item.created_at).toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                )}
               </ScrollView>
 
               {replyingCityMessage && (
-                <View style={styles.replyingBox}>
+                <View style={styles.cityChatModernReplyingBox}>
+                  <View style={styles.cityChatModernReplyingIcon}>
+                    <Ionicons name="return-up-forward-outline" size={18} color="#60A5FA" />
+                  </View>
+
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.replyingLabel}>Respondendo</Text>
-                    <Text style={styles.replyingText} numberOfLines={1}>
+                    <Text style={styles.cityChatModernReplyingLabel}>Respondendo</Text>
+                    <Text style={styles.cityChatModernReplyingText} numberOfLines={1}>
                       {replyingCityMessage.message}
                     </Text>
                   </View>
 
-                  <TouchableOpacity onPress={() => setReplyingCityMessage(null)}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => setReplyingCityMessage(null)}
+                  >
                     <Ionicons name="close" size={22} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
               )}
 
-              <View style={styles.chatInputRow}>
-                <TextInput
-                  value={chatMessage}
-                  onChangeText={setChatMessage}
-                  placeholder="Digite uma mensagem..."
-                  placeholderTextColor="#71717A"
-                  style={styles.chatInput}
-                />
+              <View style={styles.cityChatModernInputBar}>
+                <View style={styles.cityChatModernInputWrapper}>
+                  <Ionicons name="chatbubble-outline" size={19} color="#71717A" />
+
+                  <TextInput
+                    value={chatMessage}
+                    onChangeText={setChatMessage}
+                    placeholder="Mensagem para a cidade..."
+                    placeholderTextColor="#71717A"
+                    style={styles.cityChatModernInput}
+                    multiline
+                  />
+                </View>
 
                 <TouchableOpacity
-                  style={styles.chatSendButton}
+                  activeOpacity={0.9}
+                  disabled={!chatMessage.trim()}
+                  style={[
+                    styles.cityChatModernSendButton,
+                    !chatMessage.trim() && styles.cityChatModernSendButtonDisabled,
+                  ]}
                   onPress={handleSendCityMessage}
                 >
                   <Ionicons name="send" size={20} color="#FFFFFF" />
@@ -2477,146 +3996,258 @@ export default function ActiveSessionScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={privateChatVisible} transparent animationType="slide">
+      <Modal
+        visible={privateChatVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPrivateChatVisible(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
           style={{ flex: 1 }}
         >
-          <View style={styles.cityModalOverlay}>
-            <View style={styles.cityChatContent}>
-              <View style={styles.cityModalHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  {privateChatUser?.avatar_url ? (
+          <View style={styles.privateChatOverlayModern}>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.privateChatBackdropModern}
+              onPress={() => setPrivateChatVisible(false)}
+            />
+
+            <View style={styles.privateChatSheetModern}>
+              <View style={styles.privateChatHandleModern} />
+
+              <View style={styles.privateChatHeaderModern}>
+                <View style={styles.privateChatHeaderLeftModern}>
+                  {privateChatAvatarUrl ? (
                     <Image
-                      source={{ uri: privateChatUser.avatar_url }}
-                      style={styles.chatAvatar}
+                      source={{ uri: privateChatAvatarUrl }}
+                      style={styles.privateChatHeaderAvatarModern}
                     />
                   ) : (
-                    <View style={styles.chatAvatarFallback}>
-                      <Ionicons name="person" size={18} color="#FFFFFF" />
+                    <View style={styles.privateChatHeaderAvatarFallbackModern}>
+                      <Ionicons name="person" size={22} color="#FFFFFF" />
                     </View>
                   )}
 
-                  <View>
-                    <Text style={styles.cityModalTitle}>
-                      {privateChatUser?.full_name ||
-                        privateChatUser?.name ||
-                        'Motorista'}
-                    </Text>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.privateChatTitleRowModern}>
+                      <Text style={styles.privateChatTitleModern} numberOfLines={1}>
+                        {privateChatDisplayName}
+                      </Text>
 
-                    <Text style={styles.cityBottomSubtitle}>
-                      Chat privado
+                      <View style={styles.privateChatPrivateBadgeModern}>
+                        <Ionicons name="lock-closed" size={11} color="#93C5FD" />
+                        <Text style={styles.privateChatPrivateBadgeTextModern}>
+                          Privado
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.privateChatSubtitleModern} numberOfLines={1}>
+                      {privateChatPreviews[privateChatUser?.id ?? '']?.lastMessage || 'Converse diretamente com este motorista'}
                     </Text>
                   </View>
                 </View>
 
-                <TouchableOpacity onPress={() => setPrivateChatVisible(false)}>
-                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.privateChatCloseButtonModern}
+                  onPress={() => setPrivateChatVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                {privateMessages.map((item) => {
-                  const isMe = item.sender_id === currentUserId;
+              <View style={styles.privateChatNoticeModern}>
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#60A5FA" />
+                <Text style={styles.privateChatNoticeTextModern}>
+                  Mensagens privadas aparecem somente para vocês dois.
+                </Text>
+              </View>
 
-                  return (
-                    <View
-                      key={item.id}
-                      style={[
-                        styles.chatMessageItem,
-                        {
-                          justifyContent: isMe ? 'flex-end' : 'flex-start',
-                        },
-                      ]}
-                    >
-                      {!isMe &&
-                        (item.sender?.avatar_url ? (
-                          <Image
-                            source={{ uri: item.sender.avatar_url }}
-                            style={styles.chatAvatar}
-                          />
-                        ) : (
-                          <View style={styles.chatAvatarFallback}>
-                            <Ionicons name="person" size={18} color="#FFFFFF" />
-                          </View>
-                        ))}
+              <ScrollView
+                style={styles.privateChatMessagesScrollModern}
+                contentContainerStyle={styles.privateChatMessagesContentModern}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {privateMessages.length === 0 ? (
+                  <View style={styles.privateChatEmptyBoxModern}>
+                    <View style={styles.privateChatEmptyIconModern}>
+                      <Ionicons name="chatbubble-outline" size={30} color="#71717A" />
+                    </View>
 
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onLongPress={() => {
-                          Alert.alert(
-                            'Mensagem',
-                            'O que deseja fazer?',
-                            [
-                              {
-                                text: 'Responder',
-                                onPress: () => setReplyingPrivateMessage(item),
-                              },
-                              {
-                                text: 'Cancelar',
-                                style: 'cancel',
-                              },
-                            ],
-                          );
-                        }}
+                    <Text style={styles.privateChatEmptyTitleModern}>
+                      Nenhuma mensagem ainda
+                    </Text>
+
+                    <Text style={styles.privateChatEmptyTextModern}>
+                      Envie a primeira mensagem para iniciar a conversa.
+                    </Text>
+                  </View>
+                ) : (
+                  privateMessages.map((item) => {
+                    const isMe = item.sender_id === currentUserId;
+                    const messageTime = new Date(item.created_at).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+
+                    return (
+                      <View
+                        key={item.id}
                         style={[
-                          styles.chatBubble,
-                          {
-                            backgroundColor: isMe ? '#22C55E' : '#18181B',
-                            marginLeft: isMe ? 10 : 0,
-                            marginRight: isMe ? 0 : 10,
-                          },
+                          styles.privateChatMessageRowModern,
+                          isMe
+                            ? styles.privateChatMessageRowMineModern
+                            : styles.privateChatMessageRowOtherModern,
                         ]}
                       >
-                        {item.repliedMessage && (
-                          <View style={styles.replyPreview}>
-                            <Text style={styles.replyPreviewText} numberOfLines={1}>
-                              {item.repliedMessage.message}
-                            </Text>
-                          </View>
+                        {!isMe && (
+                          privateChatAvatarUrl ? (
+                            <Image
+                              source={{ uri: privateChatAvatarUrl }}
+                              style={styles.privateChatMessageAvatarModern}
+                            />
+                          ) : (
+                            <View style={styles.privateChatMessageAvatarFallbackModern}>
+                              <Ionicons name="person" size={17} color="#FFFFFF" />
+                            </View>
+                          )
                         )}
 
-                        <Text style={styles.chatText}>{item.message}</Text>
+                        <TouchableOpacity
+                          activeOpacity={0.88}
+                          onLongPress={() => {
+                            Alert.alert(
+                              'Mensagem',
+                              'O que deseja fazer?',
+                              [
+                                {
+                                  text: 'Responder',
+                                  onPress: () => setReplyingPrivateMessage(item),
+                                },
+                                {
+                                  text: 'Cancelar',
+                                  style: 'cancel',
+                                },
+                              ],
+                            );
+                          }}
+                          style={[
+                            styles.privateChatBubbleModern,
+                            isMe
+                              ? styles.privateChatBubbleMineModern
+                              : styles.privateChatBubbleOtherModern,
+                          ]}
+                        >
+                          {!isMe && (
+                            <Text style={styles.privateChatSenderNameModern} numberOfLines={1}>
+                              {privateChatDisplayName}
+                            </Text>
+                          )}
 
-                        <Text style={styles.chatHour}>
-                          {new Date(item.created_at).toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
+                          {item.repliedMessage && (
+                            <View
+                              style={[
+                                styles.privateChatReplyPreviewModern,
+                                isMe && styles.privateChatReplyPreviewMineModern,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.privateChatReplyPreviewLabelModern,
+                                  isMe && styles.privateChatReplyPreviewLabelMineModern,
+                                ]}
+                              >
+                                Respondendo
+                              </Text>
+
+                              <Text
+                                style={[
+                                  styles.privateChatReplyPreviewTextModern,
+                                  isMe && styles.privateChatReplyPreviewTextMineModern,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {item.repliedMessage.message}
+                              </Text>
+                            </View>
+                          )}
+
+                          <Text
+                            style={[
+                              styles.privateChatMessageTextModern,
+                              isMe && styles.privateChatMessageTextMineModern,
+                            ]}
+                          >
+                            {item.message}
+                          </Text>
+
+                          <View style={styles.privateChatBubbleFooterModern}>
+                            <Text
+                              style={[
+                                styles.privateChatHourModern,
+                                isMe && styles.privateChatHourMineModern,
+                              ]}
+                            >
+                              {messageTime}
+                            </Text>
+
+                            {isMe && (
+                              <Ionicons name="checkmark-done" size={15} color="#14532D" />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                )}
               </ScrollView>
 
               {replyingPrivateMessage && (
-                <View style={styles.replyingBox}>
+                <View style={styles.privateChatReplyingBoxModern}>
+                  <View style={styles.privateChatReplyingIconModern}>
+                    <Ionicons name="return-up-forward-outline" size={18} color="#60A5FA" />
+                  </View>
+
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.replyingLabel}>Respondendo</Text>
-                    <Text style={styles.replyingText} numberOfLines={1}>
+                    <Text style={styles.privateChatReplyingLabelModern}>
+                      Respondendo mensagem
+                    </Text>
+
+                    <Text style={styles.privateChatReplyingTextModern} numberOfLines={1}>
                       {replyingPrivateMessage.message}
                     </Text>
                   </View>
 
-                  <TouchableOpacity onPress={() => setReplyingPrivateMessage(null)}>
-                    <Ionicons name="close" size={22} color="#FFFFFF" />
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.privateChatReplyingCloseModern}
+                    onPress={() => setReplyingPrivateMessage(null)}
+                  >
+                    <Ionicons name="close" size={20} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
               )}
 
-              <View style={styles.chatInputRow}>
+              <View style={styles.privateChatInputBarModern}>
                 <TextInput
                   value={privateMessageText}
                   onChangeText={setPrivateMessageText}
                   placeholder="Digite uma mensagem..."
                   placeholderTextColor="#71717A"
-                  style={styles.chatInput}
+                  multiline
+                  style={styles.privateChatInputModern}
                 />
 
                 <TouchableOpacity
-                  style={styles.chatSendButton}
+                  activeOpacity={0.88}
+                  style={[
+                    styles.privateChatSendButtonModern,
+                    !privateMessageText.trim() && styles.privateChatSendButtonDisabledModern,
+                  ]}
                   onPress={handleSendPrivateMessage}
                 >
                   <Ionicons name="send" size={20} color="#FFFFFF" />
@@ -2646,7 +4277,7 @@ export default function ActiveSessionScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/*<TouchableOpacity
             style={styles.cityChangeButton}
             onPress={() => setMunicipalityModalVisible(true)}
           >
@@ -2659,10 +4290,14 @@ export default function ActiveSessionScreen() {
             <Text style={styles.cityChangeText}>
               Alterar
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity>*/}
 
           <TouchableOpacity style={styles.cityChatButton} onPress={openCityChat}>
-            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#FFFFFF" />
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFFFFF" />
+
+            <Text style={styles.cityChatButtonText}>
+              Chat
+            </Text>
 
             {unreadChatCount > 0 && (
               <View style={styles.chatBadge}>
@@ -2934,32 +4569,82 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  floatingRideButton: {
+  floatingActionsDock: {
     position: 'absolute',
-    right: 18,
-    bottom: 100,
-    width: 58,
-    height: 58,
+    left: 14,
+    right: 14,
+    // Mantém o dock acima da barra "rodando agora / Chat", com respiro para não parecer grudado.
+    bottom: Platform.OS === 'ios' ? 116 : 86,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    zIndex: 998,
+    elevation: 998,
+  },
+
+  floatingRideButton: {
+    width: 168,
+    minHeight: 54,
+    borderRadius: 999,
+    backgroundColor: '#14532D',
+    borderWidth: 1,
+    borderColor: '#22C55E',
+    paddingLeft: 7,
+    paddingRight: 12,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    shadowColor: '#22C55E',
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+  },
+
+  floatingRideIconBox: {
+    width: 40,
+    height: 40,
     borderRadius: 999,
     backgroundColor: '#22C55E',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 999,
-    elevation: 999,
+  },
+
+  floatingRideTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  floatingRideSubtitle: {
+    color: '#BBF7D0',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 1,
   },
 
   finishedDrawerButton: {
-    position: 'absolute',
-    right: 18,
-    bottom: 100,
-    width: 50,
-    height: 50,
+    height: 48,
     borderRadius: 999,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#1D4ED8',
+    borderWidth: 1,
+    borderColor: '#60A5FA',
+    paddingHorizontal: 13,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 999,
-    elevation: 999,
+    gap: 7,
+    shadowColor: '#2563EB',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+  },
+
+  finishedDrawerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
   },
 
   modalOverlay: {
@@ -3055,6 +4740,435 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
+
+  gainModernOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    justifyContent: 'flex-end',
+  },
+
+  gainModernBackdropTouch: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  gainModernSheet: {
+    width: '100%',
+    maxHeight: '88%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingTop: 10,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+    shadowColor: '#000000',
+    shadowOpacity: 0.35,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: -12 },
+    elevation: 16,
+  },
+
+  gainModernHandle: {
+    width: 48,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+
+  gainModernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+
+  gainModernHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  gainModernHeaderIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 17,
+    backgroundColor: '#052E16',
+    borderWidth: 1,
+    borderColor: '#14532D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  gainModernEyebrow: {
+    color: '#22C55E',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+
+  gainModernTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  gainModernCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  gainModernSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+
+  gainModernScrollContent: {
+    paddingBottom: 18,
+  },
+
+  gainModernSection: {
+    marginBottom: 18,
+  },
+
+  gainModernSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  gainModernSectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  gainModernSectionHint: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  gainModernManageButton: {
+    minHeight: 38,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+  },
+
+  gainModernManageButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  gainModernPlatformsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  gainModernPlatformCard: {
+    width: '48.4%',
+    minHeight: 66,
+    borderRadius: 18,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    padding: 10,
+    position: 'relative',
+  },
+
+  gainModernPlatformCardActive: {
+    backgroundColor: '#052E16',
+    borderColor: '#22C55E',
+  },
+
+  gainModernPlatformCardDisabled: {
+    opacity: 0.38,
+  },
+
+  gainModernPlatformLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+  },
+
+  gainModernPlatformLogoFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  gainModernPlatformLogoText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  gainModernPlatformInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  gainModernPlatformName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  gainModernPlatformHint: {
+    color: '#71717A',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+
+  gainModernPlatformHintActive: {
+    color: '#86EFAC',
+    fontSize: 10,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+
+  gainModernPlatformCheck: {
+    position: 'absolute',
+    right: -5,
+    top: -5,
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    borderWidth: 3,
+    borderColor: '#09090B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  gainModernLockedPlatformCard: {
+    minHeight: 82,
+    borderRadius: 20,
+    backgroundColor: '#052E16',
+    borderWidth: 1,
+    borderColor: '#22C55E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    marginBottom: 18,
+  },
+
+  gainModernLockedLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+  },
+
+  gainModernLockedLogoFallback: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: '#14532D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  gainModernLockedLogoText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+
+  gainModernLockedLabel: {
+    color: '#86EFAC',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  gainModernLockedName: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  gainModernLockedBadge: {
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: 'rgba(34, 197, 94, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(134, 239, 172, 0.32)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+
+  gainModernLockedBadgeText: {
+    color: '#BBF7D0',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  gainModernEmptyPlatformsBox: {
+    borderRadius: 22,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    padding: 20,
+    alignItems: 'center',
+  },
+
+  gainModernEmptyIconBox: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  gainModernEmptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+
+  gainModernEmptyText: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+
+  gainModernEmptyButton: {
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+
+  gainModernEmptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  gainModernAmountSection: {
+    marginTop: 2,
+  },
+
+  gainModernAmountHeader: {
+    marginBottom: 10,
+  },
+
+  gainModernAmountInputCard: {
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+
+  gainModernCurrencyBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#052E16',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  gainModernCurrencyText: {
+    color: '#22C55E',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  gainModernAmountInput: {
+    flex: 1,
+    height: '100%',
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
+    padding: 0,
+  },
+
+  gainModernFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#18181B',
+    paddingTop: 12,
+  },
+
+  gainModernSaveButton: {
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: '#22C55E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    shadowColor: '#22C55E',
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+
+  gainModernSaveButtonDisabled: {
+    opacity: 0.55,
+  },
+
+  gainModernSaveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
   addInsideFinishButton: {
     height: 50,
     borderRadius: 14,
@@ -3079,6 +5193,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
+    flexDirection: 'row',
+    gap: 10,
   },
 
   modalFinishButtonText: {
@@ -3989,8 +6105,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
-    minHeight: 82,
+    bottom: -5,
+    minHeight: 62,
     backgroundColor: '#111827',
     borderTopWidth: 1,
     borderTopColor: '#27272A',
@@ -4042,7 +6158,7 @@ const styles = StyleSheet.create({
   },
 
   cityModalContent: {
-    height: '70%',
+    height: '90%',
     backgroundColor: '#09090B',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -4108,6 +6224,39 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 999,
   },
+
+  driverLastMessage: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  driverLastMessageUnread: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+
+  privateChatUnreadBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: '#09090B',
+  },
+
+  privateChatUnreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
   citySearchInput: {
     height: 56,
     borderRadius: 16,
@@ -4148,13 +6297,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cityChatButton: {
-    width: 42,
+    minWidth: 82,
     height: 42,
     borderRadius: 14,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 6,
+    position: 'relative',
+  },
+
+  cityChatButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
   },
 
   chatBadge: {
@@ -4277,6 +6436,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
+    position: 'relative',
   },
 
   replyingBox: {
@@ -4326,4 +6486,4551 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+
+  finishTimeCard: {
+    backgroundColor: '#111827',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 14,
+    marginBottom: 14,
+  },
+
+  finishTimeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  finishTimeIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: '#052E16',
+    borderWidth: 1,
+    borderColor: '#166534',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  finishTimeTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  finishTimeSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 16,
+    marginTop: 3,
+  },
+
+  finishTimeInputsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  finishTimeInput: {
+    height: 52,
+    backgroundColor: '#18181B',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 14,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  finishTimePreviewCard: {
+    minHeight: 44,
+    backgroundColor: '#001B12',
+    borderWidth: 1,
+    borderColor: '#14532D',
+    borderRadius: 26,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  finishTimePreviewLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  finishTimePreviewDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+
+  finishTimePreviewText: {
+    flex: 1,
+    color: '#DCFCE7',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  finishTimePreviewButton: {
+    minWidth: 90,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+
+  finishTimePreviewButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  finishTimeEditCard: {
+    minHeight: 50,
+    backgroundColor: '#001B12',
+    borderWidth: 1,
+    borderColor: '#14532D',
+    borderRadius: 22,
+    padding: 10,
+    marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  finishTimeEditIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: '#052E16',
+    borderWidth: 1,
+    borderColor: '#166534',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  finishTimeEditTitle: {
+    color: '#DCFCE7',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  finishTimeEditSubtitle: {
+    color: '#A7F3D0',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  finishKmBlock: {
+    marginBottom: 18,
+  },
+
+  finishKmLabel: {
+    color: '#A1A1AA',
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 10,
+    marginLeft: 2,
+    letterSpacing: 0.3,
+  },
+
+  finishKmInputCard: {
+    height: 92,
+    backgroundColor: '#0B1220',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  finishKmInput: {
+    flex: 1,
+    height: '100%',
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+
+  finishKmUnit: {
+    color: '#A1A1AA',
+    fontSize: 20,
+    fontWeight: '900',
+    marginLeft: 12,
+  },
+
+  finishPlatformsSection: {
+    marginTop: 2,
+    marginBottom: 10,
+  },
+
+  finishPlatformsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 10,
+  },
+
+  finishPlatformsTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  finishPlatformsSubtitle: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  managePlatformsCompactButton: {
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  managePlatformsCompactText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  finishPlatformModernCard: {
+    backgroundColor: '#0B1220',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 14,
+    marginBottom: 12,
+  },
+
+  finishPlatformModernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  finishPlatformLogoBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  finishPlatformModernLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+  },
+
+  finishPlatformModernLogoText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  finishPlatformModernName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  finishPlatformModernHint: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  finishPlatformAmountBox: {
+    height: 54,
+    backgroundColor: '#111827',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  finishPlatformCurrency: {
+    color: '#22C55E',
+    fontSize: 15,
+    fontWeight: '900',
+    marginRight: 8,
+  },
+
+  finishPlatformModernInput: {
+    flex: 1,
+    height: '100%',
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  finishModalContentFull: {
+    width: '100%',
+    height: '92%',
+    backgroundColor: '#111827',
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#27272A',
+  },
+
+  activeModernContainer: {
+    flex: 1,
+    backgroundColor: '#020617',
+  },
+  activeModernContainerPaused: {
+    backgroundColor: '#120A02',
+  },
+  activeModernContent: {
+    paddingTop: 54,
+    paddingHorizontal: 18,
+    // Espaço extra para a barra de cidade/chat e para o dock de corridas.
+    paddingBottom: 150,
+  },
+  activeModernHeader: {
+    height: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  activeModernHeaderButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    backgroundColor: 'rgba(24,24,27,0.92)',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernHeaderTitleBlock: {
+    flex: 1,
+    marginLeft: 10,
+    marginRight: 8,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+
+  activeModernHeaderCenter: {
+    alignItems: 'center',
+  },
+
+  activeModernHeaderCityButton: {
+    maxWidth: 170,
+    minHeight: 46,
+    borderRadius: 18,
+    backgroundColor: 'rgba(24,24,27,0.92)',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+
+  activeModernHeaderCityText: {
+    flexShrink: 1,
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  activeModernHeaderEyebrow: {
+    color: '#71717A',
+    fontSize: 9,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  activeModernHeaderTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  activeModernHeroCard: {
+    borderRadius: 32,
+    backgroundColor: '#031B12',
+    borderWidth: 1,
+    borderColor: '#166534',
+    padding: 18,
+    marginBottom: 14,
+  },
+  activeModernHeroCardPaused: {
+    backgroundColor: '#2A1605',
+    borderColor: '#92400E',
+  },
+  activeModernHeroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  activeModernStatusPill: {
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: 'rgba(34,197,94,0.16)',
+    borderWidth: 1,
+    borderColor: '#166534',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  activeModernStatusPillPaused: {
+    backgroundColor: 'rgba(245,158,11,0.16)',
+    borderColor: '#92400E',
+  },
+  activeModernStatusDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+  activeModernStatusDotPaused: {
+    backgroundColor: '#F59E0B',
+  },
+  activeModernStatusText: {
+    color: '#DCFCE7',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  activeModernStartedText: {
+    color: '#A1A1AA',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  activeModernHeroBody: {
+    flexDirection: 'column',
+    gap: 16,
+  },
+  activeModernTimerColumn: {
+    flex: 1.1,
+    alignItems: 'center'
+  },
+  activeModernTimerLabel: {
+    color: '#A1A1AA',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  activeModernTimerValue: {
+    color: '#FFFFFF',
+    fontSize: 54,
+    fontWeight: '700',
+    letterSpacing: -1.5,
+    marginTop: 8,
+  },
+  activeModernTimerHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activeModernTimerHintText: {
+    color: '#D4D4D8',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  activeModernHeroDivider: {
+    width: 1,
+    minWidth: 132,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  activeModernInfoColumn: {
+    flex: 1,
+    gap: 16,
+  },
+  activeModernInfoRowCidade: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderColor: '#166534',
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+  },
+  activeModernInfoRowCidadePaused: {
+    borderColor: '#92400E',
+  },
+  activeModernInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  activeModernInfoIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernInfoLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  activeModernInfoValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  activeModernPlateBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  activeModernPlateText: {
+    color: '#D4D4D8',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  activeModernMetricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 18,
+  },
+  activeModernMetricCard: {
+    width: '48.5%',
+    minHeight: 116,
+    borderRadius: 24,
+    backgroundColor: 'rgba(24,24,27,0.92)',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    padding: 14,
+  },
+  activeModernMetricIconGreen: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(34,197,94,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernMetricIconBlue: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(59,130,246,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernMetricIconPurple: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(168,85,247,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernMetricIconOrange: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(245,158,11,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernMetricLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 10,
+  },
+  activeModernMetricValueGreen: {
+    color: '#4ADE80',
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  activeModernMetricValueBlue: {
+    color: '#60A5FA',
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  activeModernMetricValuePurple: {
+    color: '#C084FC',
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  activeModernMetricValueOrange: {
+    color: '#FBBF24',
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  activeModernSectionHeaderRow: {
+    marginBottom: 12,
+  },
+  activeModernSectionHeaderRowCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  activeModernSectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  activeModernSectionSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+  activeModernQuickGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 18,
+  },
+  activeModernQuickButton: {
+    flex: 1,
+    minHeight: 108,
+    borderRadius: 24,
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  activeModernQuickButtonGain: {
+    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderColor: 'rgba(34,197,94,0.22)',
+  },
+  activeModernQuickButtonKm: {
+    backgroundColor: 'rgba(59,130,246,0.10)',
+    borderColor: 'rgba(59,130,246,0.22)',
+  },
+  activeModernQuickButtonRide: {
+    backgroundColor: 'rgba(168,85,247,0.10)',
+    borderColor: 'rgba(168,85,247,0.22)',
+  },
+  activeModernQuickIconGreen: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: '#4ADE80',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  activeModernQuickIconBlue: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  activeModernQuickIconPurple: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: '#A855F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  activeModernQuickText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  activeModernRideCardActive: {
+    borderRadius: 28,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 16,
+    marginBottom: 18,
+  },
+  activeModernRideBadgeActive: {
+    alignSelf: 'flex-start',
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.24)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    marginBottom: 14,
+  },
+  activeModernRideBadgeText: {
+    color: '#8BFFBF',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  activeModernRideTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  activeModernRidePlatformRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  activeModernRideLogo: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: '#000000',
+  },
+  activeModernRideLogoFallback: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: '#020617',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernRideLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  activeModernRideTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  activeModernRideSubtitle: {
+    color: '#4ADE80',
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  activeModernRideFinishButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    backgroundColor: '#16A34A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 14,
+  },
+  activeModernRideFinishText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  activeModernRideStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 16,
+  },
+  activeModernRideStatBox: {
+    width: '48.3%',
+    borderRadius: 18,
+    backgroundColor: '#0B1220',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 12,
+  },
+  activeModernRideStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  activeModernRideStatValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 5,
+  },
+  activeModernRideStatValueGreen: {
+    color: '#4ADE80',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 5,
+  },
+  activeModernRideStatValueBlue: {
+    color: '#60A5FA',
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 5,
+  },
+  activeModernRideActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  activeModernRideActionButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#0B1220',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  activeModernRideActionTextBlue: {
+    color: '#60A5FA',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  activeModernRideActionTextRed: {
+    color: '#FF5B5B',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  activeModernSectionBlock: {
+    marginBottom: 18,
+  },
+  activeModernCountBadgeBlue: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 999,
+    backgroundColor: 'rgba(59,130,246,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.30)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  activeModernCountBadgeText: {
+    color: '#60A5FA',
+    fontWeight: '900',
+  },
+  activeModernWaitingCard: {
+    minHeight: 96,
+    borderRadius: 22,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  activeModernWaitingLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  activeModernWaitingLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#020617',
+  },
+  activeModernWaitingLogoFallback: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#020617',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernWaitingLogoFallbackText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  activeModernWaitingTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  activeModernWaitingSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  activeModernWaitingValue: {
+    color: '#4ADE80',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  activeModernWaitingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  activeModernSmallActionGreen: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34,197,94,0.28)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernSmallAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernSmallActionDanger: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernFinishedCard: {
+    borderRadius: 28,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 16,
+    marginBottom: 18,
+  },
+  activeModernSeeAllButton: {
+    height: 34,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  activeModernSeeAllText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  activeModernFinishedItem: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 10,
+    marginTop: 10,
+  },
+  activeModernFinishedLogo: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#020617',
+  },
+  activeModernFinishedLogoFallback: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#020617',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernFinishedLogoFallbackText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  activeModernFinishedTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  activeModernFinishedSubtitle: {
+    color: '#4ADE80',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  activeModernFinishedMoney: {
+    color: '#4ADE80',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  activeModernFinishedKm: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  activeModernSessionControls: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  activeModernPauseButton: {
+    flex: 1,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: 'rgba(245,158,11,0.10)',
+    borderWidth: 1,
+    borderColor: '#B45309',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  activeModernResumeButton: {
+    backgroundColor: '#16A34A',
+    borderColor: '#22C55E',
+  },
+  activeModernPauseText: {
+    color: '#F59E0B',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  activeModernResumeText: {
+    color: '#FFFFFF',
+  },
+  activeModernDeleteButton: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: 'rgba(239,68,68,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernFinishSessionButton: {
+    height: 62,
+    borderRadius: 22,
+    backgroundColor: '#DC2626',
+    borderWidth: 1,
+    borderColor: '#F87171',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    marginBottom: 18,
+  },
+  activeModernFinishSessionText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  activeModernEarningsCard: {
+    borderRadius: 28,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 16,
+    marginBottom: 20,
+  },
+  activeModernEarningsTotal: {
+    color: '#4ADE80',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  activeModernEmptyState: {
+    minHeight: 90,
+    borderRadius: 20,
+    backgroundColor: '#0B1220',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  activeModernEmptyText: {
+    color: '#71717A',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  activeModernEarningItem: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 12,
+    marginTop: 12,
+  },
+  activeModernEarningIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  activeModernEarningLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    resizeMode: 'contain',
+  },
+  activeModernEarningLogoFallbackText: {
+    color: '#22C55E',
+    fontSize: 13,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  activeModernEarningPlatform: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  activeModernEarningAmount: {
+    color: '#4ADE80',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  activeModernEarningActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  activeModernEarningAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(59,130,246,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeModernEarningActionDanger: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239,68,68,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+
+  rideModalOverlayModern: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'flex-end',
+  },
+
+  rideModalSheetModern: {
+    maxHeight: '92%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 18,
+    borderWidth: 1,
+    borderColor: '#27272A',
+  },
+
+  rideModalHandle: {
+    width: 52,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+
+  rideModalHeaderModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+
+  rideModalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  rideModalHeaderIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#052E16',
+    borderWidth: 1,
+    borderColor: '#166534',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rideModalHeaderIconBlue: {
+    backgroundColor: '#0B1E3A',
+    borderColor: '#1D4ED8',
+  },
+
+  rideModalHeaderIconPurple: {
+    backgroundColor: '#2E1065',
+    borderColor: '#7E22CE',
+  },
+
+  rideModalEyebrowModern: {
+    color: '#22C55E',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+
+  rideModalTitleModern: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  rideModalCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rideModalDescription: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+
+  rideModalScrollContent: {
+    paddingBottom: 12,
+  },
+
+  rideModalSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  rideModalSectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  rideModalSectionSubtitle: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  rideModalManageButtonTop: {
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  rideModalManageButtonTopText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  rideModalPlatformsGridModern: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 18,
+  },
+
+  rideModalPlatformCardModern: {
+    width: '48%',
+    minHeight: 62,
+    borderRadius: 18,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    paddingRight: 34,
+    gap: 9,
+    position: 'relative',
+  },
+
+  rideModalPlatformCardModernActive: {
+    backgroundColor: '#052E16',
+    borderColor: '#22C55E',
+  },
+
+  rideModalPlatformLogoWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  rideModalPlatformLogoModern: {
+    width: 38,
+    height: 38,
+    resizeMode: 'cover',
+  },
+
+  rideModalPlatformLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  rideModalPlatformNameModern: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    textAlign: 'left',
+    flex: 1,
+  },
+
+  rideModalPlatformCheck: {
+    position: 'absolute',
+    right: 7,
+    top: 7,
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rideModalInputsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+
+  rideModalInputBlock: {
+    flex: 1,
+  },
+
+  rideModalInputLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 7,
+    marginLeft: 2,
+  },
+
+  rideModalMoneyInputCard: {
+    minHeight: 60,
+    borderRadius: 18,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  rideModalInputIconGreen: {
+    minWidth: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34,197,94,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rideModalInputIconBlue: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(59,130,246,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rideModalCurrencyText: {
+    color: '#4ADE80',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  rideModalInputModern: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    padding: 0,
+  },
+
+  rideModalInfoCard: {
+    minHeight: 62,
+    borderRadius: 18,
+    backgroundColor: 'rgba(59,130,246,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+
+  rideModalInfoText: {
+    flex: 1,
+    color: '#BFDBFE',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+
+  rideModalPrimaryButton: {
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: '#22C55E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    marginTop: 6,
+  },
+
+  rideModalPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  rideModalEmptyPlatforms: {
+    minHeight: 190,
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    marginBottom: 18,
+  },
+
+  rideModalEmptyIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+
+  rideModalEmptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  rideModalEmptyText: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 6,
+  },
+
+  rideModalEmptyButton: {
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+  },
+
+  rideModalEmptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+
+  rideResultModernOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'flex-end',
+  },
+
+  rideResultModernSheet: {
+    width: '100%',
+    maxHeight: '82%',
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingTop: 10,
+    paddingHorizontal: 18,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
+  },
+
+  rideResultModernHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+
+  rideResultModernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    marginBottom: 16,
+  },
+
+  rideResultModernHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  rideResultModernIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 19,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rideResultModernEyebrow: {
+    color: '#22C55E',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+
+  rideResultModernTitle: {
+    color: '#FFFFFF',
+    fontSize: 23,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  rideResultModernCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rideResultModernScroll: {
+    maxHeight: 430,
+  },
+
+  rideResultModernScrollContent: {
+    paddingBottom: 12,
+  },
+
+  rideResultModernHeroCard: {
+    borderRadius: 28,
+    padding: 16,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.25)',
+    marginBottom: 12,
+  },
+
+  rideResultModernHeroTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+
+  rideResultModernHeroLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+
+  rideResultModernHeroValue: {
+    color: '#22C55E',
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+
+  rideResultModernSuccessBadge: {
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.24)',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  rideResultModernSuccessText: {
+    color: '#86EFAC',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  rideResultModernDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginVertical: 14,
+  },
+
+  rideResultModernHeroHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  rideResultModernHeroHintText: {
+    flex: 1,
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+
+  rideResultModernStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  rideResultModernStatCard: {
+    flex: 1,
+    minWidth: '45%',
+    borderRadius: 22,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    padding: 13,
+  },
+
+  rideResultModernStatCardWide: {
+    width: '100%',
+    borderRadius: 22,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    padding: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  rideResultModernStatIconGreen: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+
+  rideResultModernStatIconBlue: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+
+  rideResultModernStatIconPurple: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: 'rgba(168,85,247,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rideResultModernStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+
+  rideResultModernStatValue: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  rideResultModernStatValueGreen: {
+    color: '#22C55E',
+    fontSize: 19,
+    fontWeight: '900',
+  },
+
+  rideResultModernStatValueBlue: {
+    color: '#60A5FA',
+    fontSize: 19,
+    fontWeight: '900',
+  },
+
+  rideResultModernFooter: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#09090B',
+  },
+
+  rideResultModernSecondaryButton: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+
+  rideResultModernSecondaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  rideResultModernPrimaryButton: {
+    flex: 1.1,
+    minHeight: 56,
+    borderRadius: 18,
+    backgroundColor: '#16A34A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#22C55E',
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+
+  rideResultModernPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+
+  finishRideModernOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 0,
+  },
+
+  finishRideModernSheet: {
+    width: '100%',
+    height: '92%',
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingTop: 10,
+    paddingHorizontal: 18,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+
+  finishRideModernHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+
+  finishRideModernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    marginBottom: 10,
+  },
+
+  finishRideModernHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  finishRideModernHeaderIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  finishRideModernEyebrow: {
+    color: '#22C55E',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+
+  finishRideModernTitle: {
+    color: '#FFFFFF',
+    fontSize: 23,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  finishRideModernCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  finishRideModernScroll: {
+    flex: 1,
+  },
+
+  finishRideModernScrollContent: {
+    paddingBottom: 12,
+  },
+
+  finishRideModernFooter: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#09090B',
+  },
+
+  finishRideModernSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+
+  finishRideModernSummaryCard: {
+    borderRadius: 24,
+    padding: 14,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.25)',
+    marginBottom: 12,
+  },
+
+  finishRideModernSummaryTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+
+  finishRideModernPlatformBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  finishRideModernPlatformLogo: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+  },
+
+  finishRideModernPlatformInitial: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+
+  finishRideModernPlatformName: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  finishRideModernPlatformHint: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  finishRideModernLiveBadge: {
+    height: 31,
+    borderRadius: 999,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.24)',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  finishRideModernLiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+
+  finishRideModernLiveText: {
+    color: '#86EFAC',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  finishRideModernStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  finishRideModernStatBox: {
+    flex: 1,
+    minWidth: '45%',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    padding: 12,
+  },
+
+  finishRideModernStatBoxWide: {
+    width: '100%',
+    borderRadius: 18,
+    backgroundColor: 'rgba(34,197,94,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.16)',
+    padding: 12,
+  },
+
+  finishRideModernStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+
+  finishRideModernStatValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  finishRideModernStatValueGreen: {
+    color: '#22C55E',
+    fontSize: 19,
+    fontWeight: '900',
+  },
+
+  finishRideModernFieldsCard: {
+    borderRadius: 24,
+    padding: 14,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    marginBottom: 0,
+  },
+
+  finishRideModernInputLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+
+  finishRideModernInputBox: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+
+  finishRideModernInputIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  finishRideModernInputIconBlue: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  finishRideModernCurrencyText: {
+    color: '#22C55E',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  finishRideModernMoneyInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '900',
+    paddingVertical: 8,
+  },
+
+  finishRideModernKmInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 21,
+    fontWeight: '900',
+    paddingVertical: 8,
+  },
+
+  finishRideModernKmUnit: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '900',
+    marginLeft: 8,
+  },
+
+  finishRideModernHintCard: {
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+
+  finishRideModernHintText: {
+    flex: 1,
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+
+  finishRideModernButton: {
+    minHeight: 58,
+    borderRadius: 19,
+    backgroundColor: '#16A34A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    shadowColor: '#22C55E',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+
+  finishRideModernButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+
+  finishedModernOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    justifyContent: 'flex-end',
+  },
+
+  finishedModernSheet: {
+    width: '100%',
+    maxHeight: '94%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 10,
+    paddingHorizontal: 18,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
+    shadowColor: '#000000',
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: -10 },
+    elevation: 18,
+  },
+
+  finishedModernHandle: {
+    alignSelf: 'center',
+    width: 54,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    marginBottom: 16,
+  },
+
+  finishedModernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  finishedModernHeaderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.22)',
+  },
+
+  finishedModernEyebrow: {
+    color: '#22C55E',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+    marginBottom: 2,
+  },
+
+  finishedModernTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+
+  finishedModernCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+
+  finishedModernSummaryCard: {
+    borderRadius: 24,
+    backgroundColor: '#101B14',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.18)',
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  finishedModernSummaryMain: {
+    marginBottom: 14,
+  },
+
+  finishedModernSummaryLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+
+  finishedModernSummaryValue: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '900',
+  },
+
+  finishedModernSummaryGrid: {
+    flexDirection: 'row',
+    gap: 9,
+  },
+
+  finishedModernMiniStat: {
+    flex: 1,
+    minHeight: 78,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 11,
+    justifyContent: 'space-between',
+  },
+
+  finishedModernMiniStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  finishedModernMiniStatValue: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  finishedModernList: {
+    flex: 1,
+  },
+
+  finishedModernListContent: {
+    paddingBottom: 14,
+    gap: 12,
+  },
+
+  finishedModernRideCard: {
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 14,
+  },
+
+  finishedModernRideHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  finishedModernRidePlatformRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+
+  finishedModernRideLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+  },
+
+  finishedModernRideLogoFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+
+  finishedModernRideLogoFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+
+  finishedModernRidePlatform: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  finishedModernRideTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 4,
+  },
+
+  finishedModernRideTimeText: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  finishedModernStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.18)',
+  },
+
+  finishedModernStatusText: {
+    color: '#BBF7D0',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  finishedModernRideAmountBox: {
+    borderRadius: 18,
+    backgroundColor: 'rgba(34,197,94,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.13)',
+    padding: 13,
+    marginBottom: 12,
+  },
+
+  finishedModernRideAmountLabel: {
+    color: '#86EFAC',
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+
+  finishedModernRideAmount: {
+    color: '#FFFFFF',
+    fontSize: 23,
+    fontWeight: '900',
+  },
+
+  finishedModernStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  finishedModernStatPill: {
+    width: '48.8%',
+    minHeight: 64,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  finishedModernStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 10,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+
+  finishedModernStatValue: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  finishedModernActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  finishedModernEditButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 16,
+    backgroundColor: 'rgba(96,165,250,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  finishedModernEditText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  finishedModernDeleteButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 16,
+    backgroundColor: 'rgba(239,68,68,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.18)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  finishedModernDeleteText: {
+    color: '#FCA5A5',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+
+  completedRidesOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    justifyContent: 'flex-end',
+  },
+
+  completedRidesSheet: {
+    width: '100%',
+    maxHeight: '92%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 24,
+  },
+
+  completedRidesHandle: {
+    width: 54,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+
+  completedRidesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  completedRidesHeaderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedRidesEyebrow: {
+    color: '#22C55E',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+
+  completedRidesTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  completedRidesSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 3,
+    lineHeight: 18,
+  },
+
+  completedRidesCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedRidesSummaryCard: {
+    backgroundColor: '#111827',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  completedRidesSummaryMain: {
+    marginBottom: 14,
+  },
+
+  completedRidesSummaryLabel: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  completedRidesSummaryValue: {
+    color: '#22C55E',
+    fontSize: 34,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  completedRidesSummaryGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  completedRidesMiniStat: {
+    flex: 1,
+    minHeight: 82,
+    borderRadius: 18,
+    backgroundColor: '#0B1220',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 10,
+    justifyContent: 'space-between',
+  },
+
+  completedRidesMiniStatLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+
+  completedRidesMiniStatValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  completedRidesList: {
+    flex: 1,
+  },
+
+  completedRidesListContent: {
+    paddingBottom: 20,
+  },
+
+  completedRidesEmptyBox: {
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 24,
+    alignItems: 'center',
+  },
+
+  completedRidesEmptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+    marginTop: 12,
+  },
+
+  completedRidesEmptyText: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+  },
+
+  completedRideCard: {
+    backgroundColor: '#0B1220',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  completedRideTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+
+  completedRidePlatformRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  completedRideLogo: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+  },
+
+  completedRideLogoFallback: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: '#FACC15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedRideLogoFallbackText: {
+    color: '#000000',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  completedRidePlatform: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  completedRideStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 4,
+  },
+
+  completedRideStatusText: {
+    color: '#86EFAC',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  completedRideAmountBox: {
+    alignItems: 'flex-end',
+  },
+
+  completedRideAmountLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  completedRideAmountValue: {
+    color: '#22C55E',
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  completedRideTimelineCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111827',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 12,
+    marginTop: 16,
+  },
+
+  completedRideTimelineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  completedRideTimelineIconStart: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedRideTimelineIconEnd: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedRideTimelineLabel: {
+    color: '#71717A',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  completedRideTimelineValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  completedRideTimelineLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#27272A',
+    marginHorizontal: 10,
+  },
+
+  completedRideDurationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.22)',
+    marginLeft: 10,
+  },
+
+  completedRideDurationText: {
+    color: '#BFDBFE',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  completedRideDetailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 12,
+  },
+
+  completedRideDetailCard: {
+    width: '48%',
+    minHeight: 92,
+    borderRadius: 20,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 12,
+  },
+
+  completedRideDetailIconGreen: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+
+  completedRideDetailIconOrange: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+
+  completedRideDetailIconBlue: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+
+  completedRideDetailIconPurple: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: 'rgba(168,85,247,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+
+  completedRideDetailLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  completedRideDetailValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+  completedRideDetailValueGreen: {
+    color: '#22C55E',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+  completedRideDetailValueBlue: {
+    color: '#60A5FA',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+  completedRideDetailValuePurple: {
+    color: '#C084FC',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+  completedRideFooterActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 2,
+  },
+
+  completedRideEditButton: {
+    flex: 1,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 7,
+  },
+
+  completedRideEditText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  completedRideDeleteButton: {
+    flex: 1,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: 'rgba(127,29,29,0.38)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 7,
+  },
+
+  completedRideDeleteText: {
+    color: '#FCA5A5',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+
+  completedRidesSheetFullList: {
+    width: '100%',
+    maxHeight: '92%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 22,
+  },
+
+  completedRidesListOnly: {
+    marginTop: 14,
+  },
+
+  completedRidesListOnlyContent: {
+    paddingBottom: 28,
+    gap: 10,
+  },
+
+  completedRideListCard: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    borderRadius: 18,
+    padding: 12,
+    gap: 10,
+  },
+
+  completedRideListTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+  completedRideValuePill: {
+    minWidth: 102,
+    backgroundColor: 'rgba(34, 197, 94, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.18)',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    alignItems: 'flex-end',
+  },
+
+  completedRideValuePillLabel: {
+    color: '#86EFAC',
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+
+  completedRideValuePillText: {
+    color: '#22C55E',
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 1,
+  },
+
+  completedRideTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderRadius: 20,
+    padding: 12,
+    gap: 12,
+  },
+
+  completedRideTimeBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  completedRideTimeIconStart: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedRideTimeIconEnd: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedRideTimeLabel: {
+    color: '#71717A',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  completedRideTimeValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  completedRideTimeDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#27272A',
+  },
+
+  completedRideFullDetailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  completedRideFullDetailCard: {
+    width: '48%',
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderRadius: 18,
+    padding: 12,
+    minHeight: 88,
+  },
+
+  completedRideFullDetailTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 22,
+  },
+
+  completedRideFullDetailLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    flexShrink: 1,
+  },
+
+  completedRideFullDetailValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+  completedRideFullDetailValueGreen: {
+    color: '#22C55E',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+  completedRideFullDetailValuePurple: {
+    color: '#C084FC',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+
+  completedRideCompactDetails: {
+    backgroundColor: 'rgba(9, 9, 11, 0.66)',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    gap: 8,
+  },
+
+  completedRideCompactLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  completedRideCompactDivider: {
+    height: 1,
+    backgroundColor: '#27272A',
+  },
+
+  completedRideCompactGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 8,
+  },
+
+  completedRideCompactItem: {
+    width: '50%',
+    paddingRight: 8,
+  },
+
+  completedRideCompactLabel: {
+    color: '#71717A',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  completedRideCompactValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  completedRideCompactValueGreen: {
+    color: '#22C55E',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  completedRideCompactValuePurple: {
+    color: '#C084FC',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+
+  editFinishedRideModernOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    justifyContent: 'flex-end',
+  },
+
+  editFinishedRideModernSheet: {
+    width: '100%',
+    maxHeight: '88%',
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingTop: 10,
+    paddingHorizontal: 18,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+  },
+
+  editFinishedRideModernHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+
+  editFinishedRideModernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    marginBottom: 14,
+  },
+
+  editFinishedRideModernHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  editFinishedRideModernHeaderIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  editFinishedRideModernEyebrow: {
+    color: '#60A5FA',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+
+  editFinishedRideModernTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  editFinishedRideModernCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  editFinishedRideModernScrollContent: {
+    paddingBottom: 18,
+    gap: 14,
+  },
+
+  editFinishedRideModernSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+
+  editFinishedRideModernSummaryCard: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    borderRadius: 24,
+    padding: 14,
+    gap: 14,
+  },
+
+  editFinishedRideModernPlatformRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  editFinishedRideModernPlatformLogoBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  editFinishedRideModernPlatformLogo: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+  },
+
+  editFinishedRideModernPlatformInitial: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  editFinishedRideModernPlatformName: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  editFinishedRideModernStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 5,
+  },
+
+  editFinishedRideModernStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+
+  editFinishedRideModernStatusText: {
+    color: '#86EFAC',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  editFinishedRideModernInfoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  editFinishedRideModernInfoCard: {
+    width: '48%',
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderRadius: 18,
+    padding: 12,
+    minHeight: 76,
+  },
+
+  editFinishedRideModernInfoTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  editFinishedRideModernInfoLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  editFinishedRideModernInfoValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 7,
+  },
+
+  editFinishedRideModernAmountCard: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    borderRadius: 24,
+    padding: 14,
+  },
+
+  editFinishedRideModernInputLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+    marginBottom: 10,
+  },
+
+  editFinishedRideModernAmountInputBox: {
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+
+  editFinishedRideModernCurrencyBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  editFinishedRideModernCurrencyText: {
+    color: '#22C55E',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  editFinishedRideModernAmountInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+    paddingVertical: 0,
+  },
+
+  editFinishedRideModernInputHint: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 10,
+  },
+
+  editFinishedRideModernFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#18181B',
+  },
+
+  editFinishedRideModernCancelButton: {
+    flex: 1,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  editFinishedRideModernCancelText: {
+    color: '#E5E7EB',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  editFinishedRideModernSaveButton: {
+    flex: 1.25,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  editFinishedRideModernSaveText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+
+  kmModernOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.74)',
+    justifyContent: 'flex-end',
+  },
+
+  kmModernSheet: {
+    width: '100%',
+    maxHeight: '88%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+  },
+
+  kmModernHandle: {
+    alignSelf: 'center',
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#374151',
+    marginBottom: 14,
+  },
+
+  kmModernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 14,
+  },
+
+  kmModernHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  kmModernIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  kmModernEyebrow: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+
+  kmModernTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+
+  kmModernCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  kmModernScrollContent: {
+    paddingBottom: 14,
+    gap: 14,
+  },
+
+  kmModernSummaryCard: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    borderRadius: 24,
+    padding: 14,
+    gap: 14,
+  },
+
+  kmModernSummaryTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+  kmModernSummaryLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 5,
+  },
+
+  kmModernSummaryValue: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  kmModernSummaryValueHighlight: {
+    color: '#F59E0B',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  kmModernSummaryArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  kmModernDrivenBox: {
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderRadius: 18,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  kmModernDrivenIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  kmModernDrivenLabel: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  kmModernDrivenValue: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+
+  kmModernInputSection: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    borderRadius: 24,
+    padding: 14,
+  },
+
+  kmModernInputLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 11,
+  },
+
+  kmModernInputLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  kmModernInputCard: {
+    height: 62,
+    borderRadius: 20,
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+
+  kmModernInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
+    paddingVertical: 0,
+  },
+
+  kmModernUnitPill: {
+    minWidth: 44,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+
+  kmModernUnitText: {
+    color: '#F59E0B',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  kmModernHintBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#09090B',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    padding: 11,
+    marginTop: 12,
+  },
+
+  kmModernHintText: {
+    flex: 1,
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+
+  kmModernFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#18181B',
+  },
+
+  kmModernCancelButton: {
+    flex: 1,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  kmModernCancelText: {
+    color: '#E5E7EB',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  kmModernSaveButton: {
+    flex: 1.35,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  kmModernSaveText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+
+  privateChatOverlayModern: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.68)',
+    justifyContent: 'flex-end',
+  },
+
+  privateChatBackdropModern: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  privateChatSheetModern: {
+    height: '86%',
+    width: '100%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'ios' ? 22 : 14,
+  },
+
+  privateChatHandleModern: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+
+  privateChatHeaderModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  privateChatHeaderLeftModern: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  privateChatHeaderAvatarModern: {
+    width: 48,
+    height: 48,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#22C55E',
+    backgroundColor: '#18181B',
+  },
+
+  privateChatHeaderAvatarFallbackModern: {
+    width: 48,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  privateChatTitleRowModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  privateChatTitleModern: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  privateChatPrivateBadgeModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(37, 99, 235, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.35)',
+  },
+
+  privateChatPrivateBadgeTextModern: {
+    color: '#BFDBFE',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  privateChatSubtitleModern: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  privateChatCloseButtonModern: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  privateChatNoticeModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#1E3A8A',
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+
+  privateChatNoticeTextModern: {
+    flex: 1,
+    color: '#BFDBFE',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+
+  privateChatMessagesScrollModern: {
+    flex: 1,
+  },
+
+  privateChatMessagesContentModern: {
+    paddingTop: 4,
+    paddingBottom: 14,
+  },
+
+  privateChatEmptyBoxModern: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+  },
+
+  privateChatEmptyIconModern: {
+    width: 62,
+    height: 62,
+    borderRadius: 22,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+
+  privateChatEmptyTitleModern: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  privateChatEmptyTextModern: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+  },
+
+  privateChatMessageRowModern: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    width: '100%',
+    marginBottom: 12,
+  },
+
+  privateChatMessageRowMineModern: {
+    justifyContent: 'flex-end',
+  },
+
+  privateChatMessageRowOtherModern: {
+    justifyContent: 'flex-start',
+  },
+
+  privateChatMessageAvatarModern: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    marginRight: 8,
+    backgroundColor: '#18181B',
+  },
+
+  privateChatMessageAvatarFallbackModern: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    marginRight: 8,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  privateChatBubbleModern: {
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: '78%',
+    minWidth: 96,
+    borderWidth: 1,
+  },
+
+  privateChatBubbleMineModern: {
+    backgroundColor: '#22C55E',
+    borderColor: '#16A34A',
+    borderBottomRightRadius: 6,
+  },
+
+  privateChatBubbleOtherModern: {
+    backgroundColor: '#18181B',
+    borderColor: '#27272A',
+    borderBottomLeftRadius: 6,
+  },
+
+  privateChatSenderNameModern: {
+    color: '#BFDBFE',
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+
+  privateChatMessageTextModern: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+
+  privateChatMessageTextMineModern: {
+    color: '#052E16',
+  },
+
+  privateChatBubbleFooterModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    marginTop: 6,
+  },
+
+  privateChatHourModern: {
+    color: '#A1A1AA',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  privateChatHourMineModern: {
+    color: '#14532D',
+  },
+
+  privateChatReplyPreviewModern: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#60A5FA',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+
+  privateChatReplyPreviewMineModern: {
+    backgroundColor: 'rgba(255,255,255,0.26)',
+    borderLeftColor: '#14532D',
+  },
+
+  privateChatReplyPreviewLabelModern: {
+    color: '#60A5FA',
+    fontSize: 10,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+
+  privateChatReplyPreviewLabelMineModern: {
+    color: '#14532D',
+  },
+
+  privateChatReplyPreviewTextModern: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  privateChatReplyPreviewTextMineModern: {
+    color: '#064E3B',
+  },
+
+  privateChatReplyingBoxModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+
+  privateChatReplyingIconModern: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: '#0F172A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  privateChatReplyingLabelModern: {
+    color: '#60A5FA',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  privateChatReplyingTextModern: {
+    color: '#E5E7EB',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+
+  privateChatReplyingCloseModern: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    backgroundColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  privateChatInputBarModern: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#18181B',
+  },
+
+  privateChatInputModern: {
+    flex: 1,
+    minHeight: 50,
+    maxHeight: 108,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    color: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 12,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  privateChatSendButtonModern: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  privateChatSendButtonDisabledModern: {
+    opacity: 0.45,
+  },
+
+  cityChatModernOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    justifyContent: 'flex-end',
+  },
+
+  cityChatModernBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  cityChatModernSheet: {
+    height: '88%',
+    width: '100%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
+  },
+
+  cityChatModernHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#374151',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+
+  cityChatModernHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  cityChatModernHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  cityChatModernHeaderIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: 'rgba(37,99,235,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cityChatModernTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+
+  cityChatModernEyebrow: {
+    color: '#60A5FA',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+
+  cityChatModernBadge: {
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: 'rgba(37,99,235,0.20)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.35)',
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  cityChatModernBadgeText: {
+    color: '#BFDBFE',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  cityChatModernTitle: {
+    color: '#FFFFFF',
+    fontSize: 21,
+    fontWeight: '900',
+  },
+
+  cityChatModernSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  cityChatModernCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cityChatModernInfoCard: {
+    marginTop: 16,
+    minHeight: 48,
+    borderRadius: 18,
+    backgroundColor: 'rgba(37,99,235,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.24)',
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  cityChatModernInfoText: {
+    flex: 1,
+    color: '#BFDBFE',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+
+  cityChatModernMessagesList: {
+    flex: 1,
+    marginTop: 14,
+  },
+
+  cityChatModernMessagesContent: {
+    paddingBottom: 14,
+  },
+
+  cityChatModernEmptyBox: {
+    minHeight: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+
+  cityChatModernEmptyIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 24,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+
+  cityChatModernEmptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  cityChatModernEmptyText: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 19,
+  },
+
+  cityChatModernMessageRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  cityChatModernMessageRowMe: {
+    justifyContent: 'flex-end',
+  },
+
+  cityChatModernAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: '#27272A',
+  },
+
+  cityChatModernAvatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: '#1F2937',
+    borderWidth: 1,
+    borderColor: '#374151',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cityChatModernAvatarFallbackText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  cityChatModernBubble: {
+    maxWidth: '78%',
+    minWidth: 90,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+
+  cityChatModernBubbleOther: {
+    backgroundColor: '#18181B',
+    borderColor: '#27272A',
+    borderBottomLeftRadius: 7,
+  },
+
+  cityChatModernBubbleMe: {
+    backgroundColor: '#16A34A',
+    borderColor: '#22C55E',
+    borderBottomRightRadius: 7,
+  },
+
+  cityChatModernUserName: {
+    color: '#BFDBFE',
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+
+  cityChatModernReplyPreview: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#60A5FA',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginBottom: 7,
+  },
+
+  cityChatModernReplyPreviewMe: {
+    backgroundColor: 'rgba(0,0,0,0.16)',
+    borderLeftColor: '#FFFFFF',
+  },
+
+  cityChatModernReplyPreviewText: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  cityChatModernMessageText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+
+  cityChatModernMessageTextMe: {
+    color: '#FFFFFF',
+  },
+
+  cityChatModernHourRow: {
+    marginTop: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+  },
+
+  cityChatModernHourText: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  cityChatModernHourTextMe: {
+    color: '#DCFCE7',
+  },
+
+  cityChatModernReplyingBox: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  cityChatModernReplyingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    backgroundColor: 'rgba(37,99,235,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cityChatModernReplyingLabel: {
+    color: '#60A5FA',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  cityChatModernReplyingText: {
+    color: '#E5E7EB',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+
+  cityChatModernInputBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingTop: 10,
+  },
+
+  cityChatModernInputWrapper: {
+    flex: 1,
+    minHeight: 52,
+    maxHeight: 110,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+
+  cityChatModernInput: {
+    flex: 1,
+    minHeight: 28,
+    maxHeight: 82,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    padding: 0,
+  },
+
+  cityChatModernSendButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cityChatModernSendButtonDisabled: {
+    opacity: 0.45,
+  },
+
+
 });

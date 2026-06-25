@@ -39,7 +39,6 @@ export default function TabsLayout() {
           left: 14,
           right: 14,
           height: 72,
-          borderRadius: 26,
           backgroundColor: '#09090B',
           borderTopWidth: 0,
           paddingTop: 8,
@@ -67,12 +66,19 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
+        name="despesas"
+        options={{
+          title: 'Despesas',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="card-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="jornadas"
         options={{
-          title: 'Jornadas',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time-outline" size={size} color={color} />
-          ),
+          href: null,
         }}
       />
 
@@ -101,21 +107,21 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="despesas"
-        options={{
-          title: 'Despesas',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="card-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
         name="veiculos"
         options={{
           title: 'Veículos',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="car-sport-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="recordes"
+        options={{
+          title: "Recordes",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="podium-outline" size={size} color={color} />
           ),
         }}
       />

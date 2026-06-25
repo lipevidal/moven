@@ -1,5 +1,13 @@
 import { supabase } from '../../../database/supabase';
 
+export type Municipality = {
+  id: string;
+  name: string;
+  uf: string;
+  state_name?: string | null;
+  immediate_region?: string | null;
+};
+
 export async function searchMunicipalities(search: string) {
   const term = search.trim();
 
