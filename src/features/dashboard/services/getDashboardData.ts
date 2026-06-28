@@ -2,372 +2,458 @@ import { supabase } from '../../../database/supabase';
 
 export type DashboardPeriod = 'day' | 'week' | 'month' | 'year';
 
+type PeriodRange = {
+  start: Date;
+  end: Date;
+};
+
+type EarningItem = {
+  id?: string;
+  platform?: string | null;
+  amount?: number | string | null;
+  earning_date?: string | null;
+  created_at?: string | null;
+  session_id?: string | null;
+};
+
+type SessionItem = {
+  id: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  start_km?: number | string | null;
+  end_km?: number | string | null;
+  total_paused_seconds?: number | string | null;
+  earnings?: EarningItem[] | null;
+};
+
+type ExpenseItem = {
+  id?: string;
+  amount?: number | string | null;
+  expense_date?: string | null;
+};
+
+const shortWeekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const shortMonths = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Maio',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+];
+
 function toLocalISOString(date: Date) {
   const offsetMs = date.getTimezoneOffset() * 60000;
 
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, -1);
 }
 
-function getPeriodRange(period: DashboardPeriod, baseDate = new Date()) {
-  const start = new Date(baseDate);
-  const end = new Date(baseDate);
+function getWeekRange(baseDate: Date): PeriodRange {
+  const date = new Date(baseDate);
+  const day = date.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
 
-  if (period === 'day') {
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-  }
+  const start = new Date(date);
+  start.setDate(date.getDate() + diffToMonday);
+  start.setHours(0, 0, 0, 0);
 
-  if (period === 'week') {
-    const day = start.getDay();
-    const diffToMonday = day === 0 ? -6 : 1 - day;
-
-    start.setDate(start.getDate() + diffToMonday);
-    start.setHours(0, 0, 0, 0);
-
-    end.setTime(start.getTime());
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
-  }
-
-  if (period === 'month') {
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
-
-    end.setMonth(start.getMonth() + 1);
-    end.setDate(0);
-    end.setHours(23, 59, 59, 999);
-  }
-
-  if (period === 'year') {
-    start.setMonth(0, 1);
-    start.setHours(0, 0, 0, 0);
-
-    end.setMonth(11, 31);
-    end.setHours(23, 59, 59, 999);
-  }
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
 
   return { start, end };
 }
 
-function getPreviousRange(period: DashboardPeriod, start: Date, end: Date) {
-  const previousStart = new Date(start);
-  const previousEnd = new Date(end);
+function getPeriodRange(
+  period: DashboardPeriod = 'week',
+  referenceDate: Date = new Date(),
+): PeriodRange {
+  const date = new Date(referenceDate);
 
   if (period === 'day') {
-    previousStart.setDate(previousStart.getDate() - 1);
-    previousEnd.setDate(previousEnd.getDate() - 1);
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+
+    return { start, end };
   }
 
   if (period === 'week') {
-    previousStart.setDate(previousStart.getDate() - 7);
-    previousEnd.setDate(previousEnd.getDate() - 7);
+    return getWeekRange(date);
   }
 
   if (period === 'month') {
-    previousStart.setMonth(previousStart.getMonth() - 1);
-    previousEnd.setMonth(previousEnd.getMonth() - 1);
+    const start = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+
+    return { start, end };
+  }
+
+  const start = new Date(date.getFullYear(), 0, 1, 0, 0, 0, 0);
+  const end = new Date(date.getFullYear(), 11, 31, 23, 59, 59, 999);
+
+  return { start, end };
+}
+
+function getPreviousPeriodRange(period: DashboardPeriod, referenceDate: Date) {
+  const previous = new Date(referenceDate);
+
+  if (period === 'day') {
+    previous.setDate(previous.getDate() - 1);
+  }
+
+  if (period === 'week') {
+    previous.setDate(previous.getDate() - 7);
+  }
+
+  if (period === 'month') {
+    previous.setMonth(previous.getMonth() - 1);
   }
 
   if (period === 'year') {
-    previousStart.setFullYear(previousStart.getFullYear() - 1);
-    previousEnd.setFullYear(previousEnd.getFullYear() - 1);
+    previous.setFullYear(previous.getFullYear() - 1);
   }
 
-  return {
-    start: previousStart,
-    end: previousEnd,
-  };
+  return getPeriodRange(period, previous);
 }
 
-function calculateSessionsRevenue(sessions: any[]) {
-  return sessions.reduce((total, session) => {
-    const sessionRevenue =
-      session.earnings?.reduce(
-        (sum: number, earning: any) => sum + Number(earning.amount ?? 0),
-        0,
-      ) ?? 0;
-
-    return total + sessionRevenue;
-  }, 0);
+function getSessionDate(session: SessionItem) {
+  return session.finished_at ?? session.started_at ?? null;
 }
 
-function calculateTotalHours(sessions: any[]) {
-  return sessions.reduce((total, session) => {
-    const start = new Date(session.started_at).getTime();
-    const end = new Date(session.finished_at).getTime();
+function getSessionHours(session: SessionItem) {
+  if (!session.started_at || !session.finished_at) return 0;
 
-    const totalPausedSeconds = Number(session.total_paused_seconds ?? 0);
+  const start = new Date(session.started_at).getTime();
+  const end = new Date(session.finished_at).getTime();
 
-    const seconds = Math.max(
-      Math.floor((end - start) / 1000) - totalPausedSeconds,
-      0,
-    );
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0;
 
-    return total + seconds / 3600;
-  }, 0);
+  const pausedSeconds = Number(session.total_paused_seconds ?? 0);
+  const seconds = Math.max((end - start) / 1000 - pausedSeconds, 0);
+
+  return seconds / 3600;
 }
 
-function calculateTotalKm(sessions: any[]) {
-  return sessions.reduce((total, session) => {
-    const km =
-      Number(session.end_km ?? 0) - Number(session.start_km ?? 0);
+function getSessionKm(session: SessionItem) {
+  const startKm = Number(session.start_km ?? 0);
+  const endKm = Number(session.end_km ?? session.start_km ?? 0);
 
-    return total + Math.max(km, 0);
-  }, 0);
+  return Math.max(endKm - startKm, 0);
 }
 
-function calculatePlatformTotals(sessions: any[]) {
-  return sessions.reduce((acc: Record<string, number>, session) => {
-    session.earnings?.forEach((earning: any) => {
-      acc[earning.platform] =
-        (acc[earning.platform] ?? 0) + Number(earning.amount ?? 0);
-    });
+function getAmount(value: number | string | null | undefined) {
+  return Number(value ?? 0) || 0;
+}
+
+function sumEarnings(earnings: EarningItem[]) {
+  return earnings.reduce((total, item) => total + getAmount(item.amount), 0);
+}
+
+function groupPlatformTotals(earnings: EarningItem[]) {
+  return earnings.reduce<Record<string, number>>((acc, earning) => {
+    const platform = earning.platform || 'Outros';
+    acc[platform] = (acc[platform] ?? 0) + getAmount(earning.amount);
 
     return acc;
   }, {});
 }
 
-function calculateVariation(current: number, previous: number) {
-  if (previous <= 0) return current > 0 ? 100 : 0;
-
-  return ((current - previous) / previous) * 100;
+function getEarningDate(earning: EarningItem, fallbackDate?: string | null) {
+  return earning.earning_date ?? earning.created_at ?? fallbackDate ?? null;
 }
 
-export async function getDashboardData(
-  period: DashboardPeriod,
-  referenceDate = new Date(),
-) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return null;
-  }
-
-  const { start, end } = getPeriodRange(period, referenceDate);
-  const previous = getPreviousRange(period, start, end);
-
-  const [sessionsResponse, expensesResponse, previousSessionsResponse, vehiclesResponse] =
-    await Promise.all([
-      supabase
-        .from('work_sessions')
-        .select(`
-          *,
-          earnings(*)
-        `)
-        .eq('user_id', user.id)
-        .eq('status', 'finished')
-        .gte('started_at', toLocalISOString(start))
-        .lte('started_at', toLocalISOString(end)),
-
-      supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('expense_date', toLocalISOString(start))
-        .lte('expense_date', toLocalISOString(end)),
-
-      supabase
-        .from('work_sessions')
-        .select(`
-          *,
-          earnings(*)
-        `)
-        .eq('user_id', user.id)
-        .eq('status', 'finished')
-        .gte('started_at', toLocalISOString(previous.start))
-        .lte('started_at', toLocalISOString(previous.end)),
-
-      supabase
-        .from('vehicles')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('active', true)
-        .order('created_at', { ascending: false }),
-    ]);
-
-  if (sessionsResponse.error) throw sessionsResponse.error;
-  if (expensesResponse.error) throw expensesResponse.error;
-  if (previousSessionsResponse.error) throw previousSessionsResponse.error;
-  if (vehiclesResponse.error) throw vehiclesResponse.error;
-
-  const sessions = sessionsResponse.data ?? [];
-  const expenses = expensesResponse.data ?? [];
-  const previousSessions = previousSessionsResponse.data ?? [];
-  const vehicles = vehiclesResponse.data ?? [];
-
-  const revenue = calculateSessionsRevenue(sessions);
-  const previousRevenue = calculateSessionsRevenue(previousSessions);
-
-  const totalExpenses = expenses.reduce(
-    (total, expense) => total + Number(expense.amount ?? 0),
-    0,
+function samePeriodDay(date: Date, target: Date) {
+  return (
+    date.getDate() === target.getDate() &&
+    date.getMonth() === target.getMonth() &&
+    date.getFullYear() === target.getFullYear()
   );
+}
 
-  const totalKm = calculateTotalKm(sessions);
-  const totalHours = calculateTotalHours(sessions);
+function buildBarChartData(
+  period: DashboardPeriod,
+  referenceDate: Date,
+  earnings: EarningItem[],
+) {
+  if (period === 'week') {
+    const { start } = getWeekRange(referenceDate);
 
-  const profit = revenue - totalExpenses;
+    return Array.from({ length: 7 }).map((_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
 
-  const revenuePerHour = totalHours > 0 ? revenue / totalHours : 0;
-  const revenuePerKm = totalKm > 0 ? revenue / totalKm : 0;
+      const value = earnings.reduce((total, earning) => {
+        const earningDateValue = getEarningDate(earning);
+        if (!earningDateValue) return total;
 
-  const platformTotals = calculatePlatformTotals(sessions);
+        const earningDate = new Date(earningDateValue);
+        if (Number.isNaN(earningDate.getTime())) return total;
 
-  const revisionVehicles = vehicles
-    .filter(
-      (vehicle) =>
-        vehicle.current_km !== null &&
-        vehicle.next_revision_km !== null,
-    )
-    .map((vehicle) => ({
-      ...vehicle,
-      kmUntilRevision:
-        Number(vehicle.next_revision_km) - Number(vehicle.current_km),
-    }))
-    .sort((a, b) => a.kmUntilRevision - b.kmUntilRevision);
-
-  const nextRevision = revisionVehicles[0] ?? null;
-
-  function getBarChartData() {
-    if (period === 'day') {
-      return [];
-    }
-
-    if (period === 'week') {
-      const days = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
-      const { start } = getPeriodRange('week', referenceDate);
-
-      return days.map((label, index) => {
-        const day = new Date(start);
-        day.setDate(start.getDate() + index);
-
-        const value = sessions
-          .filter((session) => {
-            const sessionDate = new Date(session.started_at);
-
-            return (
-              sessionDate.getDate() === day.getDate() &&
-              sessionDate.getMonth() === day.getMonth() &&
-              sessionDate.getFullYear() === day.getFullYear()
-            );
-          })
-          .reduce((total, session) => {
-            return (
-              total +
-              (session.earnings?.reduce(
-                (sum: number, earning: any) =>
-                  sum + Number(earning.amount ?? 0),
-                0,
-              ) ?? 0)
-            );
-          }, 0);
-
-        return {
-          label,
-          value,
-        };
-      });
-    }
-
-    if (period === 'month') {
-      return Array.from({ length: 5 }).map((_, index) => {
-        const weekDate = new Date(referenceDate);
-        weekDate.setDate(referenceDate.getDate() - (4 - index) * 7);
-
-        const { start, end } = getPeriodRange('week', weekDate);
-
-        const value = sessions
-          .filter((session) => {
-            const sessionDate = new Date(session.started_at);
-
-            return sessionDate >= start && sessionDate <= end;
-          })
-          .reduce((total, session) => {
-            return (
-              total +
-              (session.earnings?.reduce(
-                (sum: number, earning: any) =>
-                  sum + Number(earning.amount ?? 0),
-                0,
-              ) ?? 0)
-            );
-          }, 0);
-
-        const startDay = String(start.getDate()).padStart(2, '0');
-        const endDay = String(end.getDate()).padStart(2, '0');
-
-        const monthName = [
-          'Jan',
-          'Fev',
-          'Mar',
-          'Abr',
-          'Mai',
-          'Jun',
-          'Jul',
-          'Ago',
-          'Set',
-          'Out',
-          'Nov',
-          'Dez',
-        ][end.getMonth()];
-
-        return {
-          label: `${startDay}-${endDay}${monthName}`,
-          value,
-        };
-      });
-    }
-
-    return Array.from({ length: 5 }).map((_, index) => {
-      const year = referenceDate.getFullYear() - (4 - index);
-
-      const value = sessions
-        .filter((session) => {
-          return new Date(session.started_at).getFullYear() === year;
-        })
-        .reduce((total, session) => {
-          return (
-            total +
-            (session.earnings?.reduce(
-              (sum: number, earning: any) =>
-                sum + Number(earning.amount ?? 0),
-              0,
-            ) ?? 0)
-          );
-        }, 0);
+        return samePeriodDay(earningDate, date)
+          ? total + getAmount(earning.amount)
+          : total;
+      }, 0);
 
       return {
-        label: String(year),
+        label: shortWeekDays[date.getDay()],
+        date: date.toISOString(),
         value,
       };
     });
   }
 
+  if (period === 'month') {
+    const year = referenceDate.getFullYear();
+    const month = referenceDate.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+
+    return Array.from({ length: lastDay }).map((_, index) => {
+      const day = index + 1;
+      const date = new Date(year, month, day, 12, 0, 0, 0);
+
+      const value = earnings.reduce((total, earning) => {
+        const earningDateValue = getEarningDate(earning);
+        if (!earningDateValue) return total;
+
+        const earningDate = new Date(earningDateValue);
+        if (Number.isNaN(earningDate.getTime())) return total;
+
+        return samePeriodDay(earningDate, date)
+          ? total + getAmount(earning.amount)
+          : total;
+      }, 0);
+
+      return {
+        label: String(day),
+        day,
+        date: date.toISOString(),
+        value,
+      };
+    });
+  }
+
+  if (period === 'year') {
+    const year = referenceDate.getFullYear();
+
+    return Array.from({ length: 12 }).map((_, month) => {
+      const value = earnings.reduce((total, earning) => {
+        const earningDateValue = getEarningDate(earning);
+        if (!earningDateValue) return total;
+
+        const earningDate = new Date(earningDateValue);
+        if (Number.isNaN(earningDate.getTime())) return total;
+
+        const sameMonth =
+          earningDate.getFullYear() === year && earningDate.getMonth() === month;
+
+        return sameMonth ? total + getAmount(earning.amount) : total;
+      }, 0);
+
+      return {
+        label: shortMonths[month],
+        value,
+      };
+    });
+  }
+
+  return [];
+}
+
+async function getStandaloneEarningsByPeriod(
+  userId: string,
+  start: Date,
+  end: Date,
+) {
+  const { data, error } = await supabase
+    .from('earnings')
+    .select('id, user_id, session_id, platform, description, amount, earning_date, created_at')
+    .eq('user_id', userId)
+    .is('session_id', null)
+    .gte('earning_date', toLocalISOString(start))
+    .lte('earning_date', toLocalISOString(end))
+    .order('earning_date', { ascending: false });
+
+  if (error) {
+    console.log('Erro ao buscar ganhos avulsos:', error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+async function getRevenueByRange(userId: string, start: Date, end: Date) {
+  const sessions = await getSessionsByPeriod(userId, start, end);
+  const sessionEarnings = getSessionEarningsWithDate(sessions);
+
+  const standaloneEarnings = await getStandaloneEarningsByPeriod(
+    userId,
+    start,
+    end,
+  );
+
+  return sumEarnings([...sessionEarnings, ...standaloneEarnings]);
+}
+
+async function getSessionsByPeriod(userId: string, start: Date, end: Date) {
+  const { data, error } = await supabase
+    .from('work_sessions')
+    .select(
+      `
+      id,
+      started_at,
+      finished_at,
+      start_km,
+      end_km,
+      total_paused_seconds,
+      status,
+      earnings (
+        id,
+        platform,
+        amount,
+        created_at
+      )
+      `,
+    )
+    .eq('user_id', userId)
+    .eq('status', 'finished')
+    .gte('finished_at', toLocalISOString(start))
+    .lte('finished_at', toLocalISOString(end))
+    .order('finished_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as SessionItem[];
+}
+
+function getSessionEarningsWithDate(sessions: SessionItem[]) {
+  return sessions.flatMap((session) => {
+    const fallbackDate = getSessionDate(session);
+
+    return (session.earnings ?? []).map((earning) => ({
+      ...earning,
+      earning_date: getEarningDate(earning, fallbackDate),
+      session_id: session.id,
+    }));
+  });
+}
+
+async function getExpensesByPeriod(userId: string, start: Date, end: Date) {
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('id, amount, expense_date')
+    .eq('user_id', userId)
+    .gte('expense_date', toLocalISOString(start))
+    .lte('expense_date', toLocalISOString(end));
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as ExpenseItem[];
+}
+
+export async function getDashboardData(
+  period: DashboardPeriod = 'week',
+  referenceDate: Date = new Date(),
+) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw userError;
+  }
+
+  if (!user) {
+    throw new Error('Usuário não autenticado.');
+  }
+
+  const { start, end } = getPeriodRange(period, referenceDate);
+
+  const [sessions, standaloneEarnings, expenses] = await Promise.all([
+    getSessionsByPeriod(user.id, start, end),
+    getStandaloneEarningsByPeriod(user.id, start, end),
+    getExpensesByPeriod(user.id, start, end),
+  ]);
+
+  const sessionEarnings = getSessionEarningsWithDate(sessions);
+  const allEarnings = [...sessionEarnings, ...standaloneEarnings];
+
+  const revenue = sumEarnings(allEarnings);
+  const expensesTotal = expenses.reduce(
+    (total, item) => total + getAmount(item.amount),
+    0,
+  );
+
+  const profit = revenue - expensesTotal;
+
+  const totalHours = sessions.reduce(
+    (total, session) => total + getSessionHours(session),
+    0,
+  );
+
+  const totalKm = sessions.reduce(
+    (total, session) => total + getSessionKm(session),
+    0,
+  );
+
+  const revenuePerHour = totalHours > 0 ? revenue / totalHours : 0;
+  const revenuePerKm = totalKm > 0 ? revenue / totalKm : 0;
+
+  const previousRange = getPreviousPeriodRange(period, referenceDate);
+  const previousRevenue = await getRevenueByRange(
+    user.id,
+    previousRange.start,
+    previousRange.end,
+  );
+
+  const revenueVariation =
+    previousRevenue > 0
+      ? ((revenue - previousRevenue) / previousRevenue) * 100
+      : revenue > 0
+        ? 100
+        : 0;
+
   return {
     user,
-    period,
     startDate: start,
     endDate: end,
-    barChartData: getBarChartData(),
+    period,
 
     revenue,
-    previousRevenue,
-    revenueVariation: calculateVariation(revenue, previousRevenue),
-
-    expenses: totalExpenses,
+    expenses: expensesTotal,
     profit,
-
-    totalKm,
     totalHours,
-
+    totalKm,
+    totalSessions: sessions.length,
     revenuePerHour,
     revenuePerKm,
+    revenueVariation,
 
-    totalSessions: sessions.length,
+    platformTotals: groupPlatformTotals(allEarnings),
+    barChartData: buildBarChartData(period, referenceDate, allEarnings),
 
-    platformTotals,
-    nextRevision,
+    standaloneEarnings,
+    sessionEarnings,
   };
 }

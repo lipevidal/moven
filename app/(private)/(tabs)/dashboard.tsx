@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { PieChart } from "react-native-gifted-charts";
 import { NotificationBell } from "../../../src/features/notifications/components/NotificationBell";
@@ -16,6 +16,11 @@ import {
   StyleSheet,
   Image,
   Modal,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -28,6 +33,9 @@ import {
 import { getDayWorkSessions } from "../../../src/features/dashboard/services/getDayWorkSessions";
 import { getGoalForPeriod } from "../../../src/features/goals/services/getGoalForPeriod";
 import { getGoalPeriodFromDashboard } from "../../../src/features/goals/utils/goalPeriodUtils";
+import { getPlatforms } from "../../../src/features/platforms/services/getPlatforms";
+import { getUserPlatforms } from "../../../src/features/platforms/services/getUserPlatforms";
+import { toggleUserPlatform } from "../../../src/features/platforms/services/toggleUserPlatform";
 
 import { LocaleConfig } from "react-native-calendars";
 
@@ -86,6 +94,35 @@ const periodOptions: { label: string; value: DashboardPeriod }[] = [
   { label: "Ano", value: "year" },
 ];
 
+const expenseCategoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
+  Manutenção: "build-outline",
+  "Lavagem/Limpeza": "water-outline",
+  Borracharia: "disc-outline",
+  Alimentação: "restaurant-outline",
+  Combustível: "speedometer-outline",
+  Seguro: "shield-checkmark-outline",
+  Financiamento: "card-outline",
+  Carregamento: "battery-charging-outline",
+  Aluguel: "car-outline",
+  Imposto: "document-text-outline",
+  Multa: "alert-circle-outline",
+  Pedágio: "trail-sign-outline",
+  "Plano de Internet": "wifi-outline",
+  Aplicativos: "phone-portrait-outline",
+  Estacionamento: "car-outline",
+  "Estoque de Produtos": "cube-outline",
+  "Aluguel de Garagem": "business-outline",
+  INSS: "cash-outline",
+  "Imposto de Renda": "receipt-outline",
+  Outros: "ellipsis-horizontal-circle-outline",
+};
+
+function getExpenseIcon(category?: string | null) {
+  if (!category) return "receipt-outline" as const;
+
+  return expenseCategoryIcons[category] ?? "receipt-outline";
+}
+
 const months = [
   "Janeiro",
   "Fevereiro",
@@ -123,6 +160,24 @@ function formatCurrency(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatDate(value: string | Date) {
+  if (!value) return "--/--/----";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "--/--/----";
+  }
+
+  return date.toLocaleDateString("pt-BR");
+}
+
+function toLocalISOString(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60000;
+
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, -1);
 }
 
 function formatNumber(value: number) {
@@ -341,23 +396,207 @@ function buildMonthWeeksBarChartData(items: any[], referenceDate: Date) {
   });
 }
 
+function getEntryDate(entry: any) {
+  const dateValue =
+    entry?.earning_date ||
+    entry?.created_at ||
+    entry?.session?.started_at ||
+    entry?.session?.finished_at;
+
+  const parsed = new Date(dateValue);
+
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function toLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getDateKeyFromValue(value?: string | Date | null) {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return toLocalDateKey(value);
+  }
+
+  const textValue = String(value);
+
+  /*
+    Corrige casos em que a data do banco vem com horário e o JavaScript
+    acaba deslocando para outro dia por causa do fuso/UTC.
+    Para gráfico financeiro por dia, usamos o dia gravado no banco.
+  */
+  const directDateMatch = textValue.match(/^(\d{4}-\d{2}-\d{2})/);
+
+  if (directDateMatch) {
+    return directDateMatch[1];
+  }
+
+  const parsedDate = new Date(textValue);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return toLocalDateKey(parsedDate);
+}
+
+function getEntryDateKey(entry: any) {
+  const dateValue =
+    entry?.earning_date ||
+    entry?.created_at ||
+    entry?.session?.started_at ||
+    entry?.session?.finished_at;
+
+  return getDateKeyFromValue(dateValue);
+}
+
+function buildWeekEntriesBarChartData(entries: any[], referenceDate: Date) {
+  const { start } = getWeekRange(referenceDate);
+
+  return Array.from({ length: 7 }).map((_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+
+    const targetKey = toLocalDateKey(date);
+
+    const value = entries.reduce((total, entry) => {
+      const entryDateKey = getEntryDateKey(entry);
+
+      return entryDateKey === targetKey
+        ? total + Number(entry.amount ?? 0)
+        : total;
+    }, 0);
+
+    return {
+      label: weekDays[date.getDay()],
+      date: toLocalDateKey(date),
+      value,
+    };
+  });
+}
+
+function buildMonthEntriesBarChartData(entries: any[], referenceDate: Date) {
+  const year = referenceDate.getFullYear();
+  const month = referenceDate.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+
+  return Array.from({ length: lastDay }).map((_, index) => {
+    const day = index + 1;
+    const date = new Date(year, month, day, 12, 0, 0, 0);
+    const targetKey = toLocalDateKey(date);
+
+    const value = entries.reduce((total, entry) => {
+      const entryDateKey = getEntryDateKey(entry);
+
+      return entryDateKey === targetKey
+        ? total + Number(entry.amount ?? 0)
+        : total;
+    }, 0);
+
+    return {
+      label: String(day).padStart(2, "0"),
+      date: targetKey,
+      value,
+    };
+  });
+}
+
+function buildYearEntriesBarChartData(entries: any[], referenceDate: Date) {
+  const year = referenceDate.getFullYear();
+
+  return Array.from({ length: 12 }).map((_, monthIndex) => {
+    const value = entries.reduce((total, entry) => {
+      const entryDateKey = getEntryDateKey(entry);
+
+      if (!entryDateKey) return total;
+
+      const [entryYear, entryMonth] = entryDateKey.split("-").map(Number);
+      const sameMonth = entryYear === year && entryMonth === monthIndex + 1;
+
+      return sameMonth ? total + Number(entry.amount ?? 0) : total;
+    }, 0);
+
+    return {
+      label: shortMonths[monthIndex],
+      value,
+    };
+  });
+}
+
 export default function DashboardScreen() {
   const [period, setPeriod] = useState<DashboardPeriod>("week");
   const [periodTab, setPeriodTab] = useState<DashboardPeriod>("week");
   const [referenceDate, setReferenceDate] = useState(new Date());
   const [data, setData] = useState<any>(null);
   const [daySessions, setDaySessions] = useState<any[]>([]);
+  const [periodExpenses, setPeriodExpenses] = useState<any[]>([]);
+  const [periodEntries, setPeriodEntries] = useState<any[]>([]);
+  const [periodEntriesReady, setPeriodEntriesReady] = useState(false);
+  const [dashboardPlatforms, setDashboardPlatforms] = useState<any[]>([]);
+  const [allDashboardPlatforms, setAllDashboardPlatforms] = useState<any[]>([]);
+  const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
+  const [platformDrawerVisible, setPlatformDrawerVisible] = useState(false);
+  const [returnToEntryModalAfterPlatforms, setReturnToEntryModalAfterPlatforms] =
+    useState(false);
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [sessionDetailsModalVisible, setSessionDetailsModalVisible] =
     useState(false);
   const [user, setUser] = useState<any>(null);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [periodModalVisible, setPeriodModalVisible] = useState(false);
   const [goalModalVisible, setGoalModalVisible] = useState(false);
   const [currentGoal, setCurrentGoal] = useState<any>(null);
   const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
+  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
+  const [yearChartSemester, setYearChartSemester] = useState<"first" | "second">(
+    new Date().getMonth() < 6 ? "first" : "second",
+  );
+
+  const [entryModalVisible, setEntryModalVisible] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<any>(null);
+  const [entryPlatform, setEntryPlatform] = useState('');
+  const [entryDescription, setEntryDescription] = useState('');
+  const [entryDate, setEntryDate] = useState(formatDate(new Date()));
+  const [entryAmount, setEntryAmount] = useState('');
+  const [entryErrors, setEntryErrors] = useState<Record<string, string>>({});
+  const [savingEntry, setSavingEntry] = useState(false);
+
+  const [expenseEditModalVisible, setExpenseEditModalVisible] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<any>(null);
+  const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseCategory, setExpenseCategory] = useState('');
+  const [expenseLocation, setExpenseLocation] = useState('');
+  const [expenseDate, setExpenseDate] = useState(formatDate(new Date()));
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseErrors, setExpenseErrors] = useState<Record<string, string>>({});
+  const [savingExpense, setSavingExpense] = useState(false);
+
+  const [sessionEarningEditModalVisible, setSessionEarningEditModalVisible] =
+    useState(false);
+  const [editingSessionEarning, setEditingSessionEarning] = useState<any>(null);
+  const [sessionEarningAmount, setSessionEarningAmount] = useState('');
+  const [sessionEarningErrors, setSessionEarningErrors] = useState<
+    Record<string, string>
+  >({});
+  const [savingSessionEarning, setSavingSessionEarning] = useState(false);
+  const [returnToSessionDetailsAfterEarningEdit, setReturnToSessionDetailsAfterEarningEdit] =
+    useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [period, referenceDate]),
+  );
 
   useEffect(() => {
-    loadDashboard();
+    if (period !== "year") return;
+
+    setYearChartSemester(referenceDate.getMonth() < 6 ? "first" : "second");
   }, [period, referenceDate]);
 
   useEffect(() => {
@@ -415,6 +654,87 @@ export default function DashboardScreen() {
     return () => clearInterval(interval);
   }, [goalModalVisible, period, referenceDate]);
 
+  useEffect(() => {
+    let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+    let componentMounted = true;
+
+    async function subscribeToDashboardChanges() {
+      const {
+        data: { user: loggedUser },
+      } = await supabase.auth.getUser();
+
+      if (!loggedUser?.id || !componentMounted) return;
+
+      // Mantém o dashboard sincronizado quando despesas, ganhos ou jornadas mudarem.
+      // Assim, ao adicionar, editar ou excluir uma despesa, os cards do dashboard atualizam.
+      realtimeChannel = supabase
+        .channel(`dashboard-data-sync-${loggedUser.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "expenses",
+            filter: `user_id=eq.${loggedUser.id}`,
+          },
+          async () => {
+            await loadDashboard();
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "earnings",
+            filter: `user_id=eq.${loggedUser.id}`,
+          },
+          async () => {
+            await loadDashboard();
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "work_sessions",
+            filter: `user_id=eq.${loggedUser.id}`,
+          },
+          async () => {
+            await loadDashboard();
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${loggedUser.id}`,
+          },
+          async () => {
+            await Promise.all([
+              loadProfileAvatar(loggedUser.id),
+              loadAdminStatus(loggedUser.id),
+            ]);
+          },
+        )
+        .subscribe();
+    }
+
+    subscribeToDashboardChanges();
+
+    return () => {
+      componentMounted = false;
+
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+      }
+    };
+  }, [period, referenceDate]);
+
+
   async function refreshDashboardGoal() {
     try {
       const goalPeriod = getGoalPeriodFromDashboard(period, referenceDate);
@@ -429,12 +749,223 @@ export default function DashboardScreen() {
     }
   }
 
+  async function loadProfileAvatar(userId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      setProfileAvatarUrl(data?.avatar_url ?? null);
+    } catch (error) {
+      console.log("Erro ao carregar foto do perfil:", error);
+      setProfileAvatarUrl(null);
+    }
+  }
+
+  async function loadAdminStatus(userId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      setIsSystemAdmin(Boolean(data?.is_admin));
+    } catch (error) {
+      console.log("Erro ao verificar admin:", error);
+      setIsSystemAdmin(false);
+    }
+  }
+
+  async function loadDashboardPlatforms() {
+    try {
+      const [allPlatforms, selectedPlatforms] = await Promise.all([
+        getPlatforms(),
+        getUserPlatforms(),
+      ]);
+
+      setAllDashboardPlatforms(allPlatforms ?? []);
+      setSelectedPlatformIds(
+        (selectedPlatforms ?? []).map((item: any) => item.platform_id),
+      );
+
+      // No modal de editar entrada, mostramos somente as plataformas escolhidas pelo usuário.
+      setDashboardPlatforms(
+        (selectedPlatforms ?? [])
+          .map((item: any) => item.platform)
+          .filter(Boolean),
+      );
+    } catch (error) {
+      console.log("Erro ao carregar plataformas do usuário no dashboard:", error);
+      setDashboardPlatforms([]);
+      setAllDashboardPlatforms([]);
+      setSelectedPlatformIds([]);
+    }
+  }
+
+  async function openPlatformDrawerFromEntryModal() {
+    setReturnToEntryModalAfterPlatforms(true);
+    setEntryModalVisible(false);
+
+    await loadDashboardPlatforms();
+
+    setTimeout(() => {
+      setPlatformDrawerVisible(true);
+    }, 350);
+  }
+
+  function closePlatformDrawerAndReturn() {
+    const shouldReturn = returnToEntryModalAfterPlatforms;
+
+    setPlatformDrawerVisible(false);
+    setReturnToEntryModalAfterPlatforms(false);
+
+    setTimeout(() => {
+      if (shouldReturn && editingEntry?.id) {
+        setEntryModalVisible(true);
+      }
+    }, 350);
+  }
+
+  function togglePlatformSelection(platformId: string) {
+    setSelectedPlatformIds((current) => {
+      if (current.includes(platformId)) {
+        return current.filter((id) => id !== platformId);
+      }
+
+      return [...current, platformId];
+    });
+  }
+
+  async function handleSaveUserPlatforms() {
+    try {
+      for (const platform of allDashboardPlatforms) {
+        const selected = selectedPlatformIds.includes(platform.id);
+
+        await toggleUserPlatform(platform.id, selected);
+      }
+
+      await loadDashboardPlatforms();
+      closePlatformDrawerAndReturn();
+    } catch (error) {
+      console.log("Erro ao salvar plataformas do usuário:", error);
+      Alert.alert("Erro", "Não foi possível salvar suas plataformas.");
+    }
+  }
+
+  async function loadPeriodEntries(startDate?: string | Date, endDate?: string | Date) {
+    try {
+      if (!startDate || !endDate) {
+        setPeriodEntries([]);
+        setPeriodEntriesReady(true);
+        return;
+      }
+
+      const {
+        data: { user: loggedUser },
+      } = await supabase.auth.getUser();
+
+      if (!loggedUser?.id) {
+        setPeriodEntries([]);
+        setPeriodEntriesReady(true);
+        return;
+      }
+
+      const start = toLocalISOString(new Date(startDate));
+      const end = toLocalISOString(new Date(endDate));
+
+      /*
+        Outros ganhos devem mostrar somente ganhos avulsos,
+        ou seja, ganhos que não estão vinculados a nenhuma jornada.
+        Os ganhos de jornadas ficam dentro de Jornadas do dia e no detalhe do turno.
+      */
+      const { data: entriesResponse, error } = await supabase
+        .from("earnings")
+        .select("id, user_id, session_id, platform, description, amount, earning_date, created_at")
+        .eq("user_id", loggedUser.id)
+        .is("session_id", null)
+        .gte("earning_date", start)
+        .lte("earning_date", end)
+        .order("earning_date", { ascending: false });
+
+      if (error) throw error;
+
+      setPeriodEntries(entriesResponse ?? []);
+      setPeriodEntriesReady(true);
+    } catch (error) {
+      console.log("Erro ao carregar outros ganhos:", error);
+      setPeriodEntries([]);
+      setPeriodEntriesReady(false);
+    }
+  }
+
+  async function loadPeriodExpenses(startDate?: string | Date, endDate?: string | Date) {
+    try {
+      if (!startDate || !endDate) {
+        setPeriodExpenses([]);
+        return;
+      }
+
+      const {
+        data: { user: loggedUser },
+      } = await supabase.auth.getUser();
+
+      if (!loggedUser?.id) {
+        setPeriodExpenses([]);
+        return;
+      }
+
+      const start = toLocalISOString(new Date(startDate));
+      const end = toLocalISOString(new Date(endDate));
+
+      const { data: expensesResponse, error } = await supabase
+        .from("expenses")
+        .select("id, description, amount, category, expense_date, location, vehicle_id")
+        .eq("user_id", loggedUser.id)
+        .gte("expense_date", start)
+        .lte("expense_date", end)
+        .order("expense_date", { ascending: false });
+
+      if (error) throw error;
+
+      setPeriodExpenses(expensesResponse ?? []);
+    } catch (error) {
+      console.log("Erro ao carregar despesas do período:", error);
+      setPeriodExpenses([]);
+    }
+  }
+
   async function loadDashboard() {
     try {
       const response = await getDashboardData(period, referenceDate);
 
       setData(response);
-      setUser(response?.user ?? null);
+
+      await Promise.all([
+        loadPeriodExpenses(response?.startDate, response?.endDate),
+        loadPeriodEntries(response?.startDate, response?.endDate),
+        loadDashboardPlatforms(),
+      ]);
+
+      const loggedUser = response?.user ?? null;
+
+      setUser(loggedUser);
+
+      if (loggedUser?.id) {
+        await Promise.all([
+          loadProfileAvatar(loggedUser.id),
+          loadAdminStatus(loggedUser.id),
+        ]);
+      } else {
+        setProfileAvatarUrl(null);
+        setIsSystemAdmin(false);
+      }
 
       if (period === "day") {
         const sessions = await getDayWorkSessions(referenceDate);
@@ -523,17 +1054,31 @@ export default function DashboardScreen() {
 
   const profitVariationPositive = Number(data.revenueVariation ?? 0) >= 0;
 
+  const dashboardRevenue = Number(data.revenue ?? 0);
+
+  const dashboardExpenses = Number(data.expenses ?? 0);
+  const dashboardProfit = dashboardRevenue - dashboardExpenses;
+
+  const dashboardRevenuePerHour = Number(data.totalHours ?? 0) > 0
+    ? dashboardRevenue / Number(data.totalHours)
+    : 0;
+
+  const dashboardRevenuePerKm = Number(data.totalKm ?? 0) > 0
+    ? dashboardRevenue / Number(data.totalKm)
+    : 0;
+
   const expensesPercent =
-    data.revenue > 0
-      ? Math.round((Number(data.expenses) / Number(data.revenue)) * 100)
+    dashboardRevenue > 0
+      ? Math.round((dashboardExpenses / dashboardRevenue) * 100)
       : 0;
 
   const profitPercent =
-    data.revenue > 0
-      ? Math.round((Number(data.profit) / Number(data.revenue)) * 100)
+    dashboardRevenue > 0
+      ? Math.round((dashboardProfit / dashboardRevenue) * 100)
       : 0;
 
   const avatarUrl =
+    profileAvatarUrl ||
     user?.avatar_url ||
     user?.user_metadata?.avatar_url ||
     user?.user_metadata?.picture;
@@ -561,6 +1106,588 @@ export default function DashboardScreen() {
     setSessionDetailsModalVisible(true);
   }
 
+
+  function formatCurrencyInput(value: number) {
+    return Number(value ?? 0).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  function maskCurrencyInput(value: string) {
+    const numbers = value.replace(/\D/g, "").slice(0, 12);
+
+    if (!numbers) return "";
+
+    return (Number(numbers) / 100).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  function parseCurrencyInput(value: string) {
+    const normalized = value.replace(/\./g, "").replace(",", ".");
+    const amount = Number(normalized);
+
+    return Number.isFinite(amount) ? amount : 0;
+  }
+
+  function maskEntryDateInput(value: string) {
+    const numbers = value.replace(/\D/g, "").slice(0, 8);
+
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 4) return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+
+    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4)}`;
+  }
+
+  function parseEntryDateInput(value: string) {
+    const [day, month, year] = value.split("/").map(Number);
+
+    if (!day || !month || !year) return null;
+
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+
+    const valid =
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day;
+
+    return valid ? date : null;
+  }
+
+  function clearEntryError(field: string) {
+    setEntryErrors((current) => ({
+      ...current,
+      [field]: "",
+    }));
+  }
+
+  function getEntrySessionLabel(entry: any) {
+    if (!entry?.session_id) return "Ganho avulso";
+
+    const session = entry.session;
+
+    if (!session) return "Entrada do turno";
+
+    return `Turno ${formatSessionHour(session.started_at)} - ${formatSessionHour(session.finished_at)}`;
+  }
+
+  function getPlatformByName(platformName?: string | null) {
+    if (!platformName) return null;
+
+    const normalizedName = String(platformName).trim().toLowerCase();
+
+    return (
+      allDashboardPlatforms.find(
+        (platform) => String(platform?.name ?? '').trim().toLowerCase() === normalizedName,
+      ) ||
+      dashboardPlatforms.find(
+        (platform) => String(platform?.name ?? '').trim().toLowerCase() === normalizedName,
+      ) ||
+      null
+    );
+  }
+
+  function getPlatformInitial(platformName?: string | null) {
+    return String(platformName || '?').trim().slice(0, 1).toUpperCase() || '?';
+  }
+
+  function openEditEntryModal(entry: any) {
+    loadDashboardPlatforms();
+
+    setEditingEntry(entry);
+    setEntryPlatform(entry.platform ?? "");
+    setEntryDescription(entry.description ?? "");
+    setEntryDate(formatDate(getEntryDate(entry)));
+    setEntryAmount(formatCurrencyInput(Number(entry.amount ?? 0)));
+    setEntryErrors({});
+    setEntryModalVisible(true);
+  }
+
+  function validateEntryForm() {
+    const errors: Record<string, string> = {};
+    const parsedDate = parseEntryDateInput(entryDate);
+    const amount = parseCurrencyInput(entryAmount);
+
+    if (!entryPlatform) {
+      errors.platform = "Selecione uma plataforma.";
+    } else {
+      const platformBelongsToUser = dashboardPlatforms.some(
+        (platform) => platform?.name === entryPlatform,
+      );
+
+      if (!platformBelongsToUser) {
+        errors.platform =
+          "Essa plataforma não está nas suas plataformas. Toque em Gerenciar para adicionar.";
+      }
+    }
+
+    if (!parsedDate) {
+      errors.date = "Informe uma data válida.";
+    } else {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+
+      if (parsedDate > today) {
+        errors.date = "A data não pode ser futura.";
+      }
+    }
+
+    if (!entryAmount.trim()) {
+      errors.amount = "Informe o valor.";
+    } else if (amount <= 0) {
+      errors.amount = "O valor precisa ser maior que zero.";
+    }
+
+    setEntryErrors(errors);
+
+    return Object.keys(errors).length === 0;
+  }
+
+  async function syncSessionTotalEarnings(sessionId?: string | null) {
+    try {
+      if (!sessionId) return;
+
+      const { data: sessionEarnings, error: earningsError } = await supabase
+        .from("earnings")
+        .select("amount")
+        .eq("session_id", sessionId);
+
+      if (earningsError) throw earningsError;
+
+      const totalEarnings = (sessionEarnings ?? []).reduce(
+        (total: number, earning: any) => total + Number(earning.amount ?? 0),
+        0,
+      );
+
+      const { error: sessionError } = await supabase
+        .from("work_sessions")
+        .update({ total_earnings: totalEarnings })
+        .eq("id", sessionId);
+
+      if (sessionError) throw sessionError;
+    } catch (error) {
+      console.log("Erro ao sincronizar total da jornada:", error);
+    }
+  }
+
+  async function handleSaveEntryEdit() {
+    try {
+      if (!editingEntry?.id) return;
+
+      const valid = validateEntryForm();
+
+      if (!valid) return;
+
+      const parsedDate = parseEntryDateInput(entryDate);
+
+      if (!parsedDate) return;
+
+      setSavingEntry(true);
+
+      const { error } = await supabase
+        .from("earnings")
+        .update({
+          platform: entryPlatform,
+          description: entryDescription.trim() || null,
+          amount: parseCurrencyInput(entryAmount),
+          earning_date: toLocalISOString(parsedDate),
+        })
+        .eq("id", editingEntry.id);
+
+      if (error) throw error;
+
+      await syncSessionTotalEarnings(editingEntry.session_id);
+
+      setEntryModalVisible(false);
+      setEditingEntry(null);
+
+      await loadDashboard();
+    } catch (error) {
+      console.log("Erro ao editar entrada:", error);
+      Alert.alert("Erro", "Não foi possível editar esta entrada.");
+    } finally {
+      setSavingEntry(false);
+    }
+  }
+
+  function handleDeleteEntry(entry: any) {
+    Alert.alert(
+      "Excluir entrada",
+      "Deseja realmente excluir esta entrada? Essa ação atualizará os totais do período e da jornada em tempo real.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("earnings")
+                .delete()
+                .eq("id", entry.id);
+
+              if (error) throw error;
+
+              await syncSessionTotalEarnings(entry.session_id);
+
+              await loadDashboard();
+            } catch (error) {
+              console.log("Erro ao excluir entrada:", error);
+              Alert.alert("Erro", "Não foi possível excluir esta entrada.");
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  function clearExpenseError(field: string) {
+    setExpenseErrors((current) => ({
+      ...current,
+      [field]: "",
+    }));
+  }
+
+  function openEditExpenseModal(expense: any) {
+    setEditingExpense(expense);
+    setExpenseDescription(expense.description ?? "");
+    setExpenseCategory(expense.category ?? "");
+    setExpenseLocation(expense.location ?? "");
+    setExpenseDate(formatDate(expense.expense_date));
+    setExpenseAmount(formatCurrencyInput(Number(expense.amount ?? 0)));
+    setExpenseErrors({});
+    setExpenseEditModalVisible(true);
+  }
+
+  function closeExpenseEditModal() {
+    setExpenseEditModalVisible(false);
+    setEditingExpense(null);
+    setExpenseDescription('');
+    setExpenseCategory('');
+    setExpenseLocation('');
+    setExpenseDate(formatDate(new Date()));
+    setExpenseAmount('');
+    setExpenseErrors({});
+  }
+
+  function validateExpenseForm() {
+    const errors: Record<string, string> = {};
+    const parsedDate = parseEntryDateInput(expenseDate);
+    const amount = parseCurrencyInput(expenseAmount);
+
+    if (!expenseCategory.trim()) {
+      errors.category = "Informe a categoria.";
+    }
+
+    if (!parsedDate) {
+      errors.date = "Informe uma data válida.";
+    } else {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+
+      if (parsedDate > today) {
+        errors.date = "A data não pode ser futura.";
+      }
+    }
+
+    if (!expenseAmount.trim()) {
+      errors.amount = "Informe o valor.";
+    } else if (amount <= 0) {
+      errors.amount = "O valor precisa ser maior que zero.";
+    }
+
+    setExpenseErrors(errors);
+
+    return Object.keys(errors).length === 0;
+  }
+
+  async function handleSaveExpenseEdit() {
+    try {
+      if (!editingExpense?.id) return;
+
+      const valid = validateExpenseForm();
+
+      if (!valid) return;
+
+      const parsedDate = parseEntryDateInput(expenseDate);
+
+      if (!parsedDate) return;
+
+      setSavingExpense(true);
+
+      const {
+        data: { user: loggedUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!loggedUser?.id) {
+        throw new Error("Usuário não autenticado.");
+      }
+
+      const { error } = await supabase
+        .from("expenses")
+        .update({
+          description: expenseDescription.trim() || null,
+          category: expenseCategory.trim(),
+          location: expenseLocation.trim() || null,
+          amount: parseCurrencyInput(expenseAmount),
+          expense_date: toLocalISOString(parsedDate),
+        })
+        .eq("id", editingExpense.id)
+        .eq("user_id", loggedUser.id);
+
+      if (error) throw error;
+
+      closeExpenseEditModal();
+      await loadDashboard();
+    } catch (error) {
+      console.log("Erro ao editar despesa:", error);
+      Alert.alert("Erro", "Não foi possível editar esta despesa.");
+    } finally {
+      setSavingExpense(false);
+    }
+  }
+
+  function handleDeleteExpense(expense: any) {
+    Alert.alert(
+      "Excluir despesa",
+      "Deseja realmente excluir esta despesa? O dashboard, lucro, despesas e percentuais serão atualizados automaticamente.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const {
+                data: { user: loggedUser },
+                error: userError,
+              } = await supabase.auth.getUser();
+
+              if (userError) throw userError;
+
+              if (!loggedUser?.id) {
+                throw new Error("Usuário não autenticado.");
+              }
+
+              const { error } = await supabase
+                .from("expenses")
+                .delete()
+                .eq("id", expense.id)
+                .eq("user_id", loggedUser.id);
+
+              if (error) throw error;
+
+              await loadDashboard();
+            } catch (error) {
+              console.log("Erro ao excluir despesa:", error);
+              Alert.alert("Erro", "Não foi possível excluir esta despesa.");
+            }
+          },
+        },
+      ],
+    );
+  }
+
+
+  async function refreshSessionDetailsAfterEarningChange(sessionId?: string | null) {
+    await loadDashboard();
+
+    if (!sessionId) return;
+
+    try {
+      const sessions = await getDayWorkSessions(referenceDate);
+
+      setDaySessions(sessions);
+
+      const updatedSession = sessions.find(
+        (sessionItem: any) => sessionItem.id === sessionId,
+      );
+
+      if (updatedSession) {
+        setSelectedSession(updatedSession);
+      } else {
+        setSelectedSession(null);
+        setSessionDetailsModalVisible(false);
+      }
+    } catch (error) {
+      console.log("Erro ao atualizar detalhes do turno:", error);
+    }
+  }
+
+  function openSessionEarningEditModal(earning: any) {
+    setEditingSessionEarning(earning);
+    setSessionEarningAmount(formatCurrencyInput(Number(earning.amount ?? 0)));
+    setSessionEarningErrors({});
+    setReturnToSessionDetailsAfterEarningEdit(true);
+
+    // Evita problema de toque/modal empilhado no Android/iOS.
+    // Fechamos o detalhe do turno e abrimos o modal de edição logo em seguida.
+    setSessionDetailsModalVisible(false);
+
+    setTimeout(() => {
+      setSessionEarningEditModalVisible(true);
+    }, 320);
+  }
+
+  function closeSessionEarningEditModal() {
+    setSessionEarningEditModalVisible(false);
+    setEditingSessionEarning(null);
+    setSessionEarningAmount('');
+    setSessionEarningErrors({});
+
+    if (returnToSessionDetailsAfterEarningEdit && selectedSession?.id) {
+      setTimeout(() => {
+        setSessionDetailsModalVisible(true);
+      }, 260);
+    }
+  }
+
+  function validateSessionEarningForm() {
+    const errors: Record<string, string> = {};
+    const amount = parseCurrencyInput(sessionEarningAmount);
+
+    if (!sessionEarningAmount.trim()) {
+      errors.amount = "Informe o valor.";
+    } else if (amount <= 0) {
+      errors.amount = "O valor precisa ser maior que zero.";
+    }
+
+    setSessionEarningErrors(errors);
+
+    return Object.keys(errors).length === 0;
+  }
+
+  async function handleSaveSessionEarningEdit() {
+    try {
+      if (!editingSessionEarning?.id || !selectedSession?.id) return;
+
+      const valid = validateSessionEarningForm();
+
+      if (!valid) return;
+
+      const sessionId = selectedSession.id;
+
+      setSavingSessionEarning(true);
+
+      const { error } = await supabase
+        .from("earnings")
+        .update({
+          amount: parseCurrencyInput(sessionEarningAmount),
+        })
+        .eq("id", editingSessionEarning.id)
+        .eq("session_id", sessionId);
+
+      if (error) throw error;
+
+      await syncSessionTotalEarnings(sessionId);
+
+      setSessionEarningEditModalVisible(false);
+      setEditingSessionEarning(null);
+      setSessionEarningAmount('');
+      setSessionEarningErrors({});
+      setReturnToSessionDetailsAfterEarningEdit(false);
+
+      await refreshSessionDetailsAfterEarningChange(sessionId);
+
+      setTimeout(() => {
+        setSessionDetailsModalVisible(true);
+      }, 260);
+    } catch (error) {
+      console.log("Erro ao editar ganho do turno:", error);
+      Alert.alert("Erro", "Não foi possível editar este ganho.");
+    } finally {
+      setSavingSessionEarning(false);
+    }
+  }
+
+  function handleDeleteSessionEarning(earning: any) {
+    Alert.alert(
+      "Excluir ganho do turno",
+      "Deseja realmente excluir este ganho? O dashboard, os detalhes do turno e os totais serão atualizados.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const sessionId = selectedSession?.id;
+
+              const { error } = await supabase
+                .from("earnings")
+                .delete()
+                .eq("id", earning.id);
+
+              if (error) throw error;
+
+              await syncSessionTotalEarnings(sessionId);
+              await refreshSessionDetailsAfterEarningChange(sessionId);
+            } catch (error) {
+              console.log("Erro ao excluir ganho do turno:", error);
+              Alert.alert("Erro", "Não foi possível excluir este ganho.");
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  function handleDeleteDaySession(session: any) {
+    Alert.alert(
+      "Excluir turno",
+      "Deseja realmente excluir este turno? Todos os ganhos e corridas vinculados a ele serão removidos e o dashboard será atualizado.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir turno",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (!session?.id) return;
+
+              const sessionId = session.id;
+
+              // Removemos os dados vinculados primeiro para evitar erro de chave estrangeira.
+              const { error: ridesError } = await supabase
+                .from("rides")
+                .delete()
+                .eq("session_id", sessionId);
+
+              if (ridesError) throw ridesError;
+
+              const { error: earningsError } = await supabase
+                .from("earnings")
+                .delete()
+                .eq("session_id", sessionId);
+
+              if (earningsError) throw earningsError;
+
+              const { error: sessionError } = await supabase
+                .from("work_sessions")
+                .delete()
+                .eq("id", sessionId);
+
+              if (sessionError) throw sessionError;
+
+              setSessionDetailsModalVisible(false);
+              setSelectedSession(null);
+
+              await loadDashboard();
+            } catch (error) {
+              console.log("Erro ao excluir turno:", error);
+              Alert.alert("Erro", "Não foi possível excluir este turno.");
+            }
+          },
+        },
+      ],
+    );
+  }
+
   const isLightMode = themeMode === "light";
 
   const theme = {
@@ -574,7 +1701,7 @@ export default function DashboardScreen() {
 
   const goalPeriodInfo = getGoalPeriodFromDashboard(period, referenceDate);
   const goalTargetAmount = Number(currentGoal?.target_amount ?? 0);
-  const goalCurrentAmount = Number(data.revenue ?? 0);
+  const goalCurrentAmount = dashboardRevenue;
   const goalStarted = new Date() >= new Date(goalPeriodInfo.periodStart);
   const goalExpired = new Date() > new Date(goalPeriodInfo.periodEnd);
   const goalAchieved = Boolean(currentGoal) && goalCurrentAmount >= goalTargetAmount;
@@ -658,6 +1785,22 @@ export default function DashboardScreen() {
 
   const goalPeriodLabel = getGoalPeriodLabel();
 
+  function getExpenseSectionTitle() {
+    if (period === "day") return "Despesas do dia";
+    if (period === "week") return "Despesas da semana";
+    if (period === "month") return "Despesas do mês";
+
+    return "Despesas do ano";
+  }
+
+  function getExpenseSectionSubtitle() {
+    if (period === "day") return "Gastos registrados no dia selecionado";
+    if (period === "week") return "Gastos registrados na semana selecionada";
+    if (period === "month") return "Gastos registrados no mês selecionado";
+
+    return "Gastos registrados no ano selecionado";
+  }
+
   const colors = [
     "#22C55E",
     "#3B82F6",
@@ -668,25 +1811,88 @@ export default function DashboardScreen() {
     "#EC4899",
   ];
 
-  const pieData = Object.entries(data.platformTotals ?? {})
-    .filter(([_, value]) => Number(value) > 0)
-    .map(([platform, value]: any, index) => ({
-      value: Number(value),
-      text: `${((Number(value) / Number(data.revenue)) * 100).toFixed(0)}%`,
-      color: colors[index % colors.length],
-      label: platform,
-    }));
+  const platformTotals = data.platformTotals ?? {};
 
-  const rawBarChartData = data?.barChartData ?? [];
+  const pieData = Object.entries(platformTotals)
+    .filter(([_, value]) => Number(value) > 0)
+    .map(([platform, value]: any, index) => {
+      const platformInfo = getPlatformByName(platform);
+
+      return {
+        value: Number(value),
+        text: `${dashboardRevenue > 0 ? ((Number(value) / dashboardRevenue) * 100).toFixed(0) : 0}%`,
+        color: colors[index % colors.length],
+        label: platform,
+        logo_url: platformInfo?.logo_url ?? null,
+      };
+    });
+
+  const dashboardChartEntries = [
+    ...(data?.sessionEarnings ?? []),
+    ...(data?.standaloneEarnings ?? []),
+  ];
+
+  const rawBarChartData =
+    dashboardChartEntries.length > 0
+      ? period === "week"
+        ? buildWeekEntriesBarChartData(dashboardChartEntries, referenceDate)
+        : period === "month"
+          ? buildMonthEntriesBarChartData(dashboardChartEntries, referenceDate)
+          : period === "year"
+            ? buildYearEntriesBarChartData(dashboardChartEntries, referenceDate)
+            : data?.barChartData ?? []
+      : data?.barChartData ?? [];
+
+  const yearChartStartIndex = yearChartSemester === "first" ? 0 : 6;
+  const yearChartEndIndex = yearChartSemester === "first" ? 6 : 12;
+  const yearChartSemesterLabel =
+    yearChartSemester === "first" ? "Jan a Jun" : "Jul a Dez";
+
   const barChartData =
     period === "month"
       ? buildMonthWeeksBarChartData(rawBarChartData, referenceDate)
-      : rawBarChartData;
+      : period === "year"
+        ? rawBarChartData.slice(yearChartStartIndex, yearChartEndIndex)
+        : rawBarChartData;
+
+  const entryPlatformOptions = dashboardPlatforms;
 
   const maxBarValue = Math.max(
     ...barChartData.map((item: any) => item.value),
     1,
   );
+
+  /*
+    No card Lucro x despesas, as barras devem representar a participação
+    de cada valor em relação ao faturamento total do período.
+
+    Exemplo:
+    Faturamento: R$ 1.000,00
+    Lucro: R$ 600,00 -> barra com 60%
+    Despesas: R$ 400,00 -> barra com 40%
+
+    Antes a base era o maior valor entre lucro e despesas, por isso o lucro
+    podia ocupar 100% da barra mesmo representando menos que 100% do faturamento.
+  */
+  const profitExpenseComparisonBase = Number(dashboardRevenue ?? 0);
+
+  const profitComparisonWidth =
+    profitExpenseComparisonBase > 0
+      ? Math.min(
+          (Math.abs(dashboardProfit) / profitExpenseComparisonBase) * 100,
+          100,
+        )
+      : 0;
+
+  const expensesComparisonWidth =
+    profitExpenseComparisonBase > 0
+      ? Math.min(
+          (dashboardExpenses / profitExpenseComparisonBase) * 100,
+          100,
+        )
+      : 0;
+  const profitComparisonLabel =
+    dashboardProfit >= 0 ? "Lucro líquido" : "Prejuízo";
 
   return (
     <>
@@ -737,7 +1943,19 @@ export default function DashboardScreen() {
               <Ionicons name="trophy-outline" size={21} color="#FACC15" />
             </TouchableOpacity>
 
-            <TouchableOpacity
+            {isSystemAdmin && (
+              <TouchableOpacity
+                style={[
+                  styles.modernHeaderIconButton,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+                onPress={() => router.push("/(private)/admin" as never)}
+              >
+                <Ionicons name="shield-checkmark-outline" size={21} color="#60A5FA" />
+              </TouchableOpacity>
+            )}
+
+            {/*<TouchableOpacity
               style={[
                 styles.modernHeaderIconButton,
                 { backgroundColor: theme.card, borderColor: theme.border },
@@ -749,7 +1967,7 @@ export default function DashboardScreen() {
                 size={22}
                 color={theme.text}
               />
-            </TouchableOpacity>
+            </TouchableOpacity>*/}
 
             {/*<TouchableOpacity
               style={[
@@ -864,7 +2082,7 @@ export default function DashboardScreen() {
             </View>
 
             <Text style={styles.modernHeroValue}>
-              R$ {formatCurrency(data.profit)}
+              R$ {formatCurrency(dashboardProfit)}
             </Text>
             <Text style={styles.modernHeroSub}>
               {formatDecimal(profitPercent)}% do faturamento virou lucro
@@ -880,7 +2098,7 @@ export default function DashboardScreen() {
                 <Text style={styles.modernHeroMiniLabel}>Faturamento</Text>
               </View>
               <Text style={styles.modernHeroMiniValue}>
-                R$ {formatCurrency(data.revenue)}
+                R$ {formatCurrency(dashboardRevenue)}
               </Text>
             </View>
 
@@ -955,7 +2173,7 @@ export default function DashboardScreen() {
               </Text>
             </View>
             <Text style={[styles.modernStatValue, { color: theme.text }]}>
-              R$ {formatDecimal(data.revenuePerHour)}
+              R$ {formatDecimal(dashboardRevenuePerHour)}
             </Text>
           </View>
 
@@ -974,7 +2192,7 @@ export default function DashboardScreen() {
               </Text>
             </View>
             <Text style={[styles.modernStatValue, { color: theme.text }]}>
-              R$ {formatDecimal(data.revenuePerKm)}
+              R$ {formatDecimal(dashboardRevenuePerKm)}
             </Text>
           </View>
         </View>
@@ -1071,92 +2289,205 @@ export default function DashboardScreen() {
         )}
 
         {period === "day" && (
-          <View
-            style={[
-              styles.modernSessionsCard,
-              { backgroundColor: theme.card, borderColor: theme.border },
-            ]}
-          >
-            <View style={styles.modernSectionHeader}>
-              <View>
-                <Text
-                  style={[styles.modernSectionTitle, { color: theme.text }]}
-                >
-                  Jornadas do dia
-                </Text>
-                <Text
-                  style={[styles.modernSectionSubtitle, { color: theme.muted }]}
-                >
+          <View style={styles.daySessionsCard}>
+            <View style={styles.daySessionsHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modernSectionTitle, styles.daySessionsTitle]}>Jornadas do dia</Text>
+                <Text style={styles.daySessionsSubtitle}>
                   Turnos finalizados no período selecionado
                 </Text>
               </View>
 
-              <View style={styles.modernCountBadge}>
-                <Text style={styles.modernCountText}>{daySessions.length}</Text>
+              <View style={styles.daySessionsCountBadge}>
+                <Text style={styles.daySessionsCountText}>{daySessions.length}</Text>
               </View>
             </View>
 
             {daySessions.length === 0 ? (
-              <Text style={styles.emptyText}>
-                Nenhuma jornada finalizada neste dia.
-              </Text>
+              <View style={styles.periodEntriesEmptyBox}>
+                <Ionicons name="briefcase-outline" size={28} color="#71717A" />
+                <Text style={styles.periodEntriesEmptyTitle}>
+                  Nenhuma jornada neste dia
+                </Text>
+                <Text style={styles.periodEntriesEmptyText}>
+                  As jornadas finalizadas aparecerão aqui com faturamento, tempo e KM.
+                </Text>
+              </View>
             ) : (
               daySessions.map((session) => (
-                <View key={session.id} style={styles.modernSessionItem}>
-                  <View style={styles.modernSessionTop}>
-                    <View style={styles.modernSessionIcon}>
+                <View key={session.id} style={styles.daySessionItem}>
+                  <View style={styles.daySessionTop}>
+                    <View style={styles.daySessionIcon}>
                       <Ionicons
                         name="briefcase-outline"
-                        size={18}
+                        size={20}
                         color="#22C55E"
                       />
                     </View>
+
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.modernSessionTitle}>
-                        {formatSessionHour(session.started_at)} -{" "}
+                      <Text style={styles.daySessionTitle}>
+                        {formatSessionHour(session.started_at)} - {" "}
                         {formatSessionHour(session.finished_at)}
                       </Text>
-                      <Text style={styles.modernSessionSubtitle}>
-                        {session.vehicle?.model ?? "Veículo"}{" "}
-                        {session.vehicle?.plate
-                          ? `· ${session.vehicle.plate}`
-                          : ""}
+                      <Text style={styles.daySessionSubtitle} numberOfLines={1}>
+                        {session.vehicle?.model ?? "Veículo"}
+                        {session.vehicle?.plate ? ` · ${session.vehicle.plate}` : ""}
                       </Text>
                     </View>
-                    <Text style={styles.modernSessionMoney}>
-                      R$ {formatCurrency(session.totalEarnings)}
-                    </Text>
+
+                    <View style={styles.daySessionRevenueBox}>
+                      <Text style={styles.daySessionRevenueLabel}>Faturamento</Text>
+                      <Text style={styles.daySessionRevenue}>
+                        R$ {formatCurrency(session.totalEarnings)}
+                      </Text>
+                    </View>
                   </View>
 
-                  <View style={styles.modernSessionStatsRow}>
-                    <Text style={styles.modernSessionChip}>
-                      ⏱ {formatHours(session.totalHours)}
-                    </Text>
-                    <Text style={styles.modernSessionChip}>
-                      📍 {formatNumber(session.totalKm)} km
-                    </Text>
-                    <Text style={styles.modernSessionChip}>
-                      R$ {formatDecimal(session.revenuePerHour)}/h
-                    </Text>
-                    <Text style={styles.modernSessionChip}>
-                      R$ {formatDecimal(session.revenuePerKm)}/km
-                    </Text>
+                  <View style={styles.daySessionStatsGrid}>
+                    <View style={styles.daySessionStatBox}>
+                      <View style={styles.daySessionStatHeader}>
+                        <Ionicons name="time-outline" size={15} color="#60A5FA" />
+                        <Text style={styles.daySessionStatLabel}>Tempo</Text>
+                      </View>
+                      <Text style={styles.daySessionStatValue}>
+                        {formatHours(session.totalHours)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.daySessionStatBox}>
+                      <View style={styles.daySessionStatHeader}>
+                        <Ionicons name="speedometer-outline" size={15} color="#F59E0B" />
+                        <Text style={styles.daySessionStatLabel}>KM rodado</Text>
+                      </View>
+                      <Text style={styles.daySessionStatValue}>
+                        {formatNumber(session.totalKm)} km
+                      </Text>
+                    </View>
+
+                    <View style={styles.daySessionStatBox}>
+                      <View style={styles.daySessionStatHeader}>
+                        <Ionicons name="analytics-outline" size={15} color="#22C55E" />
+                        <Text style={styles.daySessionStatLabel}>Ganho/h</Text>
+                      </View>
+                      <Text style={styles.daySessionStatValueGreen}>
+                        R$ {formatCurrency(session.revenuePerHour)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.daySessionStatBox}>
+                      <View style={styles.daySessionStatHeader}>
+                        <Ionicons name="navigate-outline" size={15} color="#A78BFA" />
+                        <Text style={styles.daySessionStatLabel}>Ganho/km</Text>
+                      </View>
+                      <Text style={styles.daySessionStatValuePurple}>
+                        R$ {formatCurrency(session.revenuePerKm)}
+                      </Text>
+                    </View>
                   </View>
 
                   <TouchableOpacity
-                    style={styles.modernDetailsButton}
+                    activeOpacity={0.88}
+                    style={styles.daySessionDetailsButton}
                     onPress={() => openSessionDetails(session)}
                   >
-                    <Text style={styles.modernDetailsButtonText}>
+                    <Text style={styles.daySessionDetailsText}>
                       Ver detalhes do turno
                     </Text>
-                    <Ionicons name="arrow-forward" size={17} color="#FFFFFF" />
+                    <Ionicons name="arrow-forward" size={17} color="#06130B" />
                   </TouchableOpacity>
                 </View>
               ))
             )}
           </View>
         )}
+
+        {period === "day" && (
+          <View
+            style={[
+              styles.modernEntriesListCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.modernSectionHeader}>
+              <View>
+                <Text style={[styles.modernSectionTitle, { color: theme.text }]}> 
+                  Outros ganhos
+                </Text>
+                <Text
+                  style={[styles.modernSectionSubtitle, { color: theme.muted }]}
+                >
+                  Ganhos avulsos sem vínculo com jornada
+                </Text>
+              </View>
+
+              <View style={styles.modernEntryCountBadge}>
+                <Text style={styles.modernEntryCountText}>
+                  {periodEntries.length}
+                </Text>
+              </View>
+            </View>
+
+            {periodEntries.length === 0 ? (
+              <View style={styles.periodEntriesEmptyBox}>
+                <Ionicons name="cash-outline" size={28} color="#71717A" />
+                <Text style={styles.periodEntriesEmptyTitle}>
+                  Nenhum outro ganho neste dia
+                </Text>
+                <Text style={styles.periodEntriesEmptyText}>
+                  Ganhos avulsos sem vínculo com jornada aparecerão aqui.
+                </Text>
+              </View>
+            ) : (
+              periodEntries.map((entry) => (
+                <View key={String(entry.id)} style={styles.periodEntryItem}>
+                  <View style={[styles.periodEntryIcon, styles.periodEntryIconStandalone]}>
+                    <Ionicons name="gift-outline" size={21} color="#86EFAC" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.periodEntryTitle} numberOfLines={1}>
+                      {entry.platform || "Plataforma"}
+                    </Text>
+
+                    <Text style={styles.periodEntryMeta} numberOfLines={1}>
+                      {entry.description || "Ganho sem jornada"}
+                    </Text>
+
+                    <Text style={styles.periodEntryDate} numberOfLines={1}>
+                      {formatDate(getEntryDate(entry))}
+                    </Text>
+                  </View>
+
+                  <View style={styles.periodEntryRight}>
+                    <Text style={styles.periodEntryValue}>
+                      R$ {formatCurrency(Number(entry.amount ?? 0))}
+                    </Text>
+
+                    <View style={styles.periodEntryActions}>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={styles.periodEntryActionButton}
+                        onPress={() => openEditEntryModal(entry)}
+                      >
+                        <Ionicons name="create-outline" size={17} color="#60A5FA" />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={styles.periodEntryActionButtonDanger}
+                        onPress={() => handleDeleteEntry(entry)}
+                      >
+                        <Ionicons name="trash-outline" size={17} color="#F87171" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        )}
+
 
         <View
           style={[
@@ -1198,7 +2529,7 @@ export default function DashboardScreen() {
                     <View style={styles.pieCenter}>
                       <Text style={styles.pieCenterLabel}>Total</Text>
                       <Text style={styles.pieCenterValue}>
-                        R$ {formatCurrency(data.revenue)}
+                        R$ {formatCurrency(dashboardRevenue)}
                       </Text>
                     </View>
                   )}
@@ -1214,13 +2545,32 @@ export default function DashboardScreen() {
                         { backgroundColor: item.color },
                       ]}
                     />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.pieLegendName}>{item.label}</Text>
+
+                    {item.logo_url ? (
+                      <Image
+                        source={{ uri: item.logo_url }}
+                        style={styles.pieLegendLogo}
+                      />
+                    ) : (
+                      <View style={styles.pieLegendLogoFallback}>
+                        <Text style={styles.pieLegendLogoText}>
+                          {getPlatformInitial(item.label)}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.pieLegendInfo}>
+                      <Text style={styles.pieLegendName} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                      <Text style={styles.pieLegendValue}>
+                        R$ {formatCurrency(item.value)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.pieLegendPercentPill}>
                       <Text style={styles.pieLegendPercent}>{item.text}</Text>
                     </View>
-                    <Text style={styles.pieLegendValue}>
-                      R$ {formatCurrency(item.value)}
-                    </Text>
                   </View>
                 ))}
               </View>
@@ -1245,11 +2595,47 @@ export default function DashboardScreen() {
                 <Text
                   style={[styles.modernSectionSubtitle, { color: theme.muted }]}
                 >
-                  {period === "month" ? "Semanas de segunda a domingo" : "Comparativo do período selecionado"}
+                  {period === "month"
+                    ? "Semanas de segunda a domingo"
+                    : period === "year"
+                      ? `${yearChartSemesterLabel} do ano selecionado`
+                      : "Comparativo do período selecionado"}
                 </Text>
               </View>
               <Ionicons name="bar-chart-outline" size={24} color="#22C55E" />
             </View>
+
+            {period === "year" && (
+              <View style={styles.yearChartToggleRow}>
+                {yearChartSemester === "second" ? (
+                  <TouchableOpacity
+                    activeOpacity={0.86}
+                    style={styles.yearChartArrowButton}
+                    onPress={() => setYearChartSemester("first")}
+                  >
+                    <Ionicons name="chevron-back" size={20} color="#22C55E" />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.yearChartArrowPlaceholder} />
+                )}
+
+                <Text style={styles.yearChartToggleText}>
+                  {yearChartSemesterLabel}
+                </Text>
+
+                {yearChartSemester === "first" ? (
+                  <TouchableOpacity
+                    activeOpacity={0.86}
+                    style={styles.yearChartArrowButton}
+                    onPress={() => setYearChartSemester("second")}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color="#22C55E" />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.yearChartArrowPlaceholder} />
+                )}
+              </View>
+            )}
 
             <View style={styles.barChartWrapper}>
               {barChartData.map((item: any) => {
@@ -1267,6 +2653,197 @@ export default function DashboardScreen() {
             </View>
           </View>
         )}
+
+        <View
+          style={[
+            styles.modernExpensesListCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <View style={styles.modernSectionHeader}>
+            <View>
+              <Text style={[styles.modernSectionTitle, { color: theme.text }]}>
+                {getExpenseSectionTitle()}
+              </Text>
+              <Text
+                style={[styles.modernSectionSubtitle, { color: theme.muted }]}
+              >
+                {getExpenseSectionSubtitle()}
+              </Text>
+            </View>
+
+            <View style={styles.modernExpenseCountBadge}>
+              <Text style={styles.modernExpenseCountText}>
+                {periodExpenses.length}
+              </Text>
+            </View>
+          </View>
+
+          {periodExpenses.length === 0 ? (
+            <View style={styles.periodExpensesEmptyBox}>
+              <Ionicons name="receipt-outline" size={28} color="#71717A" />
+              <Text style={styles.periodExpensesEmptyTitle}>
+                Nenhuma despesa neste período
+              </Text>
+              <Text style={styles.periodExpensesEmptyText}>
+                As despesas adicionadas para este período aparecerão aqui.
+              </Text>
+            </View>
+          ) : (
+            periodExpenses.map((expense) => (
+              <View key={String(expense.id)} style={styles.periodExpenseItem}>
+                <View style={styles.periodExpenseIcon}>
+                  <Ionicons
+                    name={getExpenseIcon(expense.category)}
+                    size={21}
+                    color="#FCA5A5"
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.periodExpenseTitle} numberOfLines={1}>
+                    {expense.description || "Despesa"}
+                  </Text>
+
+                  <Text style={styles.periodExpenseMeta} numberOfLines={1}>
+                    {expense.category || "Sem categoria"} ·{" "}
+                    {formatDate(expense.expense_date)}
+                  </Text>
+
+                  {expense.location ? (
+                    <Text style={styles.periodExpenseLocation} numberOfLines={1}>
+                      {expense.location}
+                    </Text>
+                  ) : null}
+                </View>
+
+                <View style={styles.periodExpenseRight}>
+                  <Text style={styles.periodExpenseValue}>
+                    - R$ {formatCurrency(Number(expense.amount ?? 0))}
+                  </Text>
+
+                  <View style={styles.periodExpenseActions}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.periodExpenseActionButton}
+                      onPress={() => openEditExpenseModal(expense)}
+                    >
+                      <Ionicons name="create-outline" size={17} color="#60A5FA" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.periodExpenseActionButtonDanger}
+                      onPress={() => handleDeleteExpense(expense)}
+                    >
+                      <Ionicons name="trash-outline" size={17} color="#F87171" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ))
+          )}
+
+          <TouchableOpacity
+            activeOpacity={0.86}
+            style={styles.periodExpensesManageButton}
+            onPress={() => router.push("/(private)/(tabs)/despesas" as never)}
+          >
+            <Text style={styles.periodExpensesManageButtonText}>
+              Gerenciar despesas
+            </Text>
+            <Ionicons name="arrow-forward" size={18} color="#06130B" />
+          </TouchableOpacity>
+        </View>
+
+        <View
+          style={[
+            styles.modernChartCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <View style={styles.modernSectionHeader}>
+            <View>
+              <Text style={[styles.modernSectionTitle, { color: theme.text }]}>
+                Lucro x despesas
+              </Text>
+              <Text style={[styles.modernSectionSubtitle, { color: theme.muted }]}>
+                Comparação do resultado financeiro no período
+              </Text>
+            </View>
+            <Ionicons name="stats-chart-outline" size={24} color="#22C55E" />
+          </View>
+
+          <View style={styles.profitExpenseChart}>
+            <View style={styles.profitExpenseRow}>
+              <View style={styles.profitExpenseRowHeader}>
+                <View style={styles.profitExpenseLabelBox}>
+                  <Ionicons
+                    name={dashboardProfit >= 0 ? "trending-up-outline" : "trending-down-outline"}
+                    size={18}
+                    color={dashboardProfit >= 0 ? "#22C55E" : "#F87171"}
+                  />
+                  <Text style={styles.profitExpenseLabel}>
+                    {profitComparisonLabel}
+                  </Text>
+                </View>
+
+                <Text
+                  style={[
+                    styles.profitExpenseValue,
+                    dashboardProfit < 0 && styles.profitExpenseValueNegative,
+                  ]}
+                >
+                  R$ {formatCurrency(Math.abs(dashboardProfit))}
+                </Text>
+              </View>
+
+              <View style={styles.profitExpenseTrack}>
+                <View
+                  style={[
+                    styles.profitExpenseFill,
+                    dashboardProfit >= 0
+                      ? styles.profitExpenseFillProfit
+                      : styles.profitExpenseFillLoss,
+                    { width: `${profitComparisonWidth}%` },
+                  ]}
+                />
+              </View>
+            </View>
+
+            <View style={styles.profitExpenseRow}>
+              <View style={styles.profitExpenseRowHeader}>
+                <View style={styles.profitExpenseLabelBox}>
+                  <Ionicons name="wallet-outline" size={18} color="#F87171" />
+                  <Text style={styles.profitExpenseLabel}>Despesas</Text>
+                </View>
+
+                <Text style={styles.profitExpenseValueRed}>
+                  R$ {formatCurrency(dashboardExpenses)}
+                </Text>
+              </View>
+
+              <View style={styles.profitExpenseTrack}>
+                <View
+                  style={[
+                    styles.profitExpenseFill,
+                    styles.profitExpenseFillExpenses,
+                    { width: `${expensesComparisonWidth}%` },
+                  ]}
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.profitExpenseSummary}>
+            <Text style={styles.profitExpenseSummaryText}>
+              Lucro: {formatDecimal(profitPercent)}% do faturamento
+            </Text>
+            <Text style={styles.profitExpenseSummaryText}>
+              Despesas: {formatDecimal(expensesPercent)}% do faturamento
+            </Text>
+          </View>
+        </View>
 
         {/*}
         <TouchableOpacity
@@ -1325,10 +2902,468 @@ export default function DashboardScreen() {
             <DashboardGoalCard
               selectedPeriod={period}
               selectedDate={referenceDate}
-              currentAmount={data.revenue}
+              currentAmount={dashboardRevenue}
             />
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={entryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEntryModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.entryEditOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.entryEditModal}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
+              <View style={styles.entryEditHeader}>
+                <View>
+                  <Text style={styles.entryEditEyebrow}>
+                    {editingEntry?.session_id ? "Entrada do turno" : "Ganho avulso"}
+                  </Text>
+                  <Text style={styles.entryEditTitle}>Editar entrada</Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setEntryModalVisible(false)}
+                >
+                  <Ionicons name="close" size={27} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.entryEditDescription}>
+                Alterar ou excluir uma entrada atualiza os totais do dashboard e da jornada em tempo real.
+              </Text>
+
+              <View style={styles.entryPlatformHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.entryEditLabel}>Plataforma</Text>
+                  <Text style={styles.entryPlatformHeaderHint}>
+                    Somente plataformas selecionadas por você aparecem aqui.
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.86}
+                  style={styles.entryManagePlatformsButton}
+                  onPress={openPlatformDrawerFromEntryModal}
+                >
+                  <Ionicons name="apps-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.entryManagePlatformsButtonText}>
+                    Gerenciar
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {entryErrors.platform ? (
+                <Text style={styles.entryEditError}>{entryErrors.platform}</Text>
+              ) : null}
+
+              {entryPlatformOptions.length === 0 ? (
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.entryEmptyPlatformsBox}
+                  onPress={openPlatformDrawerFromEntryModal}
+                >
+                  <Ionicons name="apps-outline" size={30} color="#71717A" />
+                  <Text style={styles.entryEmptyPlatformsTitle}>
+                    Nenhuma plataforma selecionada
+                  </Text>
+                  <Text style={styles.entryEmptyPlatformsText}>
+                    Toque em Gerenciar para escolher quais plataformas aparecem aqui.
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.entryPlatformList}
+                >
+                  {entryPlatformOptions.map((platform: any) => {
+                    const selected = entryPlatform === platform.name;
+
+                    return (
+                      <TouchableOpacity
+                        key={platform.id ?? platform.name}
+                        activeOpacity={0.86}
+                        style={[
+                          styles.entryPlatformChip,
+                          selected && styles.entryPlatformChipActive,
+                        ]}
+                        onPress={() => {
+                          setEntryPlatform(platform.name);
+                          clearEntryError("platform");
+                        }}
+                      >
+                        {platform.logo_url ? (
+                          <Image
+                            source={{ uri: platform.logo_url }}
+                            style={styles.entryPlatformLogo}
+                          />
+                        ) : (
+                          <View style={styles.entryPlatformLogoFallback}>
+                            <Text style={styles.entryPlatformLogoText}>
+                              {platform.name?.slice(0, 1) ?? "?"}
+                            </Text>
+                          </View>
+                        )}
+
+                        <Text
+                          style={[
+                            styles.entryPlatformChipText,
+                            selected && styles.entryPlatformChipTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {platform.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+
+              <Text style={styles.entryEditLabel}>Descrição</Text>
+              <TextInput
+                value={entryDescription}
+                onChangeText={setEntryDescription}
+                placeholder="Ex: Promoção, bônus, corrida, entrega..."
+                placeholderTextColor="#71717A"
+                style={styles.entryEditInput}
+              />
+
+              <View style={styles.entryEditRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.entryEditLabel}>Data</Text>
+                  <TextInput
+                    value={entryDate}
+                    onChangeText={(text) => {
+                      setEntryDate(maskEntryDateInput(text));
+                      clearEntryError("date");
+                    }}
+                    placeholder="dd/mm/aaaa"
+                    placeholderTextColor="#71717A"
+                    keyboardType="numeric"
+                    maxLength={10}
+                    style={[
+                      styles.entryEditInput,
+                      entryErrors.date && styles.entryEditInputError,
+                    ]}
+                  />
+                  {entryErrors.date ? (
+                    <Text style={styles.entryEditError}>{entryErrors.date}</Text>
+                  ) : null}
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.entryEditLabel}>Valor</Text>
+                  <TextInput
+                    value={entryAmount}
+                    onChangeText={(text) => {
+                      setEntryAmount(maskCurrencyInput(text));
+                      clearEntryError("amount");
+                    }}
+                    placeholder="0,00"
+                    placeholderTextColor="#71717A"
+                    keyboardType="numeric"
+                    style={[
+                      styles.entryEditInput,
+                      entryErrors.amount && styles.entryEditInputError,
+                    ]}
+                  />
+                  {entryErrors.amount ? (
+                    <Text style={styles.entryEditError}>{entryErrors.amount}</Text>
+                  ) : null}
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={[
+                  styles.entryEditSaveButton,
+                  savingEntry && styles.entryEditSaveButtonDisabled,
+                ]}
+                disabled={savingEntry}
+                onPress={handleSaveEntryEdit}
+              >
+                {savingEntry ? (
+                  <ActivityIndicator color="#06130B" />
+                ) : (
+                  <>
+                    <Ionicons name="save-outline" size={21} color="#06130B" />
+                    <Text style={styles.entryEditSaveButtonText}>
+                      Salvar alterações
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={platformDrawerVisible} transparent animationType="slide">
+        <View style={styles.platformDrawerOverlay}>
+          <View style={styles.platformDrawerContent}>
+            <View style={styles.platformDrawerHandle} />
+
+            <View style={styles.platformDrawerHeader}>
+              <View>
+                <Text style={styles.platformDrawerEyebrow}>Configuração</Text>
+                <Text style={styles.platformDrawerTitle}>Minhas plataformas</Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={closePlatformDrawerAndReturn}
+              >
+                <Ionicons name="close" size={27} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.platformDrawerDescription}>
+              Escolha quais plataformas devem aparecer ao editar uma entrada do período.
+            </Text>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.platformDrawerList}
+            >
+              {allDashboardPlatforms.map((platform: any) => {
+                const selected = selectedPlatformIds.includes(platform.id);
+
+                return (
+                  <TouchableOpacity
+                    key={platform.id}
+                    activeOpacity={0.86}
+                    style={[
+                      styles.platformDrawerItem,
+                      selected && styles.platformDrawerItemActive,
+                    ]}
+                    onPress={() => togglePlatformSelection(platform.id)}
+                  >
+                    <View style={styles.platformDrawerLeft}>
+                      {platform.logo_url ? (
+                        <Image
+                          source={{ uri: platform.logo_url }}
+                          style={styles.platformDrawerLogo}
+                        />
+                      ) : (
+                        <View style={styles.platformDrawerLogoFallback}>
+                          <Text style={styles.platformDrawerLogoText}>
+                            {platform.name?.slice(0, 1) ?? "?"}
+                          </Text>
+                        </View>
+                      )}
+
+                      <Text
+                        style={[
+                          styles.platformDrawerName,
+                          selected && styles.platformDrawerNameActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {platform.name}
+                      </Text>
+                    </View>
+
+                    <Ionicons
+                      name={selected ? "checkmark-circle" : "ellipse-outline"}
+                      size={24}
+                      color={selected ? "#22C55E" : "#71717A"}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.savePlatformsButton}
+              onPress={handleSaveUserPlatforms}
+            >
+              <Text style={styles.savePlatformsButtonText}>
+                Salvar plataformas
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={expenseEditModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeExpenseEditModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.entryEditOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.expenseEditModal}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
+              <View style={styles.entryEditHeader}>
+                <View>
+                  <Text style={styles.entryEditEyebrow}>Despesa</Text>
+                  <Text style={styles.entryEditTitle}>Editar despesa</Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={closeExpenseEditModal}
+                >
+                  <Ionicons name="close" size={27} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.entryEditDescription}>
+                Alterar ou excluir uma despesa atualiza o dashboard, lucro e percentuais em tempo real.
+              </Text>
+
+              <Text style={styles.entryEditLabel}>Categoria</Text>
+              {expenseErrors.category ? (
+                <Text style={styles.entryEditError}>{expenseErrors.category}</Text>
+              ) : null}
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.expenseCategoryList}
+              >
+                {Object.keys(expenseCategoryIcons).map((category) => {
+                  const selected = expenseCategory === category;
+
+                  return (
+                    <TouchableOpacity
+                      key={category}
+                      activeOpacity={0.86}
+                      style={[
+                        styles.expenseCategoryChip,
+                        selected && styles.expenseCategoryChipActive,
+                      ]}
+                      onPress={() => {
+                        setExpenseCategory(category);
+                        clearExpenseError("category");
+                      }}
+                    >
+                      <Ionicons
+                        name={getExpenseIcon(category)}
+                        size={18}
+                        color={selected ? "#06130B" : "#FCA5A5"}
+                      />
+                      <Text
+                        style={[
+                          styles.expenseCategoryChipText,
+                          selected && styles.expenseCategoryChipTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {category}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <Text style={styles.entryEditLabel}>Descrição</Text>
+              <TextInput
+                value={expenseDescription}
+                onChangeText={setExpenseDescription}
+                placeholder="Ex: Combustível, revisão, lavagem..."
+                placeholderTextColor="#71717A"
+                style={styles.entryEditInput}
+              />
+
+              <Text style={styles.entryEditLabel}>Local</Text>
+              <TextInput
+                value={expenseLocation}
+                onChangeText={setExpenseLocation}
+                placeholder="Ex: Posto, oficina, estacionamento..."
+                placeholderTextColor="#71717A"
+                style={styles.entryEditInput}
+              />
+
+              <View style={styles.entryEditRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.entryEditLabel}>Data</Text>
+                  <TextInput
+                    value={expenseDate}
+                    onChangeText={(text) => {
+                      setExpenseDate(maskEntryDateInput(text));
+                      clearExpenseError("date");
+                    }}
+                    placeholder="dd/mm/aaaa"
+                    placeholderTextColor="#71717A"
+                    keyboardType="numeric"
+                    maxLength={10}
+                    style={[
+                      styles.entryEditInput,
+                      expenseErrors.date && styles.entryEditInputError,
+                    ]}
+                  />
+                  {expenseErrors.date ? (
+                    <Text style={styles.entryEditError}>{expenseErrors.date}</Text>
+                  ) : null}
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.entryEditLabel}>Valor</Text>
+                  <TextInput
+                    value={expenseAmount}
+                    onChangeText={(text) => {
+                      setExpenseAmount(maskCurrencyInput(text));
+                      clearExpenseError("amount");
+                    }}
+                    placeholder="0,00"
+                    placeholderTextColor="#71717A"
+                    keyboardType="numeric"
+                    style={[
+                      styles.entryEditInput,
+                      expenseErrors.amount && styles.entryEditInputError,
+                    ]}
+                  />
+                  {expenseErrors.amount ? (
+                    <Text style={styles.entryEditError}>{expenseErrors.amount}</Text>
+                  ) : null}
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={[
+                  styles.entryEditSaveButton,
+                  savingExpense && styles.entryEditSaveButtonDisabled,
+                ]}
+                disabled={savingExpense}
+                onPress={handleSaveExpenseEdit}
+              >
+                {savingExpense ? (
+                  <ActivityIndicator color="#06130B" />
+                ) : (
+                  <>
+                    <Ionicons name="save-outline" size={21} color="#06130B" />
+                    <Text style={styles.entryEditSaveButtonText}>
+                      Salvar despesa
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -1338,7 +3373,7 @@ export default function DashboardScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.sessionDetailsModal}>
-            <View style={styles.periodModalHeader}>
+            <View style={[styles.periodModalHeader, styles.sessionDetailsHeader]}>
               <Text style={styles.periodModalTitle}>Detalhes do turno</Text>
 
               <TouchableOpacity
@@ -1371,16 +3406,61 @@ export default function DashboardScreen() {
                 </Text>
 
                 {selectedSession.earnings?.length ? (
-                  selectedSession.earnings.map((earning: any) => (
-                    <View key={earning.id} style={styles.sessionDetailRow}>
-                      <Text style={styles.sessionDetailName}>
-                        {earning.platform}
-                      </Text>
-                      <Text style={styles.sessionDetailValue}>
-                        R$ {formatCurrency(Number(earning.amount))}
-                      </Text>
-                    </View>
-                  ))
+                  selectedSession.earnings.map((earning: any) => {
+                    const platform = getPlatformByName(earning.platform);
+
+                    return (
+                      <View key={earning.id} style={styles.sessionDetailRowModern}>
+                        <View style={styles.sessionDetailPlatformLeft}>
+                          {platform?.logo_url ? (
+                            <Image
+                              source={{ uri: platform.logo_url }}
+                              style={styles.sessionDetailPlatformLogo}
+                            />
+                          ) : (
+                            <View style={styles.sessionDetailPlatformLogoFallback}>
+                              <Text style={styles.sessionDetailPlatformLogoText}>
+                                {getPlatformInitial(earning.platform)}
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.sessionDetailName} numberOfLines={1}>
+                              {earning.platform || "Plataforma"}
+                            </Text>
+                            <Text style={styles.sessionDetailCaption}>
+                              Ganho do turno
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.sessionDetailRight}>
+                          <Text style={styles.sessionDetailValue}>
+                            R$ {formatCurrency(Number(earning.amount))}
+                          </Text>
+
+                          <View style={styles.sessionDetailActions}>
+                            <TouchableOpacity
+                              activeOpacity={0.86}
+                              style={styles.sessionDetailActionButton}
+                              onPress={() => openSessionEarningEditModal(earning)}
+                            >
+                              <Ionicons name="create-outline" size={17} color="#60A5FA" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              activeOpacity={0.86}
+                              style={styles.sessionDetailActionButtonDanger}
+                              onPress={() => handleDeleteSessionEarning(earning)}
+                            >
+                              <Ionicons name="trash-outline" size={17} color="#F87171" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })
                 ) : (
                   <Text style={styles.emptyText}>Nenhum ganho registrado.</Text>
                 )}
@@ -1413,10 +3493,121 @@ export default function DashboardScreen() {
                     Nenhuma corrida registrada neste turno.
                   </Text>
                 )}
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.deleteSessionButton}
+                  onPress={() => handleDeleteDaySession(selectedSession)}
+                >
+                  <Ionicons name="trash-outline" size={19} color="#FCA5A5" />
+                  <Text style={styles.deleteSessionButtonText}>Excluir turno</Text>
+                </TouchableOpacity>
               </ScrollView>
             )}
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={sessionEarningEditModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeSessionEarningEditModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.entryEditOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.sessionEarningEditModal}>
+            <View style={styles.entryEditHeader}>
+              <View>
+                <Text style={styles.entryEditEyebrow}>Ganho do turno</Text>
+                <Text style={styles.entryEditTitle}>Editar valor</Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={closeSessionEarningEditModal}
+              >
+                <Ionicons name="close" size={27} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.entryEditDescription}>
+              Altere somente o valor deste ganho. O dashboard, a jornada e os detalhes do turno serão atualizados.
+            </Text>
+
+            <View style={styles.sessionEarningEditPlatformBox}>
+              {getPlatformByName(editingSessionEarning?.platform)?.logo_url ? (
+                <Image
+                  source={{
+                    uri: getPlatformByName(editingSessionEarning?.platform)?.logo_url,
+                  }}
+                  style={styles.sessionDetailPlatformLogo}
+                />
+              ) : (
+                <View style={styles.sessionDetailPlatformLogoFallback}>
+                  <Text style={styles.sessionDetailPlatformLogoText}>
+                    {getPlatformInitial(editingSessionEarning?.platform)}
+                  </Text>
+                </View>
+              )}
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sessionDetailName} numberOfLines={1}>
+                  {editingSessionEarning?.platform || "Plataforma"}
+                </Text>
+                <Text style={styles.sessionDetailCaption}>Valor atual do turno</Text>
+              </View>
+            </View>
+
+            <Text style={styles.entryEditLabel}>Valor</Text>
+            <TextInput
+              value={sessionEarningAmount}
+              onChangeText={(text) => {
+                setSessionEarningAmount(maskCurrencyInput(text));
+                setSessionEarningErrors((current) => ({
+                  ...current,
+                  amount: "",
+                }));
+              }}
+              placeholder="0,00"
+              placeholderTextColor="#71717A"
+              keyboardType="numeric"
+              style={[
+                styles.entryEditInput,
+                sessionEarningErrors.amount && styles.entryEditInputError,
+              ]}
+            />
+
+            {sessionEarningErrors.amount ? (
+              <Text style={styles.entryEditError}>
+                {sessionEarningErrors.amount}
+              </Text>
+            ) : null}
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[
+                styles.entryEditSaveButton,
+                savingSessionEarning && styles.entryEditSaveButtonDisabled,
+              ]}
+              disabled={savingSessionEarning}
+              onPress={handleSaveSessionEarningEdit}
+            >
+              {savingSessionEarning ? (
+                <ActivityIndicator color="#06130B" />
+              ) : (
+                <>
+                  <Ionicons name="save-outline" size={21} color="#06130B" />
+                  <Text style={styles.entryEditSaveButtonText}>
+                    Salvar valor
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={periodModalVisible} transparent animationType="slide">
@@ -2037,16 +4228,48 @@ const styles = StyleSheet.create({
   },
 
   pieLegendItem: {
-    minHeight: 48,
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    backgroundColor: "rgba(17,24,39,0.72)",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
 
   pieLegendDot: {
-    width: 12,
-    height: 12,
+    width: 13,
+    height: 13,
     borderRadius: 999,
+  },
+
+  pieLegendLogo: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+  },
+
+  pieLegendLogoFallback: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  pieLegendLogoText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  pieLegendInfo: {
+    flex: 1,
   },
 
   pieLegendName: {
@@ -2056,15 +4279,28 @@ const styles = StyleSheet.create({
   },
 
   pieLegendPercent: {
-    color: "#A1A1AA",
+    color: "#86EFAC",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "900",
+  },
+
+  pieLegendPercentPill: {
+    minWidth: 48,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: "rgba(34,197,94,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
   },
 
   pieLegendValue: {
     color: "#22C55E",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "900",
+    marginTop: 2,
   },
   platformChartCard: {
     backgroundColor: "#18181B",
@@ -2148,6 +4384,126 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     minWidth: 54,
   },
+
+  yearChartToggleRow: {
+    minHeight: 44,
+    borderRadius: 16,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    marginTop: 14,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  yearChartArrowButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: "rgba(34,197,94,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  yearChartArrowPlaceholder: {
+    width: 34,
+    height: 34,
+  },
+
+  yearChartToggleText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  profitExpenseChart: {
+    gap: 18,
+    marginTop: 16,
+  },
+
+  profitExpenseRow: {
+    gap: 9,
+  },
+
+  profitExpenseRowHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  profitExpenseLabelBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  profitExpenseLabel: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  profitExpenseValue: {
+    color: "#22C55E",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  profitExpenseValueNegative: {
+    color: "#F87171",
+  },
+
+  profitExpenseValueRed: {
+    color: "#F87171",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  profitExpenseTrack: {
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    overflow: "hidden",
+  },
+
+  profitExpenseFill: {
+    height: "100%",
+    borderRadius: 999,
+    minWidth: 6,
+  },
+
+  profitExpenseFillProfit: {
+    backgroundColor: "#22C55E",
+  },
+
+  profitExpenseFillLoss: {
+    backgroundColor: "#EF4444",
+  },
+
+  profitExpenseFillExpenses: {
+    backgroundColor: "#F87171",
+  },
+
+  profitExpenseSummary: {
+    marginTop: 16,
+    borderRadius: 18,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    padding: 12,
+    gap: 6,
+  },
+
+  profitExpenseSummaryText: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontWeight: "800",
+  },
   headerIconButton: {
     width: 42,
     height: 42,
@@ -2157,6 +4513,696 @@ const styles = StyleSheet.create({
     borderColor: "#27272A",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  modernEntriesListCard: {
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+
+  modernEntryCountBadge: {
+    minWidth: 38,
+    height: 38,
+    borderRadius: 999,
+    backgroundColor: "rgba(34,197,94,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+
+  modernEntryCountText: {
+    color: "#86EFAC",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  periodEntryItem: {
+    minHeight: 78,
+    borderRadius: 20,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  periodEntryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: "rgba(59,130,246,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  periodEntryIconStandalone: {
+    backgroundColor: "rgba(34,197,94,0.12)",
+  },
+
+  periodEntryTitle: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  periodEntryMeta: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+
+  periodEntryDate: {
+    color: "#71717A",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+
+  periodEntryRight: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+
+  periodEntryValue: {
+    color: "#86EFAC",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  periodEntryActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  periodEntryActionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: "rgba(59,130,246,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  periodEntryActionButtonDanger: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: "rgba(239,68,68,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  periodEntriesEmptyBox: {
+    minHeight: 150,
+    borderRadius: 22,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+  },
+
+  periodEntriesEmptyTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+    marginTop: 10,
+  },
+
+  periodEntriesEmptyText: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 18,
+    marginTop: 6,
+  },
+
+  entryEditOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    paddingHorizontal: 18,
+    justifyContent: "center",
+  },
+
+  entryEditModal: {
+    backgroundColor: "#111827",
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    maxHeight: "92%",
+  },
+
+  entryEditHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 14,
+  },
+
+  entryEditEyebrow: {
+    color: "#22C55E",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+
+  entryEditTitle: {
+    color: "#FFFFFF",
+    fontSize: 23,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+
+  entryEditDescription: {
+    color: "#A1A1AA",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+
+  entryEditLabel: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+
+  entryPlatformHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 10,
+  },
+
+  entryPlatformHeaderHint: {
+    color: "#A1A1AA",
+    fontSize: 11,
+    fontWeight: "700",
+    marginLeft: 4,
+    marginTop: -3,
+    lineHeight: 16,
+  },
+
+  entryManagePlatformsButton: {
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    paddingHorizontal: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  entryManagePlatformsButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  entryEmptyPlatformsBox: {
+    minHeight: 132,
+    borderRadius: 22,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  entryEmptyPlatformsTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+    marginTop: 10,
+  },
+
+  entryEmptyPlatformsText: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 18,
+  },
+
+  entryPlatformList: {
+    gap: 8,
+    paddingBottom: 14,
+  },
+
+  entryPlatformChip: {
+    width: 102,
+    minHeight: 82,
+    borderRadius: 20,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 9,
+    gap: 7,
+  },
+
+  entryPlatformChipActive: {
+    backgroundColor: "#22C55E",
+    borderColor: "#22C55E",
+  },
+
+  entryPlatformLogo: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: "#FFFFFF",
+  },
+
+  entryPlatformLogoFallback: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  entryPlatformLogoText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  entryPlatformChipText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+
+  entryPlatformChipTextActive: {
+    color: "#06130B",
+  },
+
+  entryEditInput: {
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    color: "#FFFFFF",
+    paddingHorizontal: 15,
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 13,
+  },
+
+  entryEditInputError: {
+    borderColor: "#EF4444",
+    backgroundColor: "rgba(239,68,68,0.08)",
+  },
+
+  entryEditError: {
+    color: "#F87171",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: -3,
+    marginBottom: 10,
+    marginLeft: 4,
+    lineHeight: 17,
+  },
+
+  entryEditRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  entryEditSaveButton: {
+    height: 58,
+    borderRadius: 19,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 6,
+  },
+
+  entryEditSaveButtonDisabled: {
+    opacity: 0.65,
+  },
+
+  entryEditSaveButtonText: {
+    color: "#06130B",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+
+  platformDrawerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    justifyContent: "flex-end",
+  },
+
+  platformDrawerContent: {
+    backgroundColor: "#111827",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    maxHeight: "86%",
+  },
+
+  platformDrawerHandle: {
+    width: 48,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "#3F3F46",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+
+  platformDrawerHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    gap: 12,
+  },
+
+  platformDrawerEyebrow: {
+    color: "#22C55E",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+
+  platformDrawerTitle: {
+    color: "#FFFFFF",
+    fontSize: 23,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+
+  platformDrawerDescription: {
+    color: "#A1A1AA",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+
+  platformDrawerList: {
+    gap: 10,
+    paddingBottom: 18,
+  },
+
+  platformDrawerItem: {
+    minHeight: 62,
+    borderRadius: 20,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    gap: 12,
+  },
+
+  platformDrawerItemActive: {
+    borderColor: "rgba(34,197,94,0.55)",
+    backgroundColor: "rgba(34,197,94,0.10)",
+  },
+
+  platformDrawerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    flex: 1,
+  },
+
+  platformDrawerLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: "#FFFFFF",
+  },
+
+  platformDrawerLogoFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  platformDrawerLogoText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  platformDrawerName: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "900",
+    flex: 1,
+  },
+
+  platformDrawerNameActive: {
+    color: "#86EFAC",
+  },
+
+  savePlatformsButton: {
+    height: 56,
+    borderRadius: 19,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  savePlatformsButtonText: {
+    color: "#06130B",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+
+  modernExpensesListCard: {
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+
+  modernExpenseCountBadge: {
+    minWidth: 38,
+    height: 38,
+    borderRadius: 999,
+    backgroundColor: "rgba(239,68,68,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+
+  modernExpenseCountText: {
+    color: "#FCA5A5",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  periodExpenseItem: {
+    minHeight: 72,
+    borderRadius: 20,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  periodExpenseIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: "rgba(239,68,68,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  periodExpenseTitle: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  periodExpenseMeta: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+
+  periodExpenseLocation: {
+    color: "#71717A",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+
+  periodExpenseValue: {
+    color: "#FCA5A5",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  periodExpenseRight: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+
+  periodExpenseActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  periodExpenseActionButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: "rgba(59,130,246,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  periodExpenseActionButtonDanger: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: "rgba(239,68,68,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(248,113,113,0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  expenseEditModal: {
+    width: "100%",
+    maxHeight: "92%",
+    borderRadius: 28,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    padding: 18,
+  },
+
+  expenseCategoryList: {
+    gap: 8,
+    paddingBottom: 14,
+  },
+
+  expenseCategoryChip: {
+    minWidth: 110,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+
+  expenseCategoryChipActive: {
+    backgroundColor: "#FCA5A5",
+    borderColor: "#FCA5A5",
+  },
+
+  expenseCategoryChipText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  expenseCategoryChipTextActive: {
+    color: "#06130B",
+  },
+
+  periodExpensesEmptyBox: {
+    minHeight: 150,
+    borderRadius: 22,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+    marginBottom: 12,
+  },
+
+  periodExpensesEmptyTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+    marginTop: 10,
+  },
+
+  periodExpensesEmptyText: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 18,
+    marginTop: 6,
+  },
+
+  periodExpensesManageButton: {
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+
+  periodExpensesManageButtonText: {
+    color: "#06130B",
+    fontSize: 14,
+    fontWeight: "900",
   },
 
   challengesShortcutCard: {
@@ -2213,11 +5259,15 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
+  daySessionsTitle: {
+    color: "#FFFFFF",
+  },
+
   daySessionsSubtitle: {
     color: "#A1A1AA",
     fontSize: 12,
     fontWeight: "700",
-    marginTop: -12,
+    marginTop: 4,
     marginBottom: 2,
   },
 
@@ -2297,6 +5347,12 @@ const styles = StyleSheet.create({
     borderColor: "#1F2937",
   },
 
+  daySessionStatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
   daySessionStatLabel: {
     color: "#A1A1AA",
     fontSize: 11,
@@ -2322,8 +5378,32 @@ const styles = StyleSheet.create({
   },
 
   daySessionDetailsText: {
-    color: "#FFFFFF",
+    color: "#06130B",
     fontSize: 13,
+    fontWeight: "900",
+  },
+
+  sessionDetailsHeader: {
+    marginBottom: 18,
+  },
+
+  deleteSessionButton: {
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: "rgba(239,68,68,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(248,113,113,0.28)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+
+  deleteSessionButtonText: {
+    color: "#FCA5A5",
+    fontSize: 14,
     fontWeight: "900",
   },
 
@@ -2737,6 +5817,7 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: "900",
     marginTop: 4,
+    textAlign: 'center',
   },
 
   modernSectionHeader: {
@@ -3255,4 +6336,139 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   goalModalTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
+
+  daySessionRevenueBox: {
+    alignItems: "flex-end",
+    backgroundColor: "rgba(34,197,94,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.18)",
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    maxWidth: 126,
+  },
+
+  daySessionRevenueLabel: {
+    color: "#86EFAC",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+
+  daySessionStatValueGreen: {
+    color: "#86EFAC",
+    fontSize: 14,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+
+  daySessionStatValuePurple: {
+    color: "#C4B5FD",
+    fontSize: 14,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+
+  sessionDetailRowModern: {
+    minHeight: 78,
+    backgroundColor: "#18181B",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#27272A",
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  sessionDetailPlatformLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  sessionDetailPlatformLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: "#FFFFFF",
+  },
+
+  sessionDetailPlatformLogoFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sessionDetailPlatformLogoText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+
+  sessionDetailCaption: {
+    color: "#71717A",
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+
+  sessionDetailRight: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+
+  sessionDetailActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  sessionDetailActionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: "rgba(59,130,246,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sessionDetailActionButtonDanger: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: "rgba(239,68,68,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sessionEarningEditModal: {
+    backgroundColor: "#111827",
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+  },
+
+  sessionEarningEditPlatformBox: {
+    minHeight: 64,
+    borderRadius: 18,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+
 });

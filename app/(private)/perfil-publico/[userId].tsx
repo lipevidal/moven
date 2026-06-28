@@ -7,17 +7,26 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  Alert,
+  ActivityIndicator,
 } from "react-native";
 
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { supabase } from "../../../src/database/supabase";
-import { getProfile } from "../../../src/features/profile/services/getProfile";
 import { PublicProfileNameLine } from "../../../src/features/profile/components/PublicProfileNameLine";
 
 type JourneyProfileType = "intensive" | "moderate" | "light" | "empty";
+
+type PublicProfile = {
+  id: string;
+  name?: string | null;
+  full_name?: string | null;
+  username?: string | null;
+  city?: string | null;
+  region?: string | null;
+  avatar_url?: string | null;
+};
 
 type ProfileStats = {
   totalKm: number;
@@ -125,7 +134,7 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
       backgroundColor: "rgba(249,115,22,0.13)",
       borderColor: "rgba(249,115,22,0.32)",
       description:
-        "Você mantém uma rotina forte, com média diária de 8h ou mais.",
+        "Mantém uma rotina forte, com média diária de 8h ou mais.",
     };
   }
 
@@ -137,7 +146,7 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
       backgroundColor: "rgba(250,204,21,0.12)",
       borderColor: "rgba(250,204,21,0.28)",
       description:
-        "Sua rotina está em equilíbrio, com média diária entre 5h e 8h.",
+        "Mantém uma rotina equilibrada, com média diária entre 5h e 8h.",
     };
   }
 
@@ -149,7 +158,7 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
       backgroundColor: "rgba(34,197,94,0.12)",
       borderColor: "rgba(34,197,94,0.28)",
       description:
-        "Sua média diária está abaixo de 5h nos dias analisados.",
+        "Tem média diária abaixo de 5h nos dias analisados.",
     };
   }
 
@@ -160,12 +169,27 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
     backgroundColor: "rgba(161,161,170,0.10)",
     borderColor: "rgba(161,161,170,0.22)",
     description:
-      "Finalize sua primeira jornada para calcular seu perfil de trabalho.",
+      "Este usuário ainda não possui jornadas finalizadas para análise.",
   };
 }
 
-export default function SocialProfileScreen() {
-  const [profile, setProfile] = useState<any>(null);
+function getDisplayCity(profile: PublicProfile) {
+  if (profile.city && profile.region) {
+    return `${profile.city} - ${profile.region}`;
+  }
+
+  if (profile.city) {
+    return profile.city;
+  }
+
+  return "Cidade não informada";
+}
+
+export default function PublicProfileScreen() {
+  const params = useLocalSearchParams<{ userId?: string }>();
+  const userId = Array.isArray(params.userId) ? params.userId[0] : params.userId;
+
+  const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [stats, setStats] = useState<ProfileStats>({
     totalKm: 0,
     totalHours: 0,
@@ -181,25 +205,25 @@ export default function SocialProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadProfile();
-    }, []),
+      loadPublicProfile();
+    }, [userId]),
   );
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!userId) return;
 
     const channel = supabase
-      .channel(`profile-work-sessions-${profile.id}`)
+      .channel(`public-profile-work-sessions-${userId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "work_sessions",
-          filter: `user_id=eq.${profile.id}`,
+          filter: `user_id=eq.${userId}`,
         },
         async () => {
-          await loadProfileStats(profile.id);
+          await loadProfileStats(userId);
         },
       )
       .subscribe();
@@ -207,37 +231,49 @@ export default function SocialProfileScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.id]);
+  }, [userId]);
 
-  async function loadProfile() {
+  async function loadPublicProfile() {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const response = await getProfile();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "id, name, full_name, username, city, avatar_url",
+        )
+        .eq("id", userId)
+        .maybeSingle();
 
-      setProfile(response);
+      if (error) throw error;
 
-      if (response?.id) {
-        await loadProfileStats(response.id);
-      }
+      setProfile(data as PublicProfile | null);
+
+      await loadProfileStats(userId);
     } catch (error) {
-      console.log("Erro ao carregar perfil:", error);
+      console.log("Erro ao carregar perfil público:", error);
+      setProfile(null);
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadProfileStats(userId: string) {
+  async function loadProfileStats(targetUserId: string) {
     const { data, error } = await supabase
       .from("work_sessions")
       .select(
         "id, start_km, end_km, started_at, finished_at, total_paused_seconds",
       )
-      .eq("user_id", userId)
+      .eq("user_id", targetUserId)
       .eq("status", "finished");
 
     if (error) {
-      console.log("Erro ao carregar estatísticas do perfil:", error);
+      console.log("Erro ao carregar estatísticas públicas:", error);
       return;
     }
 
@@ -338,61 +374,52 @@ export default function SocialProfileScreen() {
     });
   }
 
-  function handleSignOut() {
-    Alert.alert(
-      "Sair do aplicativo",
-      "Deseja realmente sair da sua conta?",
-      [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-        {
-          text: "Sair",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const { error } = await supabase.auth.signOut();
+  function handleSendMessage() {
+    if (!profile?.id) return;
 
-              if (error) throw error;
-
-              router.replace("/login" as never);
-            } catch (error) {
-              console.log("Erro ao sair do aplicativo:", error);
-              Alert.alert(
-                "Erro",
-                "Não foi possível sair do aplicativo. Tente novamente.",
-              );
-            }
-          },
-        },
-      ],
-    );
+    router.push({
+      pathname: "/conversa-privada/[userId]",
+      params: {
+        userId: profile.id,
+      },
+    } as never);
   }
 
   const avatarUrl = useMemo(() => {
-    return (
-      profile?.avatar_url ||
-      profile?.photo_url ||
-      profile?.picture ||
-      profile?.user_metadata?.avatar_url ||
-      profile?.user_metadata?.picture ||
-      null
-    );
+    return profile?.avatar_url || null;
   }, [profile]);
 
-  if (loading && !profile) {
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <View style={styles.loadingIcon}>
-          <Ionicons name="person-circle-outline" size={38} color="#22C55E" />
-        </View>
-        <Text style={styles.loadingText}>Carregando perfil...</Text>
+        <ActivityIndicator color="#22C55E" />
+        <Text style={styles.loadingText}>Carregando perfil público...</Text>
       </View>
     );
   }
 
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <View style={styles.loadingContainer}>
+        <View style={styles.notFoundIcon}>
+          <Ionicons name="person-circle-outline" size={42} color="#71717A" />
+        </View>
+        <Text style={styles.notFoundTitle}>Perfil não encontrado</Text>
+        <Text style={styles.notFoundText}>
+          Não foi possível encontrar esse usuário.
+        </Text>
+
+        <TouchableOpacity
+          activeOpacity={0.88}
+          style={styles.backToSearchButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={18} color="#06130B" />
+          <Text style={styles.backToSearchText}>Voltar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const journeyProfile = getJourneyProfileInfo(stats.journeyProfileType);
 
@@ -403,20 +430,18 @@ export default function SocialProfileScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerEyebrow}>Minha conta</Text>
-          <Text style={styles.headerTitle}>Perfil</Text>
-        </View>
-
         <TouchableOpacity
           activeOpacity={0.85}
           style={styles.headerIconButton}
-          onPress={() =>
-            router.push("/(private)/perfil/configuracoes" as never)
-          }
+          onPress={() => router.back()}
         >
-          <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
+          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerEyebrow}>Perfil público</Text>
+          <Text style={styles.headerTitle}>Motorista</Text>
+        </View>
       </View>
 
       <View style={styles.profileHero}>
@@ -438,30 +463,26 @@ export default function SocialProfileScreen() {
             <View style={styles.cityRow}>
               <Ionicons name="location-outline" size={16} color="#22C55E" />
               <Text style={styles.cityText} numberOfLines={1}>
-                {profile.city || "Cidade não informada"}
+                {getDisplayCity(profile)}
               </Text>
             </View>
+
+            {!!profile.username && (
+              <View style={styles.usernameBadge}>
+                <Text style={styles.usernameText}>@{profile.username}</Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.profileActions}>
           <TouchableOpacity
             activeOpacity={0.88}
-            style={styles.editButton}
-            onPress={() =>
-              router.push("/(private)/perfil/minha-conta" as never)
-            }
+            style={styles.messageButton}
+            onPress={handleSendMessage}
           >
-            <Ionicons name="create-outline" size={18} color="#06130B" />
-            <Text style={styles.editButtonText}>Editar perfil</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.88}
-            style={styles.searchButton}
-            onPress={() => router.push("/(private)/buscar-motoristas" as never)}
-          >
-            <Ionicons name="search-outline" size={20} color="#FFFFFF" />
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#06130B" />
+            <Text style={styles.messageButtonText}>Enviar mensagem</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -529,18 +550,19 @@ export default function SocialProfileScreen() {
 
       <View style={styles.statsGrid}>
         <View style={styles.statCardLarge}>
-          <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+          <View style={styles.statHeaderRow}>
             <View style={styles.statIconGreen}>
               <Ionicons name="speedometer-outline" size={24} color="#22C55E" />
             </View>
             <Text style={styles.statLabel}>KM rodados</Text>
           </View>
+
           <Text style={styles.statValue}>{formatNumber(stats.totalKm)} km</Text>
           <Text style={styles.statHint}>Total em jornadas finalizadas</Text>
         </View>
 
         <View style={styles.statCardLarge}>
-          <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+          <View style={styles.statHeaderRow}>
             <View style={styles.statIconBlue}>
               <Ionicons name="time-outline" size={24} color="#60A5FA" />
             </View>
@@ -549,6 +571,7 @@ export default function SocialProfileScreen() {
               <Text style={styles.statLabel}>trabalhadas</Text>
             </View>
           </View>
+
           <Text style={styles.statValue}>{formatHours(stats.totalHours)}h</Text>
           <Text style={styles.statHint}>Descontando pausas registradas</Text>
         </View>
@@ -556,7 +579,7 @@ export default function SocialProfileScreen() {
 
       <View style={styles.statsGrid}>
         <View style={styles.statCardLarge}>
-          <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+          <View style={styles.statHeaderRow}>
             <View style={styles.statIconPurple}>
               <Ionicons name="analytics-outline" size={24} color="#A78BFA" />
             </View>
@@ -565,6 +588,7 @@ export default function SocialProfileScreen() {
               <Text style={styles.statLabel}>rodados p/dia</Text>
             </View>
           </View>
+
           <Text style={styles.statValue}>
             {formatNumber(stats.averageKmPerDay)} km
           </Text>
@@ -574,7 +598,7 @@ export default function SocialProfileScreen() {
         </View>
 
         <View style={styles.statCardLarge}>
-          <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+          <View style={styles.statHeaderRow}>
             <View style={styles.statIconOrange}>
               <Ionicons name="calendar-outline" size={24} color="#F59E0B" />
             </View>
@@ -583,11 +607,13 @@ export default function SocialProfileScreen() {
               <Text style={styles.statLabel}>trabalhadas p/dia</Text>
             </View>
           </View>
+
           <Text style={styles.statValue}>
             {formatHours(stats.averageHoursPerDay)}h
           </Text>
           <Text style={styles.statHint}>
-            Calculada sobre {stats.workedDays} {stats.workedDays === 1 ? "dia trabalhado" : "dias trabalhados"}
+            Calculada sobre {stats.workedDays}{" "}
+            {stats.workedDays === 1 ? "dia trabalhado" : "dias trabalhados"}
           </Text>
         </View>
       </View>
@@ -604,143 +630,11 @@ export default function SocialProfileScreen() {
             {stats.finishedSessions === 1
               ? "turno registrado"
               : "turnos registrados"}{" "}
-            no seu histórico.
+            no histórico público.
           </Text>
         </View>
       </View>
-
-      <Text style={styles.sectionTitle}>Conta e preferências</Text>
-
-      <View style={styles.menuCard}>
-        <ProfileMenuItem
-          icon="person-outline"
-          title="Informações pessoais"
-          description="Nome, cidade, foto, e-mail e senha"
-          onPress={() => router.push("/(private)/perfil/minha-conta" as never)}
-        />
-
-        <ProfileMenuItem
-          icon="card-outline"
-          title="Assinaturas"
-          description="Plano atual, pagamentos e cobrança"
-          onPress={() =>
-            router.push(
-              "/(private)/perfil/configuracoes?aba=assinaturas" as never,
-            )
-          }
-        />
-
-        <ProfileMenuItem
-          icon="lock-closed-outline"
-          title="Privacidade"
-          description="Controle quem pode ver e falar com você"
-          onPress={() =>
-            router.push(
-              "/(private)/perfil/configuracoes?aba=privacidade" as never,
-            )
-          }
-        />
-
-        <ProfileMenuItem
-          icon="help-circle-outline"
-          title="Central de ajuda"
-          description="Suporte, erros, sugestões e documentos"
-          onPress={() =>
-            router.push("/(private)/perfil/configuracoes?aba=ajuda" as never)
-          }
-        />
-
-        <ProfileMenuItem
-          icon="information-circle-outline"
-          title="Sobre o MovenApp"
-          description="Versão, redes sociais e informações do aplicativo"
-          onPress={() =>
-            router.push("/(private)/perfil/configuracoes?aba=sobre" as never)
-          }
-        />
-
-        <ProfileMenuItem
-          icon="log-out-outline"
-          title="Sair do aplicativo"
-          description="Encerrar sua sessão neste aparelho"
-          onPress={handleSignOut}
-          danger
-          last
-        />
-      </View>
-
-      <TouchableOpacity
-        activeOpacity={0.88}
-        style={styles.findDriversCard}
-        onPress={() => router.push("/(private)/buscar-motoristas" as never)}
-      >
-        <View style={styles.findDriversIcon}>
-          <Ionicons name="people-outline" size={26} color="#FFFFFF" />
-        </View>
-
-        <View style={{ flex: 1 }}>
-          <Text style={styles.findDriversTitle}>Buscar motoristas</Text>
-          <Text style={styles.findDriversText}>
-            Encontre outros motoristas e entregadores pelo nome, username ou
-            cidade.
-          </Text>
-        </View>
-
-        <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
-      </TouchableOpacity>
     </ScrollView>
-  );
-}
-
-function ProfileMenuItem({
-  icon,
-  title,
-  description,
-  onPress,
-  last,
-  danger,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  description: string;
-  onPress: () => void;
-  last?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.86}
-      style={[styles.menuItem, last && styles.menuItemLast]}
-      onPress={onPress}
-    >
-      <View style={[styles.menuIcon, danger && styles.menuIconDanger]}>
-        <Ionicons
-          name={icon}
-          size={21}
-          color={danger ? "#FCA5A5" : "#22C55E"}
-        />
-      </View>
-
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.menuTitle, danger && styles.menuTitleDanger]}>
-          {title}
-        </Text>
-        <Text
-          style={[
-            styles.menuDescription,
-            danger && styles.menuDescriptionDanger,
-          ]}
-        >
-          {description}
-        </Text>
-      </View>
-
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={danger ? "#FCA5A5" : "#71717A"}
-      />
-    </TouchableOpacity>
   );
 }
 
@@ -752,16 +646,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#09090B",
     alignItems: "center",
     justifyContent: "center",
-  },
-  loadingIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 26,
-    backgroundColor: "rgba(34,197,94,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(34,197,94,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 24,
   },
   loadingText: {
     color: "#A1A1AA",
@@ -769,11 +654,59 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 14,
   },
+  notFoundIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 26,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notFoundTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 14,
+  },
+  notFoundText: {
+    color: "#A1A1AA",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 7,
+  },
+  backToSearchButton: {
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: "#22C55E",
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 18,
+  },
+  backToSearchText: {
+    color: "#06130B",
+    fontSize: 14,
+    fontWeight: "900",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     marginBottom: 18,
+  },
+  headerIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerEyebrow: {
     color: "#22C55E",
@@ -787,16 +720,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "900",
     marginTop: 2,
-  },
-  headerIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: "#18181B",
-    borderWidth: 1,
-    borderColor: "#27272A",
-    alignItems: "center",
-    justifyContent: "center",
   },
   profileHero: {
     backgroundColor: "#111827",
@@ -829,7 +752,33 @@ const styles = StyleSheet.create({
   profileInfo: { flex: 1 },
   cityRow: { flexDirection: "row", alignItems: "center", marginTop: 7, gap: 5 },
   cityText: { color: "#A1A1AA", fontSize: 14, fontWeight: "700", flex: 1 },
+  usernameBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: "rgba(34,197,94,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.24)",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    marginTop: 8,
+  },
+  usernameText: {
+    color: "#22C55E",
+    fontSize: 11,
+    fontWeight: "900",
+  },
   profileActions: { flexDirection: "row", gap: 10, marginTop: 18 },
+  messageButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  messageButtonText: { color: "#06130B", fontSize: 14, fontWeight: "900" },
   journeyProfileCard: {
     borderRadius: 26,
     borderWidth: 1,
@@ -908,27 +857,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 16,
   },
-  editButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: "#22C55E",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 7,
-  },
-  editButtonText: { color: "#06130B", fontSize: 14, fontWeight: "900" },
-  searchButton: {
-    width: 52,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: "#18181B",
-    borderWidth: 1,
-    borderColor: "#27272A",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   statsGrid: { flexDirection: "row", gap: 12, marginBottom: 14 },
   statCardLarge: {
     flex: 1,
@@ -939,6 +867,7 @@ const styles = StyleSheet.create({
     borderColor: "#27272A",
     padding: 10,
   },
+  statHeaderRow: { flexDirection: "row", gap: 5, alignItems: "center" },
   statIconGreen: {
     width: 44,
     height: 44,
@@ -955,7 +884,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   statIconPurple: {
     width: 44,
     height: 44,
@@ -964,7 +892,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   statIconOrange: {
     width: 44,
     height: 44,
@@ -1010,81 +937,6 @@ const styles = StyleSheet.create({
   summaryTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
   summaryText: {
     color: "#FCD34D",
-    fontSize: 12,
-    fontWeight: "700",
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  sectionTitle: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 12,
-  },
-  menuCard: {
-    backgroundColor: "#111827",
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: "#1F2937",
-    paddingHorizontal: 14,
-    marginBottom: 16,
-  },
-  menuItem: {
-    minHeight: 76,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1F2937",
-  },
-  menuItemLast: { borderBottomWidth: 0 },
-  menuIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 15,
-    backgroundColor: "rgba(34,197,94,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  menuIconDanger: {
-    backgroundColor: "rgba(239,68,68,0.12)",
-  },
-  menuTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
-  menuTitleDanger: {
-    color: "#FCA5A5",
-  },
-  menuDescription: {
-    color: "#A1A1AA",
-    fontSize: 12,
-    fontWeight: "700",
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  menuDescriptionDanger: {
-    color: "#FECACA",
-  },
-  findDriversCard: {
-    minHeight: 96,
-    borderRadius: 26,
-    backgroundColor: "#052E16",
-    borderWidth: 1,
-    borderColor: "#166534",
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 13,
-  },
-  findDriversIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 18,
-    backgroundColor: "rgba(34,197,94,0.22)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  findDriversTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
-  findDriversText: {
-    color: "#BBF7D0",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,

@@ -1,226 +1,536 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
   Image,
-} from 'react-native';
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+} from "react-native";
 
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
-import { getPrivateConversations } from '../../src/features/privateChat/services/getPrivateConversations';
+import { supabase } from "../../src/database/supabase";
 
-export default function ConversationsScreen() {
-  const [conversations, setConversations] =
-    useState<any[]>([]);
+type Conversation = {
+  id: string;
+  user_a_id: string;
+  user_b_id: string;
+  updated_at: string;
+  otherUser: {
+    id: string;
+    name?: string | null;
+    full_name?: string | null;
+    username?: string | null;
+    city?: string | null;
+    avatar_url?: string | null;
+  } | null;
+  lastMessage?: {
+    body: string;
+    sender_id: string;
+    created_at: string;
+  } | null;
+  unreadCount: number;
+};
+
+function getUserName(user?: Conversation["otherUser"]) {
+  return user?.full_name || user?.name || "Motorista";
+}
+
+function formatConversationDate(value?: string | null) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const today = new Date();
+  const sameDay =
+    date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear();
+
+  if (sameDay) {
+    return date.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
+export default function ConversationsListScreen() {
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadConversations();
+    }, []),
+  );
 
   useEffect(() => {
-    loadConversations();
-  }, []);
+    if (!currentUserId) return;
 
-  async function loadConversations() {
-    setConversations(
-      await getPrivateConversations(),
+    const channel = supabase
+      .channel(`private-conversations-list-${currentUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "private_messages",
+        },
+        () => {
+          loadConversations(false);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
+
+  async function loadConversations(showLoading = true) {
+    try {
+      if (showLoading) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user?.id) {
+        router.replace("/login" as never);
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
+      const { data: conversationsResponse, error: conversationsError } =
+        await supabase
+          .from("private_conversations")
+          .select("id, user_a_id, user_b_id, updated_at")
+          .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+          .order("updated_at", { ascending: false });
+
+      if (conversationsError) throw conversationsError;
+
+      const baseConversations = conversationsResponse ?? [];
+
+      if (baseConversations.length === 0) {
+        setConversations([]);
+        return;
+      }
+
+      const otherUserIds = Array.from(
+        new Set(
+          baseConversations.map((conversation: any) =>
+            conversation.user_a_id === user.id
+              ? conversation.user_b_id
+              : conversation.user_a_id,
+          ),
+        ),
+      );
+
+      const conversationIds = baseConversations.map(
+        (conversation: any) => conversation.id,
+      );
+
+      const { data: profilesResponse, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, name, full_name, username, city, avatar_url")
+        .in("id", otherUserIds);
+
+      if (profilesError) throw profilesError;
+
+      const { data: messagesResponse, error: messagesError } = await supabase
+        .from("private_messages")
+        .select("id, conversation_id, sender_id, receiver_id, body, read_at, created_at")
+        .in("conversation_id", conversationIds)
+        .order("created_at", { ascending: false });
+
+      if (messagesError) throw messagesError;
+
+      const profilesMap = new Map(
+        (profilesResponse ?? []).map((profile: any) => [profile.id, profile]),
+      );
+
+      const messagesByConversation = new Map<string, any[]>();
+
+      (messagesResponse ?? []).forEach((message: any) => {
+        const currentMessages =
+          messagesByConversation.get(message.conversation_id) ?? [];
+
+        currentMessages.push(message);
+        messagesByConversation.set(message.conversation_id, currentMessages);
+      });
+
+      const mappedConversations: Conversation[] = baseConversations
+        .map((conversation: any) => {
+          const otherUserId =
+            conversation.user_a_id === user.id
+              ? conversation.user_b_id
+              : conversation.user_a_id;
+
+          const conversationMessages =
+            messagesByConversation.get(conversation.id) ?? [];
+
+          const lastMessage = conversationMessages[0] ?? null;
+
+          const unreadCount = conversationMessages.filter(
+            (message) => message.receiver_id === user.id && !message.read_at,
+          ).length;
+
+          return {
+            id: conversation.id,
+            user_a_id: conversation.user_a_id,
+            user_b_id: conversation.user_b_id,
+            updated_at: conversation.updated_at,
+            otherUser: profilesMap.get(otherUserId) ?? null,
+            lastMessage,
+            unreadCount,
+          };
+        })
+        .filter((conversation) => !!conversation.lastMessage);
+
+      setConversations(mappedConversations);
+    } catch (error: any) {
+      console.log("Erro ao carregar conversas privadas:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  function openConversation(conversation: Conversation) {
+    if (!conversation.otherUser?.id) return;
+
+    router.push({
+      pathname: "/conversa-privada/[userId]",
+      params: { userId: conversation.otherUser.id },
+    } as never);
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator color="#22C55E" />
+        <Text style={styles.loadingText}>Carregando conversas...</Text>
+      </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-    >
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.headerIconButton}
           onPress={() => router.back()}
         >
-          <Ionicons
-            name="arrow-back"
-            size={26}
-            color="#FFFFFF"
-          />
+          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <Text style={styles.title}>
-          Conversas
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerEyebrow}>Mensagens</Text>
+          <Text style={styles.headerTitle}>Conversas privadas</Text>
+        </View>
       </View>
 
-      {conversations.map((item) => (
-        <TouchableOpacity
-          key={item.user.id}
-          style={styles.card}
-          onPress={() =>
-            router.push({
-              pathname:
-                '/(private)/chat-privado',
-              params: {
-                userId: item.user.id,
-              },
-            })
-          }
-        >
-          {item.user.avatar_url ? (
-            <Image
-              source={{
-                uri: item.user.avatar_url,
-              }}
-              style={styles.avatar}
-            />
-          ) : (
-            <View
-              style={
-                styles.avatarFallback
-              }
-            >
-              <Ionicons
-                name="person"
-                size={20}
-                color="#FFFFFF"
-              />
-            </View>
-          )}
-
-          <View style={{ flex: 1 }}>
-            <Text style={styles.name}>
-              {item.user.full_name ||
-                item.user.name}
-            </Text>
-
-            <Text
-              style={styles.message}
-              numberOfLines={1}
-            >
-              {item.lastMessage?.message}
-            </Text>
-          </View>
-
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color="#71717A"
+      <FlatList
+        data={conversations}
+        keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl
+            tintColor="#22C55E"
+            refreshing={refreshing}
+            onRefresh={() => loadConversations(false)}
           />
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.listContent,
+          conversations.length === 0 && styles.listContentEmpty,
+        ]}
+        ListEmptyComponent={
+          <View style={styles.emptyCard}>
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={42}
+              color="#52525B"
+            />
+            <Text style={styles.emptyTitle}>Nenhuma conversa ainda</Text>
+            <Text style={styles.emptyText}>
+              Abra o perfil público de um motorista, toque em Enviar mensagem
+              e envie a primeira mensagem para a conversa aparecer aqui.
+            </Text>
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.searchDriversButton}
+              onPress={() => router.push("/buscar-motoristas" as never)}
+            >
+              <Ionicons name="search-outline" size={18} color="#06130B" />
+              <Text style={styles.searchDriversButtonText}>
+                Buscar motoristas
+              </Text>
+            </TouchableOpacity>
+          </View>
+        }
+        renderItem={({ item }) => {
+          const otherUser = item.otherUser;
+          const lastMessagePrefix =
+            item.lastMessage?.sender_id === currentUserId ? "Você: " : "";
+
+          return (
+            <TouchableOpacity
+              activeOpacity={0.86}
+              style={styles.conversationCard}
+              onPress={() => openConversation(item)}
+            >
+              {otherUser?.avatar_url ? (
+                <Image
+                  source={{ uri: otherUser.avatar_url }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Ionicons name="person" size={24} color="#FFFFFF" />
+                </View>
+              )}
+
+              <View style={styles.conversationInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.userName} numberOfLines={1}>
+                    {getUserName(otherUser)}
+                  </Text>
+
+                  <Text style={styles.dateText}>
+                    {formatConversationDate(
+                      item.lastMessage?.created_at ?? item.updated_at,
+                    )}
+                  </Text>
+                </View>
+
+                <Text style={styles.userMeta} numberOfLines={1}>
+                  @{otherUser?.username || "usuario"} ·{" "}
+                  {otherUser?.city || "Cidade não informada"}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.lastMessage,
+                    item.unreadCount > 0 && styles.lastMessageUnread,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.lastMessage
+                    ? `${lastMessagePrefix}${item.lastMessage.body}`
+                    : "Conversa iniciada"}
+                </Text>
+              </View>
+
+              {item.unreadCount > 0 ? (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>
+                    {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                  </Text>
+                </View>
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color="#71717A" />
+              )}
+            </TouchableOpacity>
+          );
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: "#09090B" },
+  loadingContainer: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: "#09090B",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  content: {
+  loadingText: {
+    color: "#A1A1AA",
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 12,
+  },
+  header: {
     paddingHorizontal: 18,
     paddingTop: 54,
-    paddingBottom: 120,
-  },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 24,
-  },
-
-  title: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '900',
-  },
-
-  card: {
-    minHeight: 78,
-    borderRadius: 20,
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#1F2937',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingBottom: 18,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
-    marginBottom: 12,
   },
-
+  headerIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "#18181B",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerEyebrow: {
+    color: "#22C55E",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 27,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  listContent: {
+    paddingHorizontal: 18,
+    paddingBottom: 140,
+  },
+  listContentEmpty: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  emptyCard: {
+    minHeight: 260,
+    borderRadius: 28,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  emptyTitle: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 13,
+  },
+  emptyText: {
+    color: "#A1A1AA",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 7,
+    lineHeight: 19,
+  },
+  searchDriversButton: {
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: "#22C55E",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 17,
+  },
+  searchDriversButtonText: {
+    color: "#06130B",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  conversationCard: {
+    minHeight: 86,
+    borderRadius: 24,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    padding: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 11,
+  },
   avatar: {
     width: 54,
     height: 54,
     borderRadius: 999,
   },
-
   avatarFallback: {
     width: 54,
     height: 54,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: "#18181B",
     borderWidth: 1,
-    borderColor: '#27272A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#27272A",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  name: {
-    color: '#FFFFFF',
+  conversationInfo: {
+    flex: 1,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  userName: {
+    flex: 1,
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: "900",
   },
-
-  message: {
-    color: '#A1A1AA',
-    fontSize: 13,
-    fontWeight: '600',
+  dateText: {
+    color: "#71717A",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  userMeta: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontWeight: "700",
     marginTop: 4,
   },
-
-  emptyContainer: {
-    minHeight: 300,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
+  lastMessage: {
+    color: "#71717A",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 5,
   },
-
-  emptyTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '900',
-    marginTop: 16,
+  lastMessageUnread: {
+    color: "#FFFFFF",
+    fontWeight: "900",
   },
-
-  emptyText: {
-    color: '#71717A',
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
-  },
-
   unreadBadge: {
-    minWidth: 22,
-    height: 22,
+    minWidth: 26,
+    height: 26,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 7,
   },
-
   unreadBadgeText: {
-    color: '#FFFFFF',
+    color: "#06130B",
     fontSize: 11,
-    fontWeight: '900',
-  },
-
-  lastMessageTime: {
-    color: '#71717A',
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 4,
+    fontWeight: "900",
   },
 });

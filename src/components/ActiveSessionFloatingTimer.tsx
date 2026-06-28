@@ -1,23 +1,56 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
-  View,
+  AppState,
+  AppStateStatus,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
+  View,
 } from 'react-native';
 
 import { router, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+import { supabase } from '../database/supabase';
 import { getActiveSession } from '../features/workSessions/services/getActiveSession';
 
 function formatTimer(seconds: number) {
-  const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
-  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-  const s = String(seconds % 60).padStart(2, '0');
+  const safeSeconds = Math.max(Number(seconds ?? 0), 0);
+
+  const h = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
+  const m = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, '0');
+  const s = String(safeSeconds % 60).padStart(2, '0');
 
   return `${h}:${m}:${s}`;
+}
+
+function calculateElapsedSeconds(session: any) {
+  if (!session?.started_at) return 0;
+
+  const startTime = new Date(session.started_at).getTime();
+  const now = new Date().getTime();
+
+  if (Number.isNaN(startTime)) return 0;
+
+  const totalPausedSeconds = Number(session.total_paused_seconds ?? 0);
+
+  let currentPauseSeconds = 0;
+
+  if (session.status === 'paused' && session.paused_at) {
+    const pausedAt = new Date(session.paused_at).getTime();
+
+    if (!Number.isNaN(pausedAt) && now > pausedAt) {
+      currentPauseSeconds = Math.floor((now - pausedAt) / 1000);
+    }
+  }
+
+  const diffInSeconds = Math.floor((now - startTime) / 1000);
+
+  const realWorkedSeconds =
+    diffInSeconds - totalPausedSeconds - currentPauseSeconds;
+
+  return realWorkedSeconds > 0 ? realWorkedSeconds : 0;
 }
 
 export function ActiveSessionFloatingTimer() {
@@ -25,58 +58,123 @@ export function ActiveSessionFloatingTimer() {
 
   const [session, setSession] = useState<any>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const loadSession = useCallback(async () => {
+    try {
+      const response = await getActiveSession();
+
+      setSession(response);
+      setElapsedSeconds(calculateElapsedSeconds(response));
+    } catch (error) {
+      console.log('Erro ao carregar card flutuante da jornada:', error);
+      setSession(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadSession() {
-      const response = await getActiveSession();
-
+    async function initialLoad() {
       if (!mounted) return;
 
-      setSession(response);
+      await loadSession();
     }
 
-    loadSession();
+    initialLoad();
 
-    const interval = setInterval(loadSession, 5000);
+    const interval = setInterval(() => {
+      loadSession();
+    }, 5000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [loadSession]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener(
+      'change',
+      (state: AppStateStatus) => {
+        if (state === 'active') {
+          loadSession();
+        }
+      },
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [loadSession]);
+
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let mounted = true;
+
+    async function startRealtime() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id || !mounted) return;
+
+      channel = supabase
+        .channel(`active-session-floating-timer-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'work_sessions',
+            filter: `user_id=eq.${user.id}`,
+          },
+          async () => {
+            await loadSession();
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'earnings',
+            filter: `user_id=eq.${user.id}`,
+          },
+          async () => {
+            await loadSession();
+          },
+        )
+        .subscribe();
+    }
+
+    startRealtime();
+
+    return () => {
+      mounted = false;
+
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [loadSession]);
 
   useEffect(() => {
     if (!session?.started_at) return;
 
     function updateTimer() {
-      const startTime = new Date(session.started_at).getTime();
-      const now = new Date().getTime();
-
-      const totalPausedSeconds = Number(session.total_paused_seconds ?? 0);
-
-      let currentPauseSeconds = 0;
-
-      if (session.status === 'paused' && session.paused_at) {
-        currentPauseSeconds = Math.floor(
-          (now - new Date(session.paused_at).getTime()) / 1000,
-        );
-      }
-
-      const diffInSeconds = Math.floor((now - startTime) / 1000);
-
-      const realWorkedSeconds =
-        diffInSeconds - totalPausedSeconds - currentPauseSeconds;
-
-      setElapsedSeconds(realWorkedSeconds > 0 ? realWorkedSeconds : 0);
+      setElapsedSeconds(calculateElapsedSeconds(session));
     }
 
     updateTimer();
 
     const interval = setInterval(updateTimer, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [
     session?.started_at,
     session?.status,
@@ -84,9 +182,19 @@ export function ActiveSessionFloatingTimer() {
     session?.total_paused_seconds,
   ]);
 
-  if (!session) return null;
-
+  /*
+    Não mostra o card dentro da própria tela da jornada ativa,
+    porque lá já existe o cronômetro grande.
+  */
   if (pathname.includes('jornada-ativa')) {
+    return null;
+  }
+
+  if (loading) {
+    return null;
+  }
+
+  if (!session) {
     return null;
   }
 
@@ -95,12 +203,12 @@ export function ActiveSessionFloatingTimer() {
   return (
     <View pointerEvents="box-none" style={styles.wrapper}>
       <TouchableOpacity
+        activeOpacity={0.88}
         style={[
           styles.floatingButton,
           paused ? styles.floatingButtonPaused : styles.floatingButtonActive,
         ]}
-        activeOpacity={0.88}
-        onPress={() => router.push('/(private)/jornada-ativa')}
+        onPress={() => router.push('/(private)/jornada-ativa' as never)}
       >
         <View style={[styles.iconBox, paused && styles.iconBoxPaused]}>
           <Ionicons
@@ -137,8 +245,8 @@ export function ActiveSessionFloatingTimer() {
 const styles = StyleSheet.create({
   wrapper: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 50,
-    elevation: 50,
+    zIndex: 9999,
+    elevation: 9999,
   },
 
   floatingButton: {

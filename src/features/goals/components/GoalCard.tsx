@@ -525,7 +525,7 @@ export function GoalCard({
       </View>
 
       <View style={styles.detailsGrid}>
-        <Detail label="Falta" value={`R$ ${formatCurrency(missingAmount)}`} />
+        <Detail label={periodEnded ? "Faltou" : "Falta"} value={`R$ ${formatCurrency(missingAmount)}`} />
         <Detail
           label={periodNotStarted ? "Inicia em" : "Tempo restante"}
           value={

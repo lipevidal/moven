@@ -12,6 +12,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 
 import { router } from 'expo-router';
@@ -19,6 +20,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '../../../src/constants/colors';
+
+import { supabase } from '../../../src/database/supabase';
 
 import { createVehicle } from '../../../src/features/vehicles/services/createVehicle';
 import { getVehicles } from '../../../src/features/vehicles/services/getVehicles';
@@ -76,9 +79,50 @@ function getRevisionStatus(currentKm: number, nextRevisionKm: number) {
   };
 }
 
+function formatKmInput(value?: number | string | null) {
+  const numbers = String(value ?? '').replace(/\D/g, '').slice(0, 6);
+
+  if (!numbers) return '';
+
+  return Number(numbers).toLocaleString('pt-BR');
+}
+
+function parseKmInput(value: string) {
+  return Number(value.replace(/\./g, '')) || 0;
+}
+
+function resetVehicleFormFields({
+  setBrand,
+  setModel,
+  setYear,
+  setPlate,
+  setType,
+  setCurrentKm,
+  setNextRevisionKm,
+}: {
+  setBrand: (value: string) => void;
+  setModel: (value: string) => void;
+  setYear: (value: string) => void;
+  setPlate: (value: string) => void;
+  setType: (value: string) => void;
+  setCurrentKm: (value: string) => void;
+  setNextRevisionKm: (value: string) => void;
+}) {
+  setBrand('');
+  setModel('');
+  setYear('');
+  setPlate('');
+  setType('car');
+  setCurrentKm('');
+  setNextRevisionKm('');
+}
+
 export default function VehiclesScreen() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+  const [savingVehicle, setSavingVehicle] = useState(false);
+  const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null);
 
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -102,46 +146,159 @@ export default function VehiclesScreen() {
     }
   }
 
-  async function handleCreateVehicle() {
+  function resetVehicleForm() {
+    setEditingVehicleId(null);
+
+    resetVehicleFormFields({
+      setBrand,
+      setModel,
+      setYear,
+      setPlate,
+      setType,
+      setCurrentKm,
+      setNextRevisionKm,
+    });
+  }
+
+  function openCreateVehicleModal() {
+    resetVehicleForm();
+    setModalVisible(true);
+  }
+
+  function openEditVehicleModal(vehicle: any) {
+    setEditingVehicleId(String(vehicle.id));
+    setBrand(vehicle.brand ?? '');
+    setModel(vehicle.model ?? '');
+    setYear(vehicle.year ? String(vehicle.year) : '');
+    setPlate(vehicle.plate ?? '');
+    setType(vehicle.type ?? 'car');
+    setCurrentKm(formatKmInput(vehicle.current_km));
+    setNextRevisionKm(formatKmInput(vehicle.next_revision_km));
+    setModalVisible(true);
+  }
+
+  function closeVehicleModal() {
+    setModalVisible(false);
+    resetVehicleForm();
+  }
+
+  async function handleSaveVehicle() {
     try {
       if (!brand || !model || !year || !plate) {
         Alert.alert('Atenção', 'Preencha os campos obrigatórios.');
         return;
       }
 
-      await createVehicle({
-        brand,
-        model,
+      setSavingVehicle(true);
+
+      const vehicleData = {
+        brand: brand.trim(),
+        model: model.trim(),
         year: Number(year),
-        plate,
+        plate: plate.trim().toUpperCase(),
         type,
-        current_km:
-        Number(
-            currentKm.replace(/\./g, ''),
-            ) || 0,
+        current_km: parseKmInput(currentKm),
+        next_revision_km: parseKmInput(nextRevisionKm),
+      };
 
-        next_revision_km:
-            Number(
-            nextRevisionKm.replace(/\./g, ''),
-            ) || 0,
-      });
+      if (editingVehicleId) {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-      setModalVisible(false);
+        if (userError) throw userError;
 
-      setBrand('');
-      setModel('');
-      setYear('');
-      setPlate('');
-      setType('car');
-      setCurrentKm('');
-      setNextRevisionKm('');
+        if (!user?.id) {
+          Alert.alert('Sessão expirada', 'Entre novamente para editar o veículo.');
+          return;
+        }
 
-      loadVehicles();
+        const { error } = await supabase
+          .from('vehicles')
+          .update(vehicleData)
+          .eq('id', editingVehicleId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } else {
+        await createVehicle(vehicleData);
+      }
+
+      closeVehicleModal();
+
+      await loadVehicles();
     } catch (error) {
       console.log(error);
 
-      Alert.alert('Erro', 'Não foi possível cadastrar o veículo.');
+      Alert.alert(
+        'Erro',
+        editingVehicleId
+          ? 'Não foi possível editar o veículo.'
+          : 'Não foi possível cadastrar o veículo.',
+      );
+    } finally {
+      setSavingVehicle(false);
     }
+  }
+
+  function handleDeleteVehicle(vehicle: any) {
+    Alert.alert(
+      'Excluir veículo',
+      `Deseja realmente excluir ${vehicle.brand ?? ''} ${vehicle.model ?? ''}? Essa ação não poderá ser desfeita.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingVehicleId(String(vehicle.id));
+
+              const {
+                data: { user },
+                error: userError,
+              } = await supabase.auth.getUser();
+
+              if (userError) throw userError;
+
+              if (!user?.id) {
+                Alert.alert('Sessão expirada', 'Entre novamente para excluir o veículo.');
+                return;
+              }
+
+              const { error } = await supabase
+                .from('vehicles')
+                .delete()
+                .eq('id', vehicle.id)
+                .eq('user_id', user.id);
+
+              if (error) throw error;
+
+              await loadVehicles();
+            } catch (error: any) {
+              console.log(error);
+
+              const message = String(error?.message ?? '').toLowerCase();
+
+              Alert.alert(
+                'Erro',
+                message.includes('foreign key') ||
+                  message.includes('violates') ||
+                  message.includes('constraint')
+                  ? 'Não foi possível excluir este veículo porque ele possui jornadas ou despesas vinculadas.'
+                  : 'Não foi possível excluir este veículo.',
+              );
+            } finally {
+              setDeletingVehicleId(null);
+            }
+          },
+        },
+      ],
+    );
   }
 
   return (
@@ -160,7 +317,7 @@ export default function VehiclesScreen() {
 
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => setModalVisible(true)}
+            onPress={openCreateVehicleModal}
           >
             <Ionicons name="add" size={26} color="#FFFFFF" />
           </TouchableOpacity>
@@ -209,6 +366,35 @@ export default function VehiclesScreen() {
                   <Text style={styles.vehiclePlate}>
                     {vehicle.plate}
                   </Text>
+                </View>
+
+                <View style={styles.vehicleActions}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.vehicleActionButton}
+                    onPress={(event) => {
+                      event.stopPropagation?.();
+                      openEditVehicleModal(vehicle);
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={18} color="#60A5FA" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.vehicleActionButtonDanger}
+                    disabled={deletingVehicleId === String(vehicle.id)}
+                    onPress={(event) => {
+                      event.stopPropagation?.();
+                      handleDeleteVehicle(vehicle);
+                    }}
+                  >
+                    {deletingVehicleId === String(vehicle.id) ? (
+                      <ActivityIndicator size="small" color="#FCA5A5" />
+                    ) : (
+                      <Ionicons name="trash-outline" size={18} color="#FCA5A5" />
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -289,17 +475,21 @@ export default function VehiclesScreen() {
                                 </View>
 
                                 <View>
-                                    <Text style={styles.modalTitle}>Novo veículo</Text>
+                                    <Text style={styles.modalTitle}>
+                                        {editingVehicleId ? 'Editar veículo' : 'Novo veículo'}
+                                    </Text>
 
                                     <Text style={styles.modalSubtitle}>
-                                        Preencha as informações do veículo
+                                        {editingVehicleId
+                                        ? 'Atualize as informações do veículo'
+                                        : 'Preencha as informações do veículo'}
                                     </Text>
                                 </View>
                             </View>
 
                             <TouchableOpacity
                             style={styles.modalCloseButton}
-                            onPress={() => setModalVisible(false)}
+                            onPress={closeVehicleModal}
                             >
                             <Ionicons name="close" size={25} color="#FFFFFF" />
                             </TouchableOpacity>
@@ -472,17 +662,26 @@ export default function VehiclesScreen() {
                         </View>
 
                         <TouchableOpacity
-                            style={styles.saveButton}
-                            onPress={handleCreateVehicle}
+                            style={[styles.saveButton, savingVehicle && styles.saveButtonDisabled]}
+                            onPress={handleSaveVehicle}
                             activeOpacity={0.9}
+                            disabled={savingVehicle}
                         >
-                            <Ionicons
-                            name="checkmark-circle-outline"
-                            size={22}
-                            color="#FFFFFF"
-                            />
+                            {savingVehicle ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                            <>
+                                <Ionicons
+                                name="checkmark-circle-outline"
+                                size={22}
+                                color="#FFFFFF"
+                                />
 
-                            <Text style={styles.saveButtonText}>Salvar veículo</Text>
+                                <Text style={styles.saveButtonText}>
+                                {editingVehicleId ? 'Salvar alterações' : 'Salvar veículo'}
+                                </Text>
+                            </>
+                            )}
                         </TouchableOpacity>
 
                         <View style={styles.secureRow}>
@@ -580,6 +779,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
+
+  vehicleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 10,
+  },
+
+  vehicleActionButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  vehicleActionButtonDanger: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
 
   defaultBadge: {
     backgroundColor: 'rgba(34,197,94,0.18)',
@@ -797,6 +1026,11 @@ const styles = StyleSheet.create({
     gap: 14,
     marginTop: 18,
   },
+
+  saveButtonDisabled: {
+    opacity: 0.65,
+  },
+
 
   saveButtonText: {
     color: '#FFFFFF',

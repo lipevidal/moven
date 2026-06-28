@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { searchMunicipalities } from '../../../src/features/municipalities/services/searchMunicipalities';
 import { getLastMunicipality } from '../../../src/features/municipalities/services/getLastMunicipality';
 
@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { colors } from '../../../src/constants/colors';
 
@@ -168,7 +168,7 @@ export default function NewJourneyScreen() {
         if (profile?.default_municipality_id) {
           const { data: municipality, error: municipalityError } = await supabase
             .from('municipalities')
-            .select('id, name, uf, state_name, immediate_region')
+            .select('id, name, uf, state_name')
             .eq('id', profile.default_municipality_id)
             .maybeSingle();
 
@@ -207,24 +207,79 @@ export default function NewJourneyScreen() {
     }
   }
 
+  useFocusEffect(
+    useCallback(() => {
+      loadVehicles();
+      loadUserDefaultMunicipality();
+    }, []),
+  );
+
   useEffect(() => {
-    loadVehicles();
-    loadUserDefaultMunicipality();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let componentMounted = true;
+
+    async function subscribeToVehicleChanges() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id || !componentMounted) return;
+
+      channel = supabase
+        .channel(`new-journey-vehicles-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'vehicles',
+            filter: `user_id=eq.${user.id}`,
+          },
+          async () => {
+            await loadVehicles();
+          },
+        )
+        .subscribe();
+    }
+
+    subscribeToVehicleChanges();
+
+    return () => {
+      componentMounted = false;
+
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
 
   async function loadVehicles() {
     try {
       const data = await getVehicles();
+      const safeVehicles = data ?? [];
 
-      setVehicles(data);
+      setVehicles(safeVehicles);
 
-      if (data.length > 0) {
-        setSelectedVehicle(data[0]);
+      setSelectedVehicle((current: any) => {
+        if (safeVehicles.length === 0) {
+          setKmInitial('');
+          return null;
+        }
 
-        setKmInitial(
-          Number(data[0].current_km ?? 0).toLocaleString('pt-BR'),
+        const stillSelected = safeVehicles.find(
+          (vehicle: any) => vehicle.id === current?.id,
         );
-      }
+
+        const nextVehicle = stillSelected ?? safeVehicles[0];
+
+        if (!current?.id || current.id !== nextVehicle.id || !kmInitial.trim()) {
+          setKmInitial(
+            Number(nextVehicle.current_km ?? 0).toLocaleString('pt-BR'),
+          );
+        }
+
+        return nextVehicle;
+      });
     } catch (error) {
       console.log(error);
     }
@@ -397,9 +452,27 @@ export default function NewJourneyScreen() {
               />
             </>
           ) : (
-            <Text style={{ color: '#FFFFFF' }}>
-              Nenhum veículo encontrado
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.noVehicleTitle}>
+                Nenhum veículo encontrado
+              </Text>
+
+              <Text style={styles.noVehicleText}>
+                Cadastre um veículo e ele aparecerá aqui automaticamente.
+              </Text>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.reloadVehiclesButton}
+                onPress={loadVehicles}
+              >
+                <Ionicons name="refresh-outline" size={17} color="#06130B" />
+
+                <Text style={styles.reloadVehiclesButtonText}>
+                  Atualizar lista
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
         </TouchableOpacity>
 
@@ -439,11 +512,6 @@ export default function NewJourneyScreen() {
                 : 'Selecionar cidade'}
             </Text>
 
-            {selectedMunicipality?.immediate_region && (
-              <Text style={styles.selectSubText}>
-                Região: {selectedMunicipality.immediate_region}
-              </Text>
-            )}
           </View>
 
           <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
@@ -494,60 +562,86 @@ export default function NewJourneyScreen() {
               </TouchableOpacity>
             </View>
 
-            {vehicles.map((vehicle) => (
-              <TouchableOpacity
-                key={vehicle.id}
-                style={styles.modalVehicle}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setSelectedVehicle(vehicle);
+            {vehicles.length === 0 ? (
+              <View style={styles.modalEmptyVehicles}>
+                <Ionicons name="car-sport-outline" size={34} color="#71717A" />
 
-                  setKmInitial(
-                    Number(
-                      vehicle.current_km ?? 0,
-                    ).toLocaleString('pt-BR'),
-                  );
+                <Text style={styles.modalEmptyVehiclesTitle}>
+                  Nenhum veículo cadastrado
+                </Text>
 
-                  setVehicleModal(false);
-                }}
-              >
-                <Image
-                  source={vehicleImage(
-                    vehicle.type,
-                  )}
-                  style={
-                    styles.modalVehicleImage
-                  }
-                />
+                <Text style={styles.modalEmptyVehiclesText}>
+                  Cadastre um veículo e volte para esta tela. A lista será atualizada ao focar novamente.
+                </Text>
 
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={
-                      styles.modalVehicleTitle
-                    }
-                  >
-                    {vehicle.model}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.modalReloadVehiclesButton}
+                  onPress={loadVehicles}
+                >
+                  <Ionicons name="refresh-outline" size={18} color="#06130B" />
+
+                  <Text style={styles.modalReloadVehiclesButtonText}>
+                    Atualizar veículos
                   </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              vehicles.map((vehicle) => (
+                <TouchableOpacity
+                  key={vehicle.id}
+                  style={styles.modalVehicle}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    setSelectedVehicle(vehicle);
 
-                  <Text
+                    setKmInitial(
+                      Number(
+                        vehicle.current_km ?? 0,
+                      ).toLocaleString('pt-BR'),
+                    );
+
+                    setVehicleModal(false);
+                  }}
+                >
+                  <Image
+                    source={vehicleImage(
+                      vehicle.type,
+                    )}
                     style={
-                      styles.modalVehiclePlate
+                      styles.modalVehicleImage
                     }
-                  >
-                    {vehicle.plate}
-                  </Text>
-                </View>
-
-                {selectedVehicle?.id ===
-                  vehicle.id && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={24}
-                    color="#22C55E"
                   />
-                )}
-              </TouchableOpacity>
-            ))}
+
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={
+                        styles.modalVehicleTitle
+                      }
+                    >
+                      {vehicle.model}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.modalVehiclePlate
+                      }
+                    >
+                      {vehicle.plate}
+                    </Text>
+                  </View>
+
+                  {selectedVehicle?.id ===
+                    vehicle.id && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color="#22C55E"
+                    />
+                  )}
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         </View>
       </Modal>
@@ -654,58 +748,149 @@ export default function NewJourneyScreen() {
       >
         <View style={styles.municipalityModalOverlay}>
           <View style={styles.municipalityModalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Escolher cidade</Text>
+            <View style={styles.municipalityHandle} />
 
-              <TouchableOpacity onPress={() => setMunicipalityModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+            <View style={styles.municipalityHeader}>
+              <View style={styles.municipalityHeaderLeft}>
+                <View style={styles.municipalityHeaderIcon}>
+                  <Ionicons name="location-outline" size={24} color="#22C55E" />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.municipalityEyebrow}>Cidade base</Text>
+                  <Text style={styles.municipalityTitle}>Escolher cidade</Text>
+                  <Text style={styles.municipalityDescription}>
+                    Busque pela cidade onde você irá iniciar sua jornada.
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.municipalityCloseButton}
+                onPress={() => setMunicipalityModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
-            <TextInput
-              value={municipalitySearch}
-              onChangeText={handleSearchMunicipalities}
-              placeholder="Buscar cidade ou região"
-              placeholderTextColor="#71717A"
-              style={styles.municipalitySearchInput}
-            />
+            <View style={styles.municipalitySearchBox}>
+              <Ionicons name="search-outline" size={20} color="#71717A" />
+
+              <TextInput
+                value={municipalitySearch}
+                onChangeText={handleSearchMunicipalities}
+                placeholder="Buscar cidade"
+                placeholderTextColor="#71717A"
+                autoCapitalize="words"
+                autoCorrect={false}
+                style={styles.municipalitySearchInput}
+              />
+
+              {municipalitySearch.length > 0 ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    setMunicipalitySearch('');
+                    setMunicipalities([]);
+                  }}
+                >
+                  <Ionicons name="close-circle" size={20} color="#71717A" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {selectedMunicipality ? (
+              <View style={styles.selectedCityPreview}>
+                <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+
+                <Text style={styles.selectedCityPreviewText} numberOfLines={1}>
+                  Atual: {selectedMunicipality.name} - {selectedMunicipality.uf}
+                </Text>
+              </View>
+            ) : null}
 
             <ScrollView
               style={{ flex: 1 }}
+              contentContainerStyle={styles.municipalityListContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
               {municipalitySearch.trim().length < 2 ? (
-                <Text style={styles.emptyText}>
-                  Digite pelo menos 2 letras para buscar uma cidade.
-                </Text>
+                <View style={styles.municipalityEmptyState}>
+                  <View style={styles.municipalityEmptyIcon}>
+                    <Ionicons name="map-outline" size={32} color="#71717A" />
+                  </View>
+
+                  <Text style={styles.municipalityEmptyTitle}>
+                    Busque sua cidade
+                  </Text>
+
+                  <Text style={styles.municipalityEmptyText}>
+                    Digite pelo menos 2 letras para encontrar a cidade base da jornada.
+                  </Text>
+                </View>
               ) : municipalities.length === 0 ? (
-                <Text style={styles.emptyText}>Nenhuma cidade encontrada.</Text>
+                <View style={styles.municipalityEmptyState}>
+                  <View style={styles.municipalityEmptyIcon}>
+                    <Ionicons name="search-outline" size={32} color="#71717A" />
+                  </View>
+
+                  <Text style={styles.municipalityEmptyTitle}>
+                    Nenhuma cidade encontrada
+                  </Text>
+
+                  <Text style={styles.municipalityEmptyText}>
+                    Confira o nome digitado e tente novamente.
+                  </Text>
+                </View>
               ) : (
-                municipalities.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.municipalityItem}
-                    onPress={() => {
-                      setSelectedMunicipality(item);
-                      setMunicipalityModalVisible(false);
-                    }}
-                  >
-                    <View>
-                      <Text style={styles.municipalityName}>
-                        {item.name} - {item.uf}
-                      </Text>
+                municipalities.map((item) => {
+                  const selected = selectedMunicipality?.id === item.id;
 
-                      <Text style={styles.municipalityRegion}>
-                        Região: {item.immediate_region}
-                      </Text>
-                    </View>
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      activeOpacity={0.86}
+                      style={[
+                        styles.municipalityItem,
+                        selected && styles.municipalityItemActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedMunicipality(item);
+                        setMunicipalityModalVisible(false);
+                        setMunicipalitySearch('');
+                        setMunicipalities([]);
+                      }}
+                    >
+                      <View style={styles.municipalityItemIcon}>
+                        <Ionicons
+                          name="location-outline"
+                          size={21}
+                          color={selected ? '#22C55E' : '#A1A1AA'}
+                        />
+                      </View>
 
-                    {selectedMunicipality?.id === item.id && (
-                      <Ionicons name="checkmark-circle" size={22} color="#22C55E" />
-                    )}
-                  </TouchableOpacity>
-                ))
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.municipalityName}>
+                          {item.name}
+                        </Text>
+
+                        <Text style={styles.municipalityUf}>
+                          {item.uf}
+                        </Text>
+                      </View>
+
+                      {selected ? (
+                        <View style={styles.municipalitySelectedBadge}>
+                          <Ionicons name="checkmark" size={16} color="#06130B" />
+                        </View>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={20} color="#71717A" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </ScrollView>
           </View>
@@ -830,6 +1015,39 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  noVehicleTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  noVehicleText: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+    lineHeight: 17,
+  },
+
+  reloadVehiclesButton: {
+    alignSelf: 'flex-start',
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+
+  reloadVehiclesButtonText: {
+    color: '#06130B',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
   inputCard: {
     height: 74,
     borderRadius: 20,
@@ -900,6 +1118,53 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '800',
+  },
+
+  modalEmptyVehicles: {
+    minHeight: 190,
+    borderRadius: 20,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+    marginBottom: 10,
+  },
+
+  modalEmptyVehiclesTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+
+  modalEmptyVehiclesText: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 6,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  modalReloadVehiclesButton: {
+    minHeight: 42,
+    borderRadius: 15,
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 14,
+  },
+
+  modalReloadVehiclesButtonText: {
+    color: '#06130B',
+    fontSize: 13,
+    fontWeight: '900',
   },
 
   modalVehicle: {
@@ -981,25 +1246,138 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
   },
-  selectSubText: {
-    color: '#71717A',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 3,
+  municipalityHandle: {
+    width: 48,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 18,
   },
 
-  municipalityItem: {
-    minHeight: 64,
-    borderRadius: 16,
+  municipalityHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 18,
+  },
+
+  municipalityHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+
+  municipalityHeaderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  municipalityEyebrow: {
+    color: '#22C55E',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+
+  municipalityTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  municipalityDescription: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 4,
+  },
+
+  municipalityCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
     backgroundColor: '#18181B',
     borderWidth: 1,
     borderColor: '#27272A',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  municipalitySearchBox: {
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    marginBottom: 12,
+  },
+
+  selectedCityPreview: {
+    minHeight: 42,
+    borderRadius: 15,
+    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.22)',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  selectedCityPreviewText: {
+    flex: 1,
+    color: '#86EFAC',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  municipalityListContent: {
+    paddingBottom: 24,
+  },
+
+  municipalityItem: {
+    minHeight: 70,
+    borderRadius: 20,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 13,
+    paddingVertical: 12,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  municipalityItemActive: {
+    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderColor: 'rgba(34,197,94,0.55)',
+  },
+
+  municipalityItemIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   municipalityName: {
@@ -1008,12 +1386,60 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  municipalityRegion: {
+  municipalityUf: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+
+  municipalitySelectedBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  municipalityEmptyState: {
+    minHeight: 210,
+    borderRadius: 24,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+    marginTop: 8,
+  },
+
+  municipalityEmptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+
+  municipalityEmptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  municipalityEmptyText: {
     color: '#A1A1AA',
     fontSize: 12,
     fontWeight: '700',
-    marginTop: 4,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 7,
   },
+
   selectCard: {
     minHeight: 62,
     borderRadius: 16,
@@ -1035,29 +1461,27 @@ const styles = StyleSheet.create({
   },
   municipalityModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(0,0,0,0.78)',
     justifyContent: 'flex-end',
   },
 
   municipalityModalContent: {
-    height: '75%',
+    height: '82%',
     backgroundColor: '#09090B',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 20,
+    borderWidth: 1,
+    borderColor: '#27272A',
   },
 
   municipalitySearchInput: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
-    borderWidth: 1,
-    borderColor: '#27272A',
+    flex: 1,
+    height: '100%',
     color: '#FFFFFF',
-    paddingHorizontal: 16,
     fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 16,
+    fontWeight: '800',
+    padding: 0,
   },
 
   emptyText: {

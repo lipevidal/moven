@@ -191,6 +191,140 @@ function getUserDisplayName(user: any) {
   );
 }
 
+type JourneyProfileType = 'intensive' | 'moderate' | 'light' | 'empty';
+
+function startOfDay(date: Date) {
+  const normalizedDate = new Date(date);
+  normalizedDate.setHours(0, 0, 0, 0);
+
+  return normalizedDate;
+}
+
+function getDaysBetween(startDate: Date, endDate: Date) {
+  const start = startOfDay(startDate).getTime();
+  const end = startOfDay(endDate).getTime();
+
+  return Math.max(Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1, 1);
+}
+
+function getSessionBaseDate(session: any) {
+  const baseDate = session?.started_at || session?.finished_at;
+
+  if (!baseDate) return null;
+
+  const date = new Date(baseDate);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function calculateFinishedSessionHours(session: any) {
+  if (!session?.started_at || !session?.finished_at) return 0;
+
+  const startedAt = new Date(session.started_at).getTime();
+  const finishedAt = new Date(session.finished_at).getTime();
+
+  if (Number.isNaN(startedAt) || Number.isNaN(finishedAt)) return 0;
+
+  const pausedSeconds = Number(session.total_paused_seconds ?? 0);
+
+  return Math.max((finishedAt - startedAt) / 1000 - pausedSeconds, 0) / 3600;
+}
+
+function getJourneyProfileTypeFromSessions(sessions: any[]): JourneyProfileType {
+  if (!sessions.length) return 'empty';
+
+  const today = startOfDay(new Date());
+  const oneHundredDaysAgo = startOfDay(new Date());
+  oneHundredDaysAgo.setDate(today.getDate() - 99);
+
+  const sessionDates = sessions
+    .map((session) => getSessionBaseDate(session))
+    .filter(Boolean) as Date[];
+
+  const firstSessionDate =
+    sessionDates.length > 0
+      ? sessionDates.reduce((oldestDate, currentDate) =>
+          currentDate.getTime() < oldestDate.getTime()
+            ? currentDate
+            : oldestDate,
+        )
+      : null;
+
+  if (!firstSessionDate) return 'empty';
+
+  const analysisStartDate = startOfDay(
+    firstSessionDate.getTime() > oneHundredDaysAgo.getTime()
+      ? firstSessionDate
+      : oneHundredDaysAgo,
+  );
+
+  const journeyProfileDays = getDaysBetween(analysisStartDate, today);
+
+  const totalHours = sessions.reduce((total, session) => {
+    const sessionDate = getSessionBaseDate(session);
+
+    if (!sessionDate) return total;
+
+    const normalizedSessionDate = startOfDay(sessionDate);
+
+    if (
+      normalizedSessionDate.getTime() < analysisStartDate.getTime() ||
+      normalizedSessionDate.getTime() > today.getTime()
+    ) {
+      return total;
+    }
+
+    return total + calculateFinishedSessionHours(session);
+  }, 0);
+
+  const averageHours = journeyProfileDays > 0 ? totalHours / journeyProfileDays : 0;
+
+  if (averageHours >= 8) return 'intensive';
+  if (averageHours >= 5) return 'moderate';
+
+  return 'light';
+}
+
+function getJourneyProfileInfo(type: JourneyProfileType) {
+  if (type === 'intensive') {
+    return {
+      label: 'Intensiva',
+      icon: 'flame-outline' as const,
+      color: '#F97316',
+      backgroundColor: 'rgba(249,115,22,0.14)',
+      borderColor: 'rgba(249,115,22,0.32)',
+    };
+  }
+
+  if (type === 'moderate') {
+    return {
+      label: 'Moderada',
+      icon: 'speedometer-outline' as const,
+      color: '#FACC15',
+      backgroundColor: 'rgba(250,204,21,0.13)',
+      borderColor: 'rgba(250,204,21,0.30)',
+    };
+  }
+
+  if (type === 'light') {
+    return {
+      label: 'Leve',
+      icon: 'leaf-outline' as const,
+      color: '#22C55E',
+      backgroundColor: 'rgba(34,197,94,0.13)',
+      borderColor: 'rgba(34,197,94,0.30)',
+    };
+  }
+
+  return {
+    label: 'Sem perfil',
+    icon: 'briefcase-outline' as const,
+    color: '#A1A1AA',
+    backgroundColor: 'rgba(161,161,170,0.10)',
+    borderColor: 'rgba(161,161,170,0.22)',
+  };
+}
+
 export default function ActiveSessionScreen() {
   const [session, setSession] = useState<any>(null);
   const [rides, setRides] = useState<any[]>([]);
@@ -244,6 +378,10 @@ export default function ActiveSessionScreen() {
   const [platformDrawerVisible, setPlatformDrawerVisible] = useState(false);
   const [returnToGainModalAfterPlatforms, setReturnToGainModalAfterPlatforms] =
   useState(false);
+  const [returnToRideModalAfterPlatforms, setReturnToRideModalAfterPlatforms] =
+    useState(false);
+  const [returnToFinishModalAfterPlatforms, setReturnToFinishModalAfterPlatforms] =
+    useState(false);
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
   const [finishPlatformValues, setFinishPlatformValues] = useState<Record<string, string>>({});
   const [finishDateValue, setFinishDateValue] = useState('');
@@ -255,6 +393,11 @@ export default function ActiveSessionScreen() {
 
   const [onlineDrivers, setOnlineDrivers] = useState<any[]>([]);
   const [driversModalVisible, setDriversModalVisible] = useState(false);
+  const [driverActionModalVisible, setDriverActionModalVisible] = useState(false);
+  const [selectedOnlineDriver, setSelectedOnlineDriver] = useState<any>(null);
+  const [driverJourneyProfiles, setDriverJourneyProfiles] = useState<
+    Record<string, JourneyProfileType>
+  >({});
   const [municipalityModalVisible, setMunicipalityModalVisible] = useState(false);
 
   const [municipalitySearch, setMunicipalitySearch] = useState('');
@@ -376,6 +519,52 @@ export default function ActiveSessionScreen() {
     await markPrivateMessagesAsRead(user.id);
   }
 
+  function openDriverActions(user: any) {
+    if (!user?.id) return;
+
+    setSelectedOnlineDriver(user);
+    setDriverActionModalVisible(true);
+  }
+
+  function closeDriverActions() {
+    setDriverActionModalVisible(false);
+    setSelectedOnlineDriver(null);
+  }
+
+  function handleViewSelectedDriverProfile() {
+    if (!selectedOnlineDriver?.id) return;
+
+    const userId = selectedOnlineDriver.id;
+
+    setDriverActionModalVisible(false);
+    setDriversModalVisible(false);
+    setSelectedOnlineDriver(null);
+
+    setTimeout(() => {
+      router.push({
+        pathname: '/perfil-publico/[userId]',
+        params: { userId },
+      } as never);
+    }, 250);
+  }
+
+  function handleMessageSelectedDriver() {
+    if (!selectedOnlineDriver?.id) return;
+
+    const userId = selectedOnlineDriver.id;
+
+    setDriverActionModalVisible(false);
+    setDriversModalVisible(false);
+    setSelectedOnlineDriver(null);
+
+    setTimeout(() => {
+      router.push({
+        pathname: '/conversa-privada/[userId]',
+        params: { userId },
+      } as never);
+    }, 250);
+  }
+
   async function handleSendPrivateMessage() {
     if (!privateMessageText.trim() || !privateChatUser?.id) return;
 
@@ -453,6 +642,55 @@ export default function ActiveSessionScreen() {
 
     setTimeout(() => {
       setPlatformDrawerVisible(true);
+    }, 400);
+  }
+
+  function openPlatformDrawerFromRideModal() {
+    // Evita travamento no Android/iOS por empilhar o modal de plataformas
+    // por cima do modal de iniciar corrida/entrega.
+    setReturnToRideModalAfterPlatforms(true);
+    setRideModalVisible(false);
+
+    setTimeout(() => {
+      setPlatformDrawerVisible(true);
+    }, 400);
+  }
+
+  function openPlatformDrawerFromFinishModal() {
+    // Mesma regra para o modal de concluir jornada.
+    setReturnToFinishModalAfterPlatforms(true);
+    setFinishModalVisible(false);
+
+    setTimeout(() => {
+      setPlatformDrawerVisible(true);
+    }, 400);
+  }
+
+  function closePlatformDrawerAndReturn() {
+    const shouldReturnToGain = returnToGainModalAfterPlatforms;
+    const shouldReturnToRide = returnToRideModalAfterPlatforms;
+    const shouldReturnToFinish = returnToFinishModalAfterPlatforms;
+
+    setPlatformDrawerVisible(false);
+
+    setReturnToGainModalAfterPlatforms(false);
+    setReturnToRideModalAfterPlatforms(false);
+    setReturnToFinishModalAfterPlatforms(false);
+
+    setTimeout(() => {
+      if (shouldReturnToGain) {
+        setGainModalVisible(true);
+        return;
+      }
+
+      if (shouldReturnToRide) {
+        setRideModalVisible(true);
+        return;
+      }
+
+      if (shouldReturnToFinish) {
+        setFinishModalVisible(true);
+      }
     }, 400);
   }
 
@@ -582,14 +820,7 @@ export default function ActiveSessionScreen() {
 
     await loadPlatforms();
 
-    setPlatformDrawerVisible(false);
-
-    if (returnToGainModalAfterPlatforms) {
-      setTimeout(() => {
-        setGainModalVisible(true);
-        setReturnToGainModalAfterPlatforms(false);
-      }, 400);
-    }
+    closePlatformDrawerAndReturn();
   }
 
   function formatRideHour(date?: string | null) {
@@ -1322,6 +1553,14 @@ export default function ActiveSessionScreen() {
     };
   }, [currentUserId, privateChatVisible, privateChatUser?.id]);
 
+  useEffect(() => {
+    const userIds = onlineDrivers
+      .map((item) => item.user?.id)
+      .filter((userId) => userId && userId !== currentUserId);
+
+    loadDriverJourneyProfiles(userIds);
+  }, [onlineDrivers, currentUserId]);
+
   if (!session) return null;
 
   const activeRidePlatform = activeRide
@@ -1335,7 +1574,45 @@ export default function ActiveSessionScreen() {
     const response = await getOnlineDriversByMunicipality(municipalityId);
     setOnlineDrivers(response);
   }
-    return (
+
+  async function loadDriverJourneyProfiles(userIds: string[]) {
+    const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
+
+    if (uniqueUserIds.length === 0) {
+      setDriverJourneyProfiles({});
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('work_sessions')
+      .select('user_id, started_at, finished_at, total_paused_seconds')
+      .in('user_id', uniqueUserIds)
+      .eq('status', 'finished');
+
+    if (error) {
+      console.log('Erro ao carregar perfil de jornada dos motoristas:', error);
+      return;
+    }
+
+    const nextProfiles: Record<string, JourneyProfileType> = {};
+
+    uniqueUserIds.forEach((userId) => {
+      const userSessions = (data ?? []).filter(
+        (sessionItem: any) => sessionItem.user_id === userId,
+      );
+
+      nextProfiles[userId] = getJourneyProfileTypeFromSessions(userSessions);
+    });
+
+    setDriverJourneyProfiles(nextProfiles);
+  }
+
+  const visibleOnlineDrivers = onlineDrivers.filter(
+    (item) => item.user?.id !== currentUserId,
+  );
+
+
+  return (
     <>
       <ScrollView
         style={[
@@ -1543,7 +1820,7 @@ export default function ActiveSessionScreen() {
             onPress={openCreateGainModal}
           >
             <View style={styles.activeModernQuickIconGreen}>
-              <Ionicons name="add" size={30} color="#06130B" />
+              <Ionicons name="add" size={25} color="#06130B" />
             </View>
             <Text style={styles.activeModernQuickText}>Novo ganho</Text>
           </TouchableOpacity>
@@ -1554,12 +1831,12 @@ export default function ActiveSessionScreen() {
             onPress={() => setKmModalVisible(true)}
           >
             <View style={styles.activeModernQuickIconBlue}>
-              <Ionicons name="speedometer-outline" size={24} color="#FFFFFF" />
+              <Ionicons name="speedometer-outline" size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.activeModernQuickText}>Atualizar KM</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/*<TouchableOpacity
             activeOpacity={0.88}
             style={[styles.activeModernQuickButton, styles.activeModernQuickButtonRide]}
             onPress={openCreateRideModal}
@@ -1568,7 +1845,7 @@ export default function ActiveSessionScreen() {
               <Ionicons name="navigate-outline" size={24} color="#FFFFFF" />
             </View>
             <Text style={styles.activeModernQuickText}>Nova corrida</Text>
-          </TouchableOpacity>
+          </TouchableOpacity>*/}
         </View>
 
         {activeRide && (
@@ -1595,7 +1872,7 @@ export default function ActiveSessionScreen() {
 
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activeModernRideTitle}>{activeRide.platform}</Text>
-                  <Text style={styles.activeModernRideSubtitle}>Viagem em andamento</Text>
+                  
                 </View>
               </View>
 
@@ -2009,9 +2286,7 @@ export default function ActiveSessionScreen() {
                   <TouchableOpacity
                     activeOpacity={0.85}
                     style={styles.rideModalManageButtonTop}
-                    onPress={() => {
-                      setPlatformDrawerVisible(true);
-                    }}
+                    onPress={openPlatformDrawerFromRideModal}
                   >
                     <Ionicons name="apps-outline" size={16} color="#FFFFFF" />
                     <Text style={styles.rideModalManageButtonTopText}>Gerenciar</Text>
@@ -2022,9 +2297,7 @@ export default function ActiveSessionScreen() {
                   <TouchableOpacity
                     activeOpacity={0.88}
                     style={styles.rideModalEmptyPlatforms}
-                    onPress={() => {
-                      setPlatformDrawerVisible(true);
-                    }}
+                    onPress={openPlatformDrawerFromRideModal}
                   >
                     <View style={styles.rideModalEmptyIcon}>
                       <Ionicons name="apps-outline" size={30} color="#A1A1AA" />
@@ -2843,9 +3116,7 @@ export default function ActiveSessionScreen() {
                 {userPlatforms.length === 0 ? (
                   <TouchableOpacity
                     style={styles.emptyPlatformsBox}
-                    onPress={() => {
-                      setPlatformDrawerVisible(true);
-                    }}
+                    onPress={openPlatformDrawerFromFinishModal}
                   >
                     <Ionicons name="apps-outline" size={34} color="#A1A1AA" />
 
@@ -2872,9 +3143,7 @@ export default function ActiveSessionScreen() {
 
                       <TouchableOpacity
                         style={styles.managePlatformsCompactButton}
-                        onPress={() => {
-                          setPlatformDrawerVisible(true);
-                        }}
+                        onPress={openPlatformDrawerFromFinishModal}
                       >
                         <Ionicons name="apps-outline" size={17} color="#FFFFFF" />
 
@@ -3531,7 +3800,7 @@ export default function ActiveSessionScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Minhas plataformas</Text>
 
-              <TouchableOpacity onPress={() => setPlatformDrawerVisible(false)}>
+              <TouchableOpacity onPress={closePlatformDrawerAndReturn}>
                 <Ionicons name="close" size={26} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
@@ -3588,97 +3857,261 @@ export default function ActiveSessionScreen() {
       </Modal>
 
       <Modal visible={driversModalVisible} transparent animationType="slide">
-        <View style={styles.cityModalOverlay}>
-          <View style={styles.cityModalContent}>
-            <View style={styles.cityModalHeader}>
-              <Text style={styles.cityModalTitle}>
-                Rodando agora
-              </Text>
+        <View style={styles.driversNowOverlay}>
+          <View style={styles.driversNowSheet}>
+            <View style={styles.driversNowHandle} />
 
-              <TouchableOpacity onPress={() => setDriversModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+            <View style={styles.driversNowHeader}>
+              <View style={styles.driversNowHeaderIcon}>
+                <Ionicons name="radio-outline" size={24} color="#22C55E" />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.driversNowEyebrow}>Comunidade local</Text>
+
+                <Text style={styles.driversNowTitle}>Rodando agora</Text>
+
+                <Text style={styles.driversNowSubtitle} numberOfLines={1}>
+                  {session?.municipality
+                    ? `${session.municipality.name} - ${session.municipality.uf}`
+                    : 'Motoristas próximos ao seu turno'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.driversNowCloseButton}
+                onPress={() => setDriversModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView keyboardShouldPersistTaps="handled">
-              {onlineDrivers
-                .filter((item) => item.user?.id !== currentUserId)
-                .map((item) => {
-                  const preview = item.user?.id
-                    ? privateChatPreviews[item.user.id]
-                    : null;
+            <View style={styles.driversNowHeroCard}>
+              <View style={styles.driversNowHeroGlow} />
+
+              <View style={styles.driversNowHeroLeft}>
+                <View style={styles.driversNowHeroIcon}>
+                  <Ionicons name="radio-outline" size={26} color="#86EFAC" />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.driversNowHeroLabel}>Online agora</Text>
+                  <Text style={styles.driversNowHeroText}>
+                    Motoristas e entregadores em jornada nesta cidade
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.driversNowHeroCountBox}>
+                <Text style={styles.driversNowHeroCount}>
+                  {visibleOnlineDrivers.length}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.driversNowPublicChatButton}
+              onPress={() => {
+                setDriversModalVisible(false);
+
+                setTimeout(() => {
+                  openCityChat();
+                }, 250);
+              }}
+            >
+              <View style={styles.driversNowPublicChatIcon}>
+                <Ionicons name="chatbubbles-outline" size={22} color="#FFFFFF" />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.driversNowPublicChatTitle}>Chat público da cidade</Text>
+                <Text style={styles.driversNowPublicChatText}>
+                  Converse com quem está rodando agora na mesma região.
+                </Text>
+              </View>
+
+              {unreadChatCount > 0 ? (
+                <View style={styles.driversNowPublicChatBadge}>
+                  <Text style={styles.driversNowPublicChatBadgeText}>
+                    {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                  </Text>
+                </View>
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color="#A1A1AA" />
+              )}
+            </TouchableOpacity>
+
+            <ScrollView
+              style={styles.driversNowList}
+              contentContainerStyle={styles.driversNowListContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {visibleOnlineDrivers.length === 0 ? (
+                <View style={styles.driversNowEmptyBox}>
+                  <View style={styles.driversNowEmptyIcon}>
+                    <Ionicons name="car-sport-outline" size={34} color="#71717A" />
+                  </View>
+
+                  <Text style={styles.driversNowEmptyTitle}>
+                    Ninguém rodando agora
+                  </Text>
+
+                  <Text style={styles.driversNowEmptyText}>
+                    Quando outros motoristas iniciarem uma jornada nesta cidade, eles aparecerão aqui.
+                  </Text>
+                </View>
+              ) : (
+                visibleOnlineDrivers.map((item) => {
+                  const avatarUrl = getUserAvatarUrl(item.user);
+                  const displayName = getUserDisplayName(item.user);
+                  const journeyProfile = getJourneyProfileInfo(
+                    driverJourneyProfiles[item.user?.id ?? ''] ?? 'empty',
+                  );
 
                   return (
-                    <View key={item.id} style={styles.driverOnlineItem}>
-                      {item.user?.avatar_url ? (
-                        <Image
-                          source={{ uri: item.user.avatar_url }}
-                          style={styles.driverAvatar}
-                        />
-                      ) : (
-                        <View style={styles.driverAvatarFallback}>
-                          <Ionicons name="person" size={22} color="#FFFFFF" />
-                        </View>
-                      )}
-
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.driverNameRow}>
-                          <Text style={styles.driverName} numberOfLines={1}>
-                            {item.user?.full_name || item.user?.name || 'Motorista'}
-                          </Text>
-
-                          <View
-                            style={[
-                              styles.driverStatusDot,
-                              {
-                                backgroundColor:
-                                  item.status === 'active' ? '#22C55E' : '#F59E0B',
-                              },
-                            ]}
+                    <TouchableOpacity
+                      key={item.id}
+                      activeOpacity={0.86}
+                      style={styles.driversNowItem}
+                      onPress={() => openDriverActions(item.user)}
+                    >
+                      <View style={styles.driversNowAvatarWrap}>
+                        {avatarUrl ? (
+                          <Image
+                            source={{ uri: avatarUrl }}
+                            style={styles.driversNowAvatar}
                           />
-                        </View>
+                        ) : (
+                          <View style={styles.driversNowAvatarFallback}>
+                            <Ionicons name="person" size={23} color="#FFFFFF" />
+                          </View>
+                        )}
+
+                        <View style={styles.driversNowAvatarStatusOnline} />
+                      </View>
+
+                      <View style={styles.driversNowInfoCentered}>
+                        <Text style={styles.driversNowNameCentered} numberOfLines={1}>
+                          {displayName}
+                        </Text>
 
                         <Text
                           style={[
-                            styles.driverLastMessage,
-                            preview?.unread ? styles.driverLastMessageUnread : null,
+                            styles.driversNowJourneyLabel,
+                            { color: journeyProfile.color },
                           ]}
                           numberOfLines={1}
                         >
-                          {preview?.lastMessage || 'Toque no chat para conversar'}
+                          Jornada {journeyProfile.label.toLowerCase()}
                         </Text>
                       </View>
 
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        style={styles.privateChatIconButton}
-                        onPress={() => {
-                          setDriversModalVisible(false);
-
-                          setTimeout(() => {
-                            openPrivateChat(item.user);
-                          }, 350);
-                        }}
+                      <View
+                        style={[
+                          styles.driversNowJourneyIconBox,
+                          {
+                            backgroundColor: journeyProfile.backgroundColor,
+                            borderColor: journeyProfile.borderColor,
+                          },
+                        ]}
                       >
                         <Ionicons
-                          name="chatbubble-ellipses-outline"
-                          size={20}
-                          color="#FFFFFF"
+                          name={journeyProfile.icon}
+                          size={21}
+                          color={journeyProfile.color}
                         />
-
-                        {!!preview?.unread && (
-                          <View style={styles.privateChatUnreadBadge}>
-                            <Text style={styles.privateChatUnreadBadgeText}>
-                              {preview.unread > 9 ? '9+' : preview.unread}
-                            </Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    </View>
+                      </View>
+                    </TouchableOpacity>
                   );
-                })}
+                })
+              )}
             </ScrollView>
           </View>
+
+          {driverActionModalVisible && selectedOnlineDriver ? (
+            <View style={styles.driverActionsOverlay} pointerEvents="box-none">
+              <TouchableOpacity
+                activeOpacity={1}
+                style={styles.driverActionsBackdrop}
+                onPress={closeDriverActions}
+              />
+
+              <View style={styles.driverActionsCard}>
+                <View style={styles.driverActionsHandle} />
+
+                <View style={styles.driverActionsHeader}>
+                  <View style={styles.driverActionsAvatarWrap}>
+                    {getUserAvatarUrl(selectedOnlineDriver) ? (
+                      <Image
+                        source={{ uri: getUserAvatarUrl(selectedOnlineDriver) }}
+                        style={styles.driverActionsAvatar}
+                      />
+                    ) : (
+                      <View style={styles.driverActionsAvatarFallback}>
+                        <Ionicons name="person" size={26} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.driverActionsEyebrow}>Escolha uma ação</Text>
+                    <Text style={styles.driverActionsTitle} numberOfLines={1}>
+                      {getUserDisplayName(selectedOnlineDriver)}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.driverActionsCloseButton}
+                    onPress={closeDriverActions}
+                  >
+                    <Ionicons name="close" size={22} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.driverActionsOption}
+                  onPress={handleViewSelectedDriverProfile}
+                >
+                  <View style={styles.driverActionsOptionIconGreen}>
+                    <Ionicons name="person-circle-outline" size={24} color="#22C55E" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.driverActionsOptionTitle}>Ver perfil</Text>
+                    <Text style={styles.driverActionsOptionText}>
+                      Abrir o perfil público deste motorista.
+                    </Text>
+                  </View>
+
+                  <Ionicons name="chevron-forward" size={20} color="#71717A" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.driverActionsOption}
+                  onPress={handleMessageSelectedDriver}
+                >
+                  <View style={styles.driverActionsOptionIconBlue}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={23} color="#60A5FA" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.driverActionsOptionTitle}>Enviar mensagem</Text>
+                    <Text style={styles.driverActionsOptionText}>
+                      Abrir a conversa privada com esta pessoa.
+                    </Text>
+                  </View>
+
+                  <Ionicons name="chevron-forward" size={20} color="#71717A" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
         </View>
       </Modal>
 
@@ -4574,7 +5007,7 @@ const styles = StyleSheet.create({
     left: 14,
     right: 14,
     // Mantém o dock acima da barra "rodando agora / Chat", com respiro para não parecer grudado.
-    bottom: Platform.OS === 'ios' ? 116 : 86,
+    bottom: Platform.OS === 'ios' ? 90 : 90,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -6257,6 +6690,703 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
   },
+  driversNowOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.82)',
+    justifyContent: 'flex-end',
+  },
+
+  driversNowSheet: {
+    height: '90%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 26 : 18,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+  },
+
+  driversNowHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+
+  driversNowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  driversNowHeaderIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#052E16',
+    borderWidth: 1,
+    borderColor: '#166534',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driversNowEyebrow: {
+    color: '#22C55E',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+
+  driversNowTitle: {
+    color: '#FFFFFF',
+    fontSize: 25,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  driversNowSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  driversNowCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driversNowSummaryCard: {
+    minHeight: 86,
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  driversNowSummaryItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driversNowSummaryIconGreen: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+
+  driversNowSummaryIconBlue: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+
+  driversNowSummaryIconOrange: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+
+  driversNowSummaryValue: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  driversNowSummaryLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+
+  driversNowSummaryDivider: {
+    width: 1,
+    height: 44,
+    backgroundColor: '#27272A',
+  },
+
+  driversNowHeroCard: {
+    minHeight: 106,
+    borderRadius: 28,
+    backgroundColor: '#052E16',
+    borderWidth: 1,
+    borderColor: '#166534',
+    padding: 15,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    overflow: 'hidden',
+  },
+
+  driversNowHeroGlow: {
+    position: 'absolute',
+    right: -32,
+    top: -34,
+    width: 112,
+    height: 112,
+    borderRadius: 999,
+    backgroundColor: 'rgba(34,197,94,0.18)',
+  },
+
+  driversNowHeroLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  driversNowHeroIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 19,
+    backgroundColor: 'rgba(34,197,94,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(134,239,172,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driversNowHeroLabel: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  driversNowHeroText: {
+    color: '#BBF7D0',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+    lineHeight: 17,
+  },
+
+  driversNowHeroCountBox: {
+    minWidth: 66,
+    height: 66,
+    borderRadius: 23,
+    backgroundColor: 'rgba(9,9,11,0.38)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driversNowHeroCount: {
+    color: '#FFFFFF',
+    fontSize: 31,
+    fontWeight: '900',
+  },
+
+  driversNowPublicChatButton: {
+    minHeight: 78,
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    padding: 13,
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  driversNowPublicChatIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driversNowPublicChatTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  driversNowPublicChatText: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+
+  driversNowPublicChatBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+  },
+
+  driversNowPublicChatBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  driversNowList: {
+    flex: 1,
+  },
+
+  driversNowListContent: {
+    paddingBottom: 20,
+  },
+
+  driversNowItem: {
+    minHeight: 86,
+    borderRadius: 26,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  driversNowAvatarWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    position: 'relative',
+  },
+
+  driversNowAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#27272A',
+  },
+
+  driversNowAvatarFallback: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: '#27272A',
+    borderWidth: 1,
+    borderColor: '#3F3F46',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driversNowAvatarStatus: {
+    position: 'absolute',
+    right: -1,
+    bottom: 1,
+    width: 15,
+    height: 15,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: '#111827',
+  },
+
+  driversNowAvatarStatusActive: {
+    backgroundColor: '#22C55E',
+  },
+
+  driversNowAvatarStatusPaused: {
+    backgroundColor: '#F59E0B',
+  },
+
+  driversNowInfo: {
+    flex: 1,
+  },
+
+  driversNowInfoCentered: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+
+  driversNowNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 5,
+  },
+
+  driversNowName: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  driversNowNameCentered: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    textAlign: 'left',
+    maxWidth: '100%',
+  },
+
+  driversNowJourneyLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    textAlign: 'left',
+    marginTop: 5,
+  },
+
+  driversNowStatusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+  },
+
+  driversNowStatusPillActive: {
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderColor: 'rgba(34,197,94,0.32)',
+  },
+
+  driversNowStatusPillPaused: {
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderColor: 'rgba(245,158,11,0.32)',
+  },
+
+  driversNowStatusText: {
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+
+  driversNowStatusTextActive: {
+    color: '#86EFAC',
+  },
+
+  driversNowStatusTextPaused: {
+    color: '#FCD34D',
+  },
+
+  driversNowLastMessage: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  driversNowLastMessageUnread: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+
+  driversNowChatButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+
+  driversNowChatButtonUnread: {
+    backgroundColor: '#22C55E',
+  },
+
+  driversNowUnreadBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: '#EF4444',
+    borderWidth: 2,
+    borderColor: '#09090B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+
+  driversNowUnreadText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  driversNowEmptyBox: {
+    minHeight: 230,
+    borderRadius: 26,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 22,
+  },
+
+  driversNowEmptyIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 24,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+
+  driversNowEmptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  driversNowEmptyText: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+
+  driversNowSummarySingleCard: {
+    minHeight: 82,
+    borderRadius: 24,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  driversNowSummarySingleLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  driversNowSummaryIconGreenLarge: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driversNowSummaryHint: {
+    color: '#71717A',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 3,
+    lineHeight: 15,
+  },
+
+  driversNowSummaryValueLarge: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '900',
+  },
+
+  driversNowAvatarStatusOnline: {
+    position: 'absolute',
+    right: -1,
+    bottom: 1,
+    width: 15,
+    height: 15,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: '#111827',
+    backgroundColor: '#22C55E',
+  },
+
+  driversNowJourneyIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driverActionsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    justifyContent: 'flex-end',
+    zIndex: 999,
+    elevation: 999,
+  },
+
+  driverActionsBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  driverActionsCard: {
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+  },
+
+  driverActionsHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#3F3F46',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+
+  driverActionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  driverActionsAvatarWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 999,
+  },
+
+  driverActionsAvatar: {
+    width: 54,
+    height: 54,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#22C55E',
+  },
+
+  driverActionsAvatarFallback: {
+    width: 54,
+    height: 54,
+    borderRadius: 999,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driverActionsEyebrow: {
+    color: '#22C55E',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+
+  driverActionsTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+
+  driverActionsCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driverActionsOption: {
+    minHeight: 76,
+    borderRadius: 22,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+
+  driverActionsOptionIconGreen: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: 'rgba(34,197,94,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driverActionsOptionIconBlue: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: 'rgba(96,165,250,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  driverActionsOptionTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  driverActionsOptionText: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 4,
+  },
+
   citySearchInput: {
     height: 56,
     borderRadius: 16,
@@ -6873,9 +8003,9 @@ const styles = StyleSheet.create({
   activeModernHeaderEyebrow: {
     color: '#71717A',
     fontSize: 9,
-    fontWeight: '900',
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
   activeModernHeaderTitle: {
     color: '#FFFFFF',
@@ -7037,7 +8167,7 @@ const styles = StyleSheet.create({
   },
   activeModernMetricCard: {
     width: '48.5%',
-    minHeight: 116,
+    minHeight: 96,
     borderRadius: 24,
     backgroundColor: 'rgba(24,24,27,0.92)',
     borderWidth: 1,
@@ -7087,24 +8217,28 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     marginTop: 4,
+    textAlign: 'center',
   },
   activeModernMetricValueBlue: {
     color: '#60A5FA',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 4,
+    textAlign: 'center'
   },
   activeModernMetricValuePurple: {
     color: '#C084FC',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 4,
+    textAlign: 'center',
   },
   activeModernMetricValueOrange: {
     color: '#FBBF24',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 4,
+    textAlign: 'center',
   },
   activeModernSectionHeaderRow: {
     marginBottom: 12,
@@ -7133,12 +8267,12 @@ const styles = StyleSheet.create({
   },
   activeModernQuickButton: {
     flex: 1,
-    minHeight: 108,
     borderRadius: 24,
     padding: 12,
-    justifyContent: 'center',
+    gap: 10,
     alignItems: 'center',
     borderWidth: 1,
+    flexDirection: 'row',
   },
   activeModernQuickButtonGain: {
     backgroundColor: 'rgba(34,197,94,0.10)',
@@ -7153,22 +8287,20 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(168,85,247,0.22)',
   },
   activeModernQuickIconGreen: {
-    width: 52,
-    height: 52,
+    width: 42,
+    height: 42,
     borderRadius: 999,
     backgroundColor: '#4ADE80',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
   },
   activeModernQuickIconBlue: {
-    width: 52,
-    height: 52,
+    width: 42,
+    height: 42,
     borderRadius: 999,
     backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
   },
   activeModernQuickIconPurple: {
     width: 52,
