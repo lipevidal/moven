@@ -20,6 +20,16 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
+import {
+  AudioModule,
+  RecordingPresets,
+  createAudioPlayer,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+
 
 import { supabase } from '../database/supabase';
 import { getActiveSession } from '../features/workSessions/services/getActiveSession';
@@ -101,6 +111,63 @@ function getJourneyChatStartIso(session: any) {
   return chatStartDate?.toISOString() ?? null;
 }
 
+function getUniqueValues(values: any[]) {
+  return Array.from(
+    new Set(values.filter((value) => Boolean(value)).map((value) => String(value))),
+  );
+}
+
+function base64ToArrayBuffer(base64: string) {
+  const cleanBase64 = base64.replace(/[^A-Za-z0-9+/=]/g, '');
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let bufferLength = cleanBase64.length * 0.75;
+
+  if (cleanBase64.endsWith('==')) {
+    bufferLength -= 2;
+  } else if (cleanBase64.endsWith('=')) {
+    bufferLength -= 1;
+  }
+
+  const bytes = new Uint8Array(bufferLength);
+  let p = 0;
+
+  for (let i = 0; i < cleanBase64.length; i += 4) {
+    const encoded1 = chars.indexOf(cleanBase64[i]);
+    const encoded2 = chars.indexOf(cleanBase64[i + 1]);
+    const encoded3 = chars.indexOf(cleanBase64[i + 2]);
+    const encoded4 = chars.indexOf(cleanBase64[i + 3]);
+
+    const bitmap =
+      (encoded1 << 18) | (encoded2 << 12) | (encoded3 << 6) | encoded4;
+
+    if (encoded3 !== 64 && p < bytes.length) {
+      bytes[p] = (bitmap >> 16) & 255;
+      p += 1;
+    }
+
+    if (encoded4 !== 64 && p < bytes.length) {
+      bytes[p] = (bitmap >> 8) & 255;
+      p += 1;
+    }
+
+    if (encoded4 !== 64 && p < bytes.length) {
+      bytes[p] = bitmap & 255;
+      p += 1;
+    }
+  }
+
+  return bytes.buffer;
+}
+
+async function getAudioArrayBufferFromUri(audioUri: string) {
+  const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
+    encoding: 'base64' as any,
+  });
+
+  return base64ToArrayBuffer(base64Audio);
+}
+
 async function getCityChatMessagesFromJourneyWindow({
   municipalityId,
   activeSession,
@@ -112,44 +179,78 @@ async function getCityChatMessagesFromJourneyWindow({
 
   if (!municipalityId || !chatStartIso) return [];
 
-  const { data, error } = await supabase
+  const { data: messagesData, error: messagesError } = await supabase
     .from('city_chat_messages')
-    .select(
-      `
-        *,
-        user:profiles!city_chat_messages_user_id_fkey(
-          id,
-          full_name,
-          name,
-          avatar_url,
-          photo_url,
-          picture
-        ),
-        reply_to_message:city_chat_messages!city_chat_messages_reply_to_message_id_fkey(
-          id,
-          user_id,
-          message,
-          created_at,
-          user:profiles!city_chat_messages_user_id_fkey(
-            id,
-            full_name,
-            name,
-            avatar_url,
-            photo_url,
-            picture
-          )
-        )
-      `,
-    )
+    .select('*')
     .eq('municipality_id', municipalityId)
     .gte('created_at', chatStartIso)
     .order('created_at', { ascending: true });
 
-  if (error) {
-    throw error;
+  if (messagesError) {
+    throw messagesError;
   }
 
-  return data ?? [];
+  const messages = messagesData ?? [];
+
+  const replyIds = getUniqueValues(
+    messages.map((message) => message.reply_to_message_id),
+  );
+
+  let repliedMessages: any[] = [];
+
+  if (replyIds.length > 0) {
+    const { data: repliedData, error: repliedError } = await supabase
+      .from('city_chat_messages')
+      .select('*')
+      .in('id', replyIds);
+
+    if (repliedError) {
+      console.log('Erro ao buscar mensagens respondidas:', repliedError);
+    } else {
+      repliedMessages = repliedData ?? [];
+    }
+  }
+
+  const allUserIds = getUniqueValues([
+    ...messages.map((message) => message.user_id),
+    ...repliedMessages.map((message) => message.user_id),
+  ]);
+
+  let profilesById: Record<string, any> = {};
+
+  if (allUserIds.length > 0) {
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', allUserIds);
+
+    if (profilesError) {
+      console.log('Erro ao buscar perfis do chat da cidade:', profilesError);
+    } else {
+      profilesById = Object.fromEntries(
+        (profilesData ?? []).map((profile) => [profile.id, profile]),
+      );
+    }
+  }
+
+  const repliedMessagesById = Object.fromEntries(
+    repliedMessages.map((message) => [
+      message.id,
+      {
+        ...message,
+        user: profilesById[message.user_id] ?? message.user ?? null,
+      },
+    ]),
+  );
+
+  return messages.map((message) => ({
+    ...message,
+    user: profilesById[message.user_id] ?? message.user ?? null,
+    reply_to_message:
+      repliedMessagesById[message.reply_to_message_id] ??
+      message.reply_to_message ??
+      null,
+  }));
 }
 
 export function ActiveSessionCityChatFloatingButton() {
@@ -167,6 +268,18 @@ export function ActiveSessionCityChatFloatingButton() {
   const [loadingContext, setLoadingContext] = useState(false);
   const [selectedCityMessage, setSelectedCityMessage] = useState<any>(null);
   const [replyingCityMessage, setReplyingCityMessage] = useState<any>(null);
+  const [sendingAudio, setSendingAudio] = useState(false);
+  const [playingAudioMessageId, setPlayingAudioMessageId] = useState('');
+
+  const audioRecorder = useAudioRecorder({
+    ...RecordingPresets.HIGH_QUALITY,
+    directory: 'document',
+  } as any);
+  const recorderState = useAudioRecorderState(audioRecorder, 250);
+  const audioPlayersRef = useRef<Record<string, any>>({});
+  const audioPlaybackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const initialPosition = useMemo(() => getInitialPosition(), []);
   const position = useRef(new Animated.ValueXY(initialPosition)).current;
@@ -458,10 +571,40 @@ export function ActiveSessionCityChatFloatingButton() {
     return getUserDisplayName(repliedMessage.user);
   }
 
+  function isAudioMessage(message: any) {
+    return message?.type === 'audio' || Boolean(message?.audio_url);
+  }
+
+  function getMessageTextPreview(message: any) {
+    if (!message) return '';
+
+    if (isAudioMessage(message)) return 'Áudio';
+
+    return message?.message ?? '';
+  }
+
   function getCityMessageReplyText(message: any) {
     const repliedMessage = getCityMessageReply(message);
 
-    return repliedMessage?.message ?? '';
+    return getMessageTextPreview(repliedMessage);
+  }
+
+  function formatAudioDuration(totalSeconds?: number | null) {
+    const safeSeconds = Math.max(0, Math.floor(Number(totalSeconds ?? 0)));
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  function getAudioDurationFromRecorder() {
+    const durationFromState = Math.round(
+      Number(recorderState?.durationMillis ?? 0) / 1000,
+    );
+
+    const durationFromRecorder = Math.round(Number(audioRecorder.currentTime ?? 0));
+
+    return Math.max(1, durationFromState || durationFromRecorder || 1);
   }
 
   function handleReplyCityMessage(message: any) {
@@ -522,6 +665,218 @@ export function ActiveSessionCityChatFloatingButton() {
       setSelectedCityMessage(null);
       setCityChatVisible(false);
     });
+  }
+
+  async function ensureAudioPermission() {
+    const status = await AudioModule.requestRecordingPermissionsAsync();
+
+    if (!status.granted) {
+      Alert.alert(
+        'Permissão necessária',
+        'Permita o acesso ao microfone para enviar mensagens de áudio.',
+      );
+      return false;
+    }
+
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      allowsRecording: true,
+    });
+
+    return true;
+  }
+
+  async function handleStartAudioRecording() {
+    if (sendingAudio || recorderState?.isRecording) return;
+
+    try {
+      const canRecord = await ensureAudioPermission();
+
+      if (!canRecord) return;
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+    } catch (error: any) {
+      console.log('Erro ao iniciar gravação de áudio:', error);
+      Alert.alert(
+        'Erro',
+        error?.message ?? 'Não foi possível iniciar a gravação.',
+      );
+    }
+  }
+
+  async function handleCancelAudioRecording() {
+    try {
+      if (recorderState?.isRecording) {
+        await audioRecorder.stop();
+      }
+    } catch (error) {
+      console.log('Erro ao cancelar áudio:', error);
+    } finally {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: false,
+      });
+    }
+  }
+
+  async function uploadCityAudioMessage({
+    audioUri,
+    durationSeconds,
+  }: {
+    audioUri: string;
+    durationSeconds: number;
+  }) {
+    if (!session?.municipality_id) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const userId = user?.id ?? currentUserId;
+
+    if (!userId) {
+      Alert.alert('Erro', 'Não foi possível identificar o usuário.');
+      return;
+    }
+
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.m4a`;
+    const filePath = `${session.municipality_id}/${userId}/${fileName}`;
+
+    const audioArrayBuffer = await getAudioArrayBufferFromUri(audioUri);
+
+    const { error: uploadError } = await supabase.storage
+      .from('city-chat-audios')
+      .upload(filePath, audioArrayBuffer, {
+        contentType: 'audio/mp4',
+        upsert: false,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicAudio } = supabase.storage
+      .from('city-chat-audios')
+      .getPublicUrl(filePath);
+
+    const audioUrl = publicAudio?.publicUrl;
+
+    if (!audioUrl) {
+      throw new Error('Não foi possível gerar a URL pública do áudio.');
+    }
+
+    const { error: insertError } = await supabase
+      .from('city_chat_messages')
+      .insert({
+        municipality_id: session.municipality_id,
+        user_id: userId,
+        message: '',
+        type: 'audio',
+        audio_url: audioUrl,
+        audio_duration_seconds: durationSeconds,
+        reply_to_message_id: replyingCityMessage?.id ?? null,
+      });
+
+    if (insertError) throw insertError;
+
+    setReplyingCityMessage(null);
+    await loadCityChat(true);
+  }
+
+  async function handleStopAudioRecordingAndSend() {
+    if (!recorderState?.isRecording || sendingAudio) return;
+
+    try {
+      setSendingAudio(true);
+
+      const durationSeconds = getAudioDurationFromRecorder();
+
+      await audioRecorder.stop();
+
+      const audioUri = audioRecorder.uri;
+
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: false,
+      });
+
+      if (!audioUri) {
+        Alert.alert('Erro', 'Não foi possível encontrar o áudio gravado.');
+        return;
+      }
+
+      await uploadCityAudioMessage({
+        audioUri,
+        durationSeconds,
+      });
+    } catch (error: any) {
+      console.log('Erro ao enviar áudio:', error);
+      Alert.alert('Erro', error?.message ?? 'Não foi possível enviar o áudio.');
+    } finally {
+      setSendingAudio(false);
+    }
+  }
+
+  function clearAudioPlaybackTimeout() {
+    if (audioPlaybackTimeoutRef.current) {
+      clearTimeout(audioPlaybackTimeoutRef.current);
+      audioPlaybackTimeoutRef.current = null;
+    }
+  }
+
+  function stopCurrentAudioPlayback() {
+    clearAudioPlaybackTimeout();
+
+    if (playingAudioMessageId) {
+      const currentPlayer = audioPlayersRef.current[playingAudioMessageId];
+
+      currentPlayer?.pause?.();
+    }
+
+    setPlayingAudioMessageId('');
+  }
+
+  async function handleToggleCityAudioMessage(message: any) {
+    const audioUrl = message?.audio_url;
+
+    if (!message?.id || !audioUrl) return;
+
+    if (playingAudioMessageId === message.id) {
+      stopCurrentAudioPlayback();
+      return;
+    }
+
+    stopCurrentAudioPlayback();
+
+    try {
+      let player = audioPlayersRef.current[message.id];
+
+      if (!player) {
+        player = createAudioPlayer(audioUrl);
+        audioPlayersRef.current[message.id] = player;
+      } else {
+        player.seekTo?.(0);
+      }
+
+      setPlayingAudioMessageId(message.id);
+      player.play();
+
+      const durationSeconds = Number(message.audio_duration_seconds ?? 0);
+
+      if (durationSeconds > 0) {
+        audioPlaybackTimeoutRef.current = setTimeout(() => {
+          setPlayingAudioMessageId('');
+        }, durationSeconds * 1000 + 600);
+      }
+    } catch (error: any) {
+      console.log('Erro ao reproduzir áudio:', error);
+      Alert.alert(
+        'Erro',
+        error?.message ?? 'Não foi possível reproduzir o áudio.',
+      );
+      setPlayingAudioMessageId('');
+    }
   }
 
   async function handleSendCityMessage() {
@@ -691,6 +1046,18 @@ export function ActiveSessionCityChatFloatingButton() {
       loadUnreadCityChat();
     }
   }, [session?.municipality_id, currentUserId]);
+
+  useEffect(() => {
+    return () => {
+      clearAudioPlaybackTimeout();
+
+      Object.values(audioPlayersRef.current).forEach((player: any) => {
+        player?.remove?.();
+      });
+
+      audioPlayersRef.current = {};
+    };
+  }, []);
 
   if (!session) return null;
 
@@ -927,28 +1294,80 @@ export function ActiveSessionCityChatFloatingButton() {
                             </View>
                           ) : null}
 
-                          <View style={styles.messageTextLine}>
-                            <Text
-                              style={[
-                                styles.messageText,
-                                isMe && styles.messageTextMe,
-                              ]}
-                            >
-                              {item.message}
-                            </Text>
+                          {isAudioMessage(item) ? (
+                            <View style={styles.audioMessageLine}>
+                              <TouchableOpacity
+                                activeOpacity={0.88}
+                                style={[
+                                  styles.audioPlayButton,
+                                  isMe && styles.audioPlayButtonMe,
+                                ]}
+                                onPress={() => handleToggleCityAudioMessage(item)}
+                              >
+                                <Ionicons
+                                  name={
+                                    playingAudioMessageId === item.id
+                                      ? 'pause'
+                                      : 'play'
+                                  }
+                                  size={18}
+                                  color="#FFFFFF"
+                                />
+                              </TouchableOpacity>
 
-                            <Text
-                              style={[
-                                styles.messageRightHour,
-                                isMe && styles.messageRightHourMe,
-                              ]}
-                            >
-                              {new Date(item.created_at).toLocaleTimeString('pt-BR', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </Text>
-                          </View>
+                              <View style={styles.audioWave}>
+                                <View style={styles.audioWaveSmall} />
+                                <View style={styles.audioWaveMedium} />
+                                <View style={styles.audioWaveLarge} />
+                                <View style={styles.audioWaveMedium} />
+                                <View style={styles.audioWaveSmall} />
+                              </View>
+
+                              <Text
+                                style={[
+                                  styles.audioDuration,
+                                  isMe && styles.audioDurationMe,
+                                ]}
+                              >
+                                {formatAudioDuration(item.audio_duration_seconds)}
+                              </Text>
+
+                              <Text
+                                style={[
+                                  styles.messageRightHour,
+                                  isMe && styles.messageRightHourMe,
+                                ]}
+                              >
+                                {new Date(item.created_at).toLocaleTimeString('pt-BR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={styles.messageTextLine}>
+                              <Text
+                                style={[
+                                  styles.messageText,
+                                  isMe && styles.messageTextMe,
+                                ]}
+                              >
+                                {item.message}
+                              </Text>
+
+                              <Text
+                                style={[
+                                  styles.messageRightHour,
+                                  isMe && styles.messageRightHourMe,
+                                ]}
+                              >
+                                {new Date(item.created_at).toLocaleTimeString('pt-BR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </Text>
+                            </View>
+                          )}
                         </TouchableOpacity>
                       </View>
                     );
@@ -965,7 +1384,7 @@ export function ActiveSessionCityChatFloatingButton() {
                       Respondendo {getCityMessageAuthorName(replyingCityMessage)}
                     </Text>
                     <Text style={styles.replyPreviewText} numberOfLines={1}>
-                      {replyingCityMessage.message}
+                      {getMessageTextPreview(replyingCityMessage)}
                     </Text>
                   </View>
 
@@ -979,32 +1398,81 @@ export function ActiveSessionCityChatFloatingButton() {
                 </View>
               ) : null}
 
-              <View style={styles.inputBar}>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="chatbubble-outline" size={19} color="#71717A" />
+              {recorderState?.isRecording || sendingAudio ? (
+                <View style={styles.recordingBar}>
+                  <View style={styles.recordingPulse}>
+                    <Ionicons name="mic" size={19} color="#FFFFFF" />
+                  </View>
 
-                  <TextInput
-                    value={chatMessage}
-                    onChangeText={setChatMessage}
-                    placeholder="Mensagem para a cidade..."
-                    placeholderTextColor="#71717A"
-                    style={styles.input}
-                    multiline
-                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.recordingTitle}>
+                      {sendingAudio ? 'Enviando áudio...' : 'Gravando áudio'}
+                    </Text>
+                    <Text style={styles.recordingTimer}>
+                      {formatAudioDuration(
+                        sendingAudio
+                          ? getAudioDurationFromRecorder()
+                          : Number(recorderState?.durationMillis ?? 0) / 1000,
+                      )}
+                    </Text>
+                  </View>
+
+                  {!sendingAudio ? (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.cancelAudioButton}
+                      onPress={handleCancelAudioRecording}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#FCA5A5" />
+                    </TouchableOpacity>
+                  ) : null}
+
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    disabled={sendingAudio}
+                    style={[
+                      styles.sendAudioButton,
+                      sendingAudio && styles.sendAudioButtonDisabled,
+                    ]}
+                    onPress={handleStopAudioRecordingAndSend}
+                  >
+                    <Ionicons name="send" size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
                 </View>
+              ) : (
+                <View style={styles.inputBar}>
+                  <View style={styles.inputWrapper}>
+                    <Ionicons name="chatbubble-outline" size={19} color="#71717A" />
 
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  disabled={!chatMessage.trim()}
-                  style={[
-                    styles.sendButton,
-                    !chatMessage.trim() && styles.sendButtonDisabled,
-                  ]}
-                  onPress={handleSendCityMessage}
-                >
-                  <Ionicons name="send" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
+                    <TextInput
+                      value={chatMessage}
+                      onChangeText={setChatMessage}
+                      placeholder="Mensagem para a cidade..."
+                      placeholderTextColor="#71717A"
+                      style={styles.input}
+                      multiline
+                    />
+                  </View>
+
+                  {chatMessage.trim() ? (
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      style={styles.sendButton}
+                      onPress={handleSendCityMessage}
+                    >
+                      <Ionicons name="send" size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      style={styles.micButton}
+                      onPress={handleStartAudioRecording}
+                    >
+                      <Ionicons name="mic-outline" size={23} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
               {selectedCityMessage ? (
                 <View style={styles.messageActionsLayer}>
@@ -1734,6 +2202,68 @@ const styles = StyleSheet.create({
     color: '#EFF6FF',
   },
 
+  audioMessageLine: {
+    minWidth: 170,
+    maxWidth: '100%',
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  audioPlayButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  audioPlayButtonMe: {
+    backgroundColor: '#1D4ED8',
+  },
+
+  audioWave: {
+    flex: 1,
+    minWidth: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  audioWaveSmall: {
+    width: 4,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#94A3B8',
+  },
+
+  audioWaveMedium: {
+    width: 4,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: '#CBD5E1',
+  },
+
+  audioWaveLarge: {
+    width: 4,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: '#E2E8F0',
+  },
+
+  audioDuration: {
+    color: '#D4D4D8',
+    fontSize: 12,
+    fontWeight: '900',
+    marginRight: 4,
+  },
+
+  audioDurationMe: {
+    color: '#EFF6FF',
+  },
+
   messageTextLine: {
     maxWidth: '100%',
     justifyContent: 'center',
@@ -1866,6 +2396,77 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#27272A',
     opacity: 0.7,
+  },
+
+  micButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  recordingBar: {
+    minHeight: 58,
+    borderRadius: 21,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 7 : 9,
+  },
+
+  recordingPulse: {
+    width: 39,
+    height: 39,
+    borderRadius: 999,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  recordingTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  recordingTimer: {
+    color: '#FCA5A5',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  cancelAudioButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sendAudioButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sendAudioButtonDisabled: {
+    backgroundColor: '#27272A',
+    opacity: 0.75,
   },
 
   messageActionsLayer: {
