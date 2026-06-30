@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 
 import { InitialActiveSessionRedirect } from '../../src/components/InitialActiveSessionRedirect';
 import { ActiveSessionFloatingTimer } from '../../src/components/ActiveSessionFloatingTimer';
+import { ActiveSessionCityChatFloatingButton } from '../../src/components/ActiveSessionCityChatFloatingButton';
 
 export default function PrivateLayout() {
   const [quickActionsVisible, setQuickActionsVisible] = useState(false);
@@ -46,7 +47,8 @@ export default function PrivateLayout() {
         <Stack.Screen name="veiculo-detalhes" />
       </Stack>
 
-      {!shouldHideFloatingTimer && <ActiveSessionFloatingTimer />}
+      {!shouldHideFloatingTimer && <ActiveSessionFloatingTimer /> }
+      <ActiveSessionCityChatFloatingButton />
     </View>
   );
 }
