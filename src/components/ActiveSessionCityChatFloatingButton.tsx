@@ -64,6 +64,201 @@ function getUserDisplayName(user: any) {
   );
 }
 
+function getDriverProfile(driver: any) {
+  return driver?.profile || driver?.user || driver?.profiles || null;
+}
+
+function getDriverUserId(driver: any) {
+  return (
+    driver?.user_id ||
+    driver?.userId ||
+    driver?.profile_id ||
+    driver?.profileId ||
+    driver?.driver_id ||
+    driver?.driverId ||
+    driver?.profile?.id ||
+    driver?.profiles?.id ||
+    driver?.user?.id ||
+    null
+  );
+}
+
+function getNumberValue(...values: any[]) {
+  for (const value of values) {
+    const numberValue = Number(value);
+
+    if (Number.isFinite(numberValue) && numberValue >= 0) {
+      return numberValue;
+    }
+  }
+
+  return null;
+}
+
+function getDriverSession(driver: any) {
+  return (
+    driver?.active_session ||
+    driver?.activeSession ||
+    driver?.current_session ||
+    driver?.currentSession ||
+    driver?.work_session ||
+    driver?.workSession ||
+    driver?.session ||
+    {}
+  );
+}
+
+function getDriverStartedAt(driver: any) {
+  const session = getDriverSession(driver);
+
+  return (
+    session?.started_at ||
+    session?.startedAt ||
+    session?.timer_started_at ||
+    session?.timerStartedAt ||
+    session?.chronometer_started_at ||
+    session?.chronometerStartedAt ||
+    driver?.started_at ||
+    driver?.startedAt ||
+    driver?.timer_started_at ||
+    driver?.timerStartedAt ||
+    driver?.chronometer_started_at ||
+    driver?.chronometerStartedAt ||
+    null
+  );
+}
+
+function getDriverChronometerSeconds(driver: any, nowTimestamp: number) {
+  const session = getDriverSession(driver);
+
+  const directSeconds = getNumberValue(
+    session?.chronometer_seconds,
+    session?.chronometerSeconds,
+    session?.timer_seconds,
+    session?.timerSeconds,
+    session?.elapsed_seconds,
+    session?.elapsedSeconds,
+    session?.current_elapsed_seconds,
+    session?.currentElapsedSeconds,
+    session?.active_seconds,
+    session?.activeSeconds,
+    session?.duration_seconds,
+    session?.durationSeconds,
+    session?.total_seconds,
+    session?.totalSeconds,
+    session?.worked_seconds,
+    session?.workedSeconds,
+    session?.worked_time_seconds,
+    session?.workedTimeSeconds,
+    driver?.chronometer_seconds,
+    driver?.chronometerSeconds,
+    driver?.timer_seconds,
+    driver?.timerSeconds,
+    driver?.elapsed_seconds,
+    driver?.elapsedSeconds,
+    driver?.current_elapsed_seconds,
+    driver?.currentElapsedSeconds,
+    driver?.active_seconds,
+    driver?.activeSeconds,
+    driver?.duration_seconds,
+    driver?.durationSeconds,
+    driver?.total_seconds,
+    driver?.totalSeconds,
+    driver?.worked_seconds,
+    driver?.workedSeconds,
+    driver?.worked_time_seconds,
+    driver?.workedTimeSeconds,
+  );
+
+  if (directSeconds !== null) return directSeconds;
+
+  const directMinutes = getNumberValue(
+    session?.chronometer_minutes,
+    session?.chronometerMinutes,
+    session?.timer_minutes,
+    session?.timerMinutes,
+    session?.elapsed_minutes,
+    session?.elapsedMinutes,
+    session?.worked_minutes,
+    session?.workedMinutes,
+    driver?.chronometer_minutes,
+    driver?.chronometerMinutes,
+    driver?.timer_minutes,
+    driver?.timerMinutes,
+    driver?.elapsed_minutes,
+    driver?.elapsedMinutes,
+    driver?.worked_minutes,
+    driver?.workedMinutes,
+  );
+
+  if (directMinutes !== null) return directMinutes * 60;
+
+  const startedAtValue = getDriverStartedAt(driver);
+
+  if (!startedAtValue) return 0;
+
+  const startedAt = new Date(startedAtValue);
+
+  if (Number.isNaN(startedAt.getTime())) return 0;
+
+  const pausedSeconds =
+    getNumberValue(
+      session?.paused_seconds,
+      session?.pausedSeconds,
+      session?.total_paused_seconds,
+      session?.totalPausedSeconds,
+      session?.pause_seconds,
+      session?.pauseSeconds,
+      session?.paused_duration_seconds,
+      session?.pausedDurationSeconds,
+      driver?.paused_seconds,
+      driver?.pausedSeconds,
+      driver?.total_paused_seconds,
+      driver?.totalPausedSeconds,
+      driver?.pause_seconds,
+      driver?.pauseSeconds,
+      driver?.paused_duration_seconds,
+      driver?.pausedDurationSeconds,
+    ) ?? 0;
+
+  const status = String(session?.status ?? driver?.status ?? '').toLowerCase();
+
+  if (status === 'paused') {
+    const pausedAtValue =
+      session?.paused_at ||
+      session?.pausedAt ||
+      driver?.paused_at ||
+      driver?.pausedAt ||
+      null;
+
+    if (pausedAtValue) {
+      const pausedAt = new Date(pausedAtValue);
+
+      if (!Number.isNaN(pausedAt.getTime())) {
+        return Math.max(
+          Math.floor((pausedAt.getTime() - startedAt.getTime()) / 1000) -
+            pausedSeconds,
+          0,
+        );
+      }
+    }
+  }
+
+  return Math.max(
+    Math.floor((nowTimestamp - startedAt.getTime()) / 1000) - pausedSeconds,
+    0,
+  );
+}
+
+function formatDriverRunningTime(driver: any, nowTimestamp: number) {
+  const chronometerSeconds = getDriverChronometerSeconds(driver, nowTimestamp);
+  const chronometerHours = Math.floor(chronometerSeconds / (60 * 60));
+
+  if (chronometerHours < 1) return 'começou agora';
+
+  return `rodando há ${chronometerHours}h`;
+}
+
 function getInitialPosition() {
   const { width, height } = Dimensions.get('window');
 
@@ -166,6 +361,29 @@ async function getAudioArrayBufferFromUri(audioUri: string) {
   });
 
   return base64ToArrayBuffer(base64Audio);
+}
+
+function getFirstUnreadMessageId(messages: any[], unreadCount: number) {
+  const safeUnreadCount = Math.min(
+    Math.max(Number(unreadCount ?? 0), 0),
+    messages.length,
+  );
+
+  if (safeUnreadCount <= 0) return '';
+
+  return messages[messages.length - safeUnreadCount]?.id ?? '';
+}
+
+async function getUnreadCityChatCountSafe(municipalityId: string) {
+  try {
+    const unread = await getUnreadCityChatCount(municipalityId);
+
+    return Number(unread ?? 0);
+  } catch (error) {
+    console.log('Erro ao buscar total de mensagens não visualizadas:', error);
+
+    return 0;
+  }
 }
 
 async function getCityChatMessagesFromJourneyWindow({
@@ -286,10 +504,104 @@ export function ActiveSessionCityChatFloatingButton() {
   const positionRef = useRef(initialPosition);
   const dragStartRef = useRef(initialPosition);
   const chatSheetTranslateY = useRef(new Animated.Value(0)).current;
+  const chatScrollRef = useRef<ScrollView | null>(null);
+  const cityMessageLayoutYRef = useRef<Record<string, number>>({});
+  const pendingInitialChatScrollRef = useRef<{
+    type: 'bottom' | 'unread';
+    messageId?: string;
+    attempts: number;
+  } | null>(null);
+  const [initialUnreadMessageCount, setInitialUnreadMessageCount] = useState(0);
+  const [firstUnreadMessageId, setFirstUnreadMessageId] = useState('');
+  const [showUnreadMessagesBanner, setShowUnreadMessagesBanner] =
+    useState(false);
+  const [runningTimeNow, setRunningTimeNow] = useState(Date.now());
 
   const visibleOnlineDrivers = onlineDrivers.filter(
-    (item) => item.user?.id !== currentUserId,
+    (item) => getDriverUserId(item) !== currentUserId,
   );
+
+  async function enrichOnlineDriversWithProfilesAndSessions(drivers: any[]) {
+    const safeDrivers = drivers ?? [];
+    const userIds = Array.from(
+      new Set(safeDrivers.map((driver) => getDriverUserId(driver)).filter(Boolean)),
+    );
+
+    if (userIds.length === 0) return safeDrivers;
+
+    let profilesById: Record<string, any> = {};
+    let activeSessionsByUserId: Record<string, any> = {};
+
+    try {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, name, avatar_url, photo_url, picture')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.log('Erro ao buscar profiles:', profilesError);
+      } else {
+        profilesById = Object.fromEntries(
+          (profilesData ?? []).map((profile) => [profile.id, profile]),
+        );
+      }
+    } catch (error) {
+      console.log('Erro inesperado ao buscar profiles:', error);
+    }
+
+    try {
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from('work_sessions')
+        .select('*')
+        .in('user_id', userIds)
+        .in('status', ['active', 'paused'])
+        .order('started_at', { ascending: false });
+
+      if (sessionsError) {
+        console.log('Erro ao buscar cronômetro dos usuários:', sessionsError);
+      } else {
+        (sessionsData ?? []).forEach((workSession) => {
+          if (
+            workSession?.user_id &&
+            !activeSessionsByUserId[workSession.user_id]
+          ) {
+            activeSessionsByUserId[workSession.user_id] = workSession;
+          }
+        });
+      }
+    } catch (error) {
+      console.log('Erro inesperado ao buscar cronômetro dos usuários:', error);
+    }
+
+    return safeDrivers.map((driver) => {
+      const userId = getDriverUserId(driver);
+      const profileFromTable = userId ? profilesById[userId] : null;
+      const currentProfile = getDriverProfile(driver);
+      const sessionFromTable = userId ? activeSessionsByUserId[userId] : null;
+      const currentSession = getDriverSession(driver);
+
+      return {
+        ...driver,
+        user_id: userId ?? driver?.user_id,
+        profile: {
+          ...(currentProfile ?? {}),
+          ...(profileFromTable ?? {}),
+        },
+        user: {
+          ...(currentProfile ?? {}),
+          ...(profileFromTable ?? {}),
+        },
+        active_session: {
+          ...(currentSession ?? {}),
+          ...(sessionFromTable ?? {}),
+        },
+        session: {
+          ...(currentSession ?? {}),
+          ...(sessionFromTable ?? {}),
+        },
+      };
+    });
+  }
 
   async function loadActiveSessionContext() {
     try {
@@ -310,7 +622,11 @@ export function ActiveSessionCityChatFloatingButton() {
         getUnreadCityChatCount(response.municipality_id),
       ]);
 
-      setOnlineDrivers(driversResponse ?? []);
+      const enrichedDrivers = await enrichOnlineDriversWithProfilesAndSessions(
+        driversResponse ?? [],
+      );
+
+      setOnlineDrivers(enrichedDrivers);
       setUnreadChatCount(Number(unreadResponse ?? 0));
 
       if (cityChatVisible) {
@@ -360,12 +676,14 @@ export function ActiveSessionCityChatFloatingButton() {
       setChatMessages([]);
       setUnreadChatCount(0);
 
-      await Promise.all([
-        loadActiveSessionContext(),
-        getOnlineDriversByMunicipality(municipality.id).then((response) =>
-          setOnlineDrivers(response ?? []),
-        ),
-      ]);
+      await loadActiveSessionContext();
+
+      const driversResponse = await getOnlineDriversByMunicipality(municipality.id);
+      const enrichedDrivers = await enrichOnlineDriversWithProfilesAndSessions(
+        driversResponse ?? [],
+      );
+
+      setOnlineDrivers(enrichedDrivers);
 
       if (updatedSession?.municipality_id) {
         await loadCityChatMessagesForSession(updatedSession, true);
@@ -387,8 +705,11 @@ export function ActiveSessionCityChatFloatingButton() {
     if (!session?.municipality_id) return;
 
     const response = await getOnlineDriversByMunicipality(session.municipality_id);
+    const enrichedDrivers = await enrichOnlineDriversWithProfilesAndSessions(
+      response ?? [],
+    );
 
-    setOnlineDrivers(response ?? []);
+    setOnlineDrivers(enrichedDrivers);
   }
 
   async function loadUnreadCityChat() {
@@ -399,11 +720,111 @@ export function ActiveSessionCityChatFloatingButton() {
     setUnreadChatCount(Number(unread ?? 0));
   }
 
+  function prepareInitialCityChatScroll(messages: any[], unreadCount: number) {
+    const safeUnreadCount = Math.min(
+      Math.max(Number(unreadCount ?? 0), 0),
+      messages.length,
+    );
+    const firstUnreadId = getFirstUnreadMessageId(messages, safeUnreadCount);
+
+    cityMessageLayoutYRef.current = {};
+    setInitialUnreadMessageCount(safeUnreadCount);
+    setFirstUnreadMessageId(firstUnreadId);
+    setShowUnreadMessagesBanner(safeUnreadCount > 0);
+
+    pendingInitialChatScrollRef.current = firstUnreadId
+      ? {
+          type: 'unread',
+          messageId: String(firstUnreadId),
+          attempts: 0,
+        }
+      : {
+          type: 'bottom',
+          attempts: 0,
+        };
+  }
+
+  function executePendingInitialCityChatScroll() {
+    const pendingScroll = pendingInitialChatScrollRef.current;
+
+    if (!pendingScroll || !chatScrollRef.current) return;
+
+    if (pendingScroll.type === 'bottom') {
+      chatScrollRef.current.scrollToEnd({ animated: false });
+      pendingInitialChatScrollRef.current = null;
+      return;
+    }
+
+    const targetY =
+      cityMessageLayoutYRef.current[String(pendingScroll.messageId ?? '')];
+
+    if (typeof targetY === 'number') {
+      chatScrollRef.current.scrollTo({
+        y: Math.max(targetY - 12, 0),
+        animated: false,
+      });
+      pendingInitialChatScrollRef.current = null;
+      return;
+    }
+
+    if (pendingScroll.attempts >= 8) {
+      chatScrollRef.current.scrollToEnd({ animated: false });
+      pendingInitialChatScrollRef.current = null;
+      return;
+    }
+
+    pendingInitialChatScrollRef.current = {
+      ...pendingScroll,
+      attempts: pendingScroll.attempts + 1,
+    };
+
+    setTimeout(executePendingInitialCityChatScroll, 80);
+  }
+
+  function handleCityMessageLayout(messageId: any, y: number) {
+    if (!messageId) return;
+
+    cityMessageLayoutYRef.current[String(messageId)] = y;
+
+    const pendingScroll = pendingInitialChatScrollRef.current;
+
+    if (
+      pendingScroll?.type === 'unread' &&
+      String(pendingScroll.messageId) === String(messageId)
+    ) {
+      setTimeout(executePendingInitialCityChatScroll, 60);
+    }
+  }
+
+  function handleCityMessagesContentSizeChange() {
+    setTimeout(executePendingInitialCityChatScroll, 80);
+  }
+
+  function scrollCityChatToBottom(animated = true) {
+    chatScrollRef.current?.scrollToEnd({ animated });
+    pendingInitialChatScrollRef.current = null;
+    setShowUnreadMessagesBanner(false);
+  }
+
+  function handleCityChatScroll(event: any) {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - (contentOffset.y + layoutMeasurement.height);
+
+    if (distanceFromBottom <= 42) {
+      setShowUnreadMessagesBanner(false);
+    }
+  }
+
   async function loadCityChatMessagesForSession(
     activeSession: any,
     markAsRead = false,
   ) {
     if (!activeSession?.municipality_id) return;
+
+    const unreadBeforeMark = markAsRead
+      ? await getUnreadCityChatCountSafe(activeSession.municipality_id)
+      : 0;
 
     try {
       const messages = await getCityChatMessagesFromJourneyWindow({
@@ -414,6 +835,7 @@ export function ActiveSessionCityChatFloatingButton() {
       setChatMessages(messages);
 
       if (markAsRead) {
+        prepareInitialCityChatScroll(messages, unreadBeforeMark);
         await markCityChatAsRead(activeSession.municipality_id);
         setUnreadChatCount(0);
         return;
@@ -435,6 +857,7 @@ export function ActiveSessionCityChatFloatingButton() {
       setChatMessages(filteredMessages);
 
       if (markAsRead) {
+        prepareInitialCityChatScroll(filteredMessages, unreadBeforeMark);
         await markCityChatAsRead(activeSession.municipality_id);
         setUnreadChatCount(0);
         return;
@@ -474,7 +897,11 @@ export function ActiveSessionCityChatFloatingButton() {
           freshSession.municipality_id,
         );
 
-        setOnlineDrivers(driversResponse ?? []);
+        const enrichedDrivers = await enrichOnlineDriversWithProfilesAndSessions(
+          driversResponse ?? [],
+        );
+
+        setOnlineDrivers(enrichedDrivers);
       }
 
       await loadCityChatMessagesForSession(freshSession, true);
@@ -663,6 +1090,8 @@ export function ActiveSessionCityChatFloatingButton() {
     }).start(() => {
       chatSheetTranslateY.setValue(0);
       setSelectedCityMessage(null);
+      setShowUnreadMessagesBanner(false);
+      pendingInitialChatScrollRef.current = null;
       setCityChatVisible(false);
     });
   }
@@ -1048,6 +1477,18 @@ export function ActiveSessionCityChatFloatingButton() {
   }, [session?.municipality_id, currentUserId]);
 
   useEffect(() => {
+    if (!driversModalVisible) return;
+
+    setRunningTimeNow(Date.now());
+
+    const intervalId = setInterval(() => {
+      setRunningTimeNow(Date.now());
+    }, 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [driversModalVisible]);
+
+  useEffect(() => {
     return () => {
       clearAudioPlaybackTimeout();
 
@@ -1151,50 +1592,64 @@ export function ActiveSessionCityChatFloatingButton() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.runningCard}>
-                <View style={styles.runningIcon}>
-                  <Ionicons name="radio-outline" size={22} color="#86EFAC" />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.runningLabel}>Rodando agora</Text>
-                  <Text style={styles.runningText}>
-                    {visibleOnlineDrivers.length}{' '}
-                    {visibleOnlineDrivers.length === 1
-                      ? 'motorista'
-                      : 'motoristas'}
+              <View style={styles.chatQuickBar}>
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.runningMiniButton}
+                  onPress={openDriversModalFromChat}
+                >
+                  <View style={styles.runningMiniDot} />
+                  <Ionicons name="radio-outline" size={15} color="#86EFAC" />
+                  <Text style={styles.runningMiniText}>
+                    {visibleOnlineDrivers.length} rodando
                   </Text>
-                </View>
+                </TouchableOpacity>
 
-                <View style={styles.runningActionsColumn}>
-                  <TouchableOpacity
-                    activeOpacity={0.88}
-                    style={styles.runningButton}
-                    onPress={openDriversModalFromChat}
-                  >
-                    <Text style={styles.runningButtonText}>
-                      Ver quem está rodando
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    activeOpacity={0.88}
-                    style={styles.changeCityButton}
-                    onPress={openMunicipalityModalFromChat}
-                  >
-                    <Ionicons name="location-outline" size={15} color="#BBF7D0" />
-                    <Text style={styles.changeCityButtonText}>
-                      Alterar cidade
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.changeCityMiniButton}
+                  onPress={openMunicipalityModalFromChat}
+                >
+                  <Ionicons name="location-outline" size={15} color="#BBF7D0" />
+                  <Text style={styles.changeCityMiniText}>Cidade</Text>
+                </TouchableOpacity>
               </View>
 
+              {showUnreadMessagesBanner && initialUnreadMessageCount > 0 ? (
+                <View style={styles.unreadFloatingBanner}>
+                  <View style={styles.unreadFloatingTextBox}>
+                    <Ionicons
+                      name="chatbubble-ellipses-outline"
+                      size={15}
+                      color="#BFDBFE"
+                    />
+                    <Text style={styles.unreadFloatingText}>
+                      {initialUnreadMessageCount}{' '}
+                      {initialUnreadMessageCount === 1
+                        ? 'mensagem não visualizada'
+                        : 'mensagens não visualizadas'}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.86}
+                    style={styles.unreadDownButton}
+                    onPress={() => scrollCityChatToBottom(true)}
+                  >
+                    <Ionicons name="arrow-down" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
               <ScrollView
+                ref={chatScrollRef}
                 style={styles.messagesList}
                 contentContainerStyle={styles.messagesContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                scrollEventThrottle={16}
+                onScroll={handleCityChatScroll}
+                onContentSizeChange={handleCityMessagesContentSizeChange}
               >
                 {chatMessages.length === 0 ? (
                   <View style={styles.emptyBox}>
@@ -1216,15 +1671,41 @@ export function ActiveSessionCityChatFloatingButton() {
                     const isMe = item.user_id === currentUserId;
                     const avatarUrl = getUserAvatarUrl(item.user);
                     const displayName = getUserDisplayName(item.user);
+                    const isFirstUnreadMessage =
+                      firstUnreadMessageId &&
+                      String(item.id) === String(firstUnreadMessageId);
 
                     return (
                       <View
                         key={item.id}
-                        style={[
-                          styles.messageRow,
-                          isMe && styles.messageRowMe,
-                        ]}
+                        onLayout={(event) =>
+                          handleCityMessageLayout(
+                            item.id,
+                            event.nativeEvent.layout.y,
+                          )
+                        }
                       >
+                        {isFirstUnreadMessage ? (
+                          <View style={styles.unreadDivider}>
+                            <View style={styles.unreadDividerLine} />
+                            <View style={styles.unreadDividerPill}>
+                              <Text style={styles.unreadDividerText}>
+                                {initialUnreadMessageCount}{' '}
+                                {initialUnreadMessageCount === 1
+                                  ? 'mensagem não visualizada'
+                                  : 'mensagens não visualizadas'}
+                              </Text>
+                            </View>
+                            <View style={styles.unreadDividerLine} />
+                          </View>
+                        ) : null}
+
+                        <View
+                          style={[
+                            styles.messageRow,
+                            isMe && styles.messageRowMe,
+                          ]}
+                        >
                         {!isMe ? (
                           avatarUrl ? (
                             <Image
@@ -1369,6 +1850,7 @@ export function ActiveSessionCityChatFloatingButton() {
                             </View>
                           )}
                         </TouchableOpacity>
+                        </View>
                       </View>
                     );
                   })
@@ -1763,9 +2245,13 @@ export function ActiveSessionCityChatFloatingButton() {
                 </View>
               ) : (
                 visibleOnlineDrivers.map((item) => {
-                  const user = item.user;
+                  const user = getDriverProfile(item);
                   const avatarUrl = getUserAvatarUrl(user);
                   const displayName = getUserDisplayName(user);
+                  const runningTimeText = formatDriverRunningTime(
+                    item,
+                    runningTimeNow,
+                  );
 
                   return (
                     <View key={item.id ?? user?.id} style={styles.driverItem}>
@@ -1779,17 +2265,17 @@ export function ActiveSessionCityChatFloatingButton() {
                         </View>
                       )}
 
-                      <View style={{ flex: 1 }}>
+                      <View style={styles.driverInfo}>
                         <Text style={styles.driverName} numberOfLines={1}>
                           {displayName}
                         </Text>
 
-                        <View style={styles.driverStatusRow}>
-                          <View style={styles.driverStatusDot} />
-                          <Text style={styles.driverStatusText}>
-                            Em jornada agora
-                          </Text>
-                        </View>
+                      </View>
+
+                      <View style={styles.driverTimeBadge}>
+                        <Text style={styles.driverTimeText} numberOfLines={2}>
+                          {runningTimeText}
+                        </Text>
                       </View>
                     </View>
                   );
@@ -1903,14 +2389,14 @@ const styles = StyleSheet.create({
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    marginBottom: 12,
+    gap: 9,
+    marginBottom: 8,
   },
 
   chatHeaderIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 16,
     backgroundColor: 'rgba(37,99,235,0.16)',
     borderWidth: 1,
     borderColor: 'rgba(96,165,250,0.26)',
@@ -1928,7 +2414,7 @@ const styles = StyleSheet.create({
 
   chatTitle: {
     color: '#FFFFFF',
-    fontSize: 21,
+    fontSize: 19,
     fontWeight: '900',
     marginTop: 1,
   },
@@ -1959,79 +2445,125 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  runningCard: {
-    minHeight: 72,
-    borderRadius: 22,
-    backgroundColor: '#0F172A',
+  chatQuickBar: {
+    minHeight: 38,
+    borderRadius: 17,
+    backgroundColor: 'rgba(15,23,42,0.72)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.22)',
-    padding: 12,
+    borderColor: 'rgba(96,165,250,0.16)',
+    padding: 5,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-
-  runningIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.13)',
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  runningLabel: {
-    color: '#86EFAC',
-    fontSize: 11,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-
-  runningText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-
-  runningActionsColumn: {
-    alignItems: 'flex-end',
     gap: 7,
+    marginBottom: 8,
   },
 
-  runningButton: {
-    borderRadius: 999,
-    backgroundColor: 'rgba(37,99,235,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.28)',
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-  },
-
-  runningButtonText: {
-    color: '#BFDBFE',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-
-  changeCityButton: {
+  runningMiniButton: {
+    flex: 1,
+    minHeight: 30,
     borderRadius: 999,
     backgroundColor: 'rgba(34,197,94,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.22)',
+    borderColor: 'rgba(34,197,94,0.18)',
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  runningMiniDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+
+  runningMiniText: {
+    color: '#DCFCE7',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  changeCityMiniButton: {
+    minHeight: 30,
+    borderRadius: 999,
+    backgroundColor: 'rgba(37,99,235,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.22)',
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
   },
 
-  changeCityButtonText: {
-    color: '#BBF7D0',
+  changeCityMiniText: {
+    color: '#DBEAFE',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  unreadFloatingBanner: {
+    minHeight: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(37,99,235,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.32)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+
+  unreadFloatingTextBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  unreadFloatingText: {
+    color: '#DBEAFE',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  unreadDownButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  unreadDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    marginTop: 2,
+  },
+
+  unreadDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(96,165,250,0.25)',
+  },
+
+  unreadDividerPill: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(37,99,235,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.28)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+
+  unreadDividerText: {
+    color: '#BFDBFE',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -2738,7 +3270,7 @@ const styles = StyleSheet.create({
   },
 
   driverItem: {
-    minHeight: 64,
+    minHeight: 58,
     borderRadius: 20,
     backgroundColor: '#111827',
     borderWidth: 1,
@@ -2772,29 +3304,36 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
+  driverInfo: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+
   driverName: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '900',
   },
 
-  driverStatusRow: {
-    flexDirection: 'row',
+  driverTimeBadge: {
+    maxWidth: 92,
+    minHeight: 34,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.20)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
+    justifyContent: 'center',
   },
 
-  driverStatusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: '#22C55E',
-  },
-
-  driverStatusText: {
-    color: '#A1A1AA',
-    fontSize: 11,
-    fontWeight: '800',
+  driverTimeText: {
+    color: '#BBF7D0',
+    fontSize: 10,
+    fontWeight: '900',
+    textAlign: 'center',
+    lineHeight: 13,
   },
 });

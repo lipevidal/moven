@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getOnlineDriversByMunicipality } from '../../../src/features/municipalities/services/getOnlineDriversByMunicipality';
 import {
   View,
@@ -343,6 +343,9 @@ export default function ActiveSessionScreen() {
   const [privateChatUser, setPrivateChatUser] = useState<any>(null);
   const [privateMessages, setPrivateMessages] = useState<any[]>([]);
   const [privateMessageText, setPrivateMessageText] = useState('');
+
+  const rideModalScrollRef = useRef<ScrollView | null>(null);
+  const startWaitingRideScrollRef = useRef<ScrollView | null>(null);
 
   const [replyingCityMessage, setReplyingCityMessage] = useState<any>(null);
   const [replyingPrivateMessage, setReplyingPrivateMessage] = useState<any>(null);
@@ -1147,6 +1150,18 @@ export default function ActiveSessionScreen() {
     const startKm = Number(session?.start_km ?? 0);
 
     return sessionKm || vehicleKm || startKm || 0;
+  }
+
+  function scrollRideModalToEnd() {
+    setTimeout(() => {
+      rideModalScrollRef.current?.scrollToEnd({ animated: true });
+    }, Platform.OS === 'ios' ? 260 : 340);
+  }
+
+  function scrollStartWaitingRideModalToEnd() {
+    setTimeout(() => {
+      startWaitingRideScrollRef.current?.scrollToEnd({ animated: true });
+    }, Platform.OS === 'ios' ? 260 : 340);
   }
 
   function openCreateRideModal() {
@@ -2202,10 +2217,16 @@ export default function ActiveSessionScreen() {
 
       </ScrollView>
 
-      <Modal visible={rideModalVisible} transparent animationType="fade">
+      <Modal
+        visible={rideModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 14 : 0}
+          style={styles.rideModalKeyboardAvoiding}
         >
           <View style={styles.rideModalOverlayModern}>
             <View style={styles.rideModalSheetModern}>
@@ -2266,8 +2287,11 @@ export default function ActiveSessionScreen() {
               </Text>
 
               <ScrollView
+                ref={rideModalScrollRef}
+                style={styles.rideModalScroll}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                 contentContainerStyle={styles.rideModalScrollContent}
               >
                 <View style={styles.rideModalSectionHeader}>
@@ -2385,6 +2409,7 @@ export default function ActiveSessionScreen() {
                         placeholder="0,00"
                         placeholderTextColor="#4B5563"
                         keyboardType="numeric"
+                        onFocus={scrollRideModalToEnd}
                         style={styles.rideModalInputModern}
                       />
                     </View>
@@ -2405,6 +2430,7 @@ export default function ActiveSessionScreen() {
                           placeholder="0"
                           placeholderTextColor="#4B5563"
                           keyboardType="numeric"
+                          onFocus={scrollRideModalToEnd}
                           style={styles.rideModalInputModern}
                         />
                       </View>
@@ -2446,31 +2472,51 @@ export default function ActiveSessionScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={startWaitingRideModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Iniciar corrida</Text>
+      <Modal
+        visible={startWaitingRideModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 14 : 0}
+          style={styles.modalKeyboardAvoiding}
+        >
+          <View style={styles.modalOverlay}>
+            <ScrollView
+              ref={startWaitingRideScrollRef}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.startWaitingRideKeyboardContent}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Iniciar corrida</Text>
 
-              <TouchableOpacity onPress={() => setStartWaitingRideModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
+                  <TouchableOpacity onPress={() => setStartWaitingRideModalVisible(false)}>
+                    <Ionicons name="close" size={26} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
 
-            <TextInput
-              value={rideStartKm}
-              onChangeText={(text) => setRideStartKm(formatKm(text))}
-              placeholder="KM inicial"
-              placeholderTextColor="#71717A"
-              keyboardType="numeric"
-              style={styles.input}
-            />
+                <TextInput
+                  value={rideStartKm}
+                  onChangeText={(text) => setRideStartKm(formatKm(text))}
+                  placeholder="KM inicial"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  onFocus={scrollStartWaitingRideModalToEnd}
+                  style={styles.input}
+                />
 
-            <TouchableOpacity style={styles.modalSaveButton} onPress={handleStartWaitingRide}>
-              <Text style={styles.modalSaveButtonText}>Iniciar corrida</Text>
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.modalSaveButton} onPress={handleStartWaitingRide}>
+                  <Text style={styles.modalSaveButtonText}>Iniciar corrida</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={finishedDrawerVisible} transparent animationType="slide">
@@ -4944,6 +4990,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '900',
+  },
+
+  modalKeyboardAvoiding: {
+    flex: 1,
+  },
+
+  startWaitingRideKeyboardContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: Platform.OS === 'ios' ? 24 : 40,
   },
 
   modalOverlay: {
@@ -8827,6 +8883,10 @@ const styles = StyleSheet.create({
   },
 
 
+  rideModalKeyboardAvoiding: {
+    flex: 1,
+  },
+
   rideModalOverlayModern: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.78)',
@@ -8834,13 +8894,13 @@ const styles = StyleSheet.create({
   },
 
   rideModalSheetModern: {
-    maxHeight: '92%',
+    maxHeight: Platform.OS === 'ios' ? '90%' : '86%',
     backgroundColor: '#09090B',
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
     paddingHorizontal: 18,
     paddingTop: 10,
-    paddingBottom: 18,
+    paddingBottom: Platform.OS === 'ios' ? 18 : 12,
     borderWidth: 1,
     borderColor: '#27272A',
   },
@@ -8924,8 +8984,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
+  rideModalScroll: {
+    flexShrink: 1,
+  },
+
   rideModalScrollContent: {
-    paddingBottom: 12,
+    paddingBottom: Platform.OS === 'ios' ? 96 : 116,
   },
 
   rideModalSectionHeader: {

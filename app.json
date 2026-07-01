@@ -1,12 +1,12 @@
 {
   "expo": {
     "name": "MovenApp",
-    "slug": "movenApp",
+    "slug": "moven",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "movenapp",
-    "jsEngine": "jsc",
+    "jsEngine": "hermes",
     "android": {
       "package": "com.lipevidal.moven"
     },
@@ -20,7 +20,8 @@
           "enableBackgroundPlayback": true,
           "enableBackgroundRecording": false
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "router": {},
