@@ -32,6 +32,7 @@ import {
   DashboardPeriod,
 } from "../../../src/features/dashboard/services/getDashboardData";
 import { getDayWorkSessions } from "../../../src/features/dashboard/services/getDayWorkSessions";
+import { getEarningsPerformanceAnalysis } from "../../../src/features/performance/services/getEarningsPerformanceAnalysis";
 import { getGoalForPeriod } from "../../../src/features/goals/services/getGoalForPeriod";
 import { getGoalPeriodFromDashboard } from "../../../src/features/goals/utils/goalPeriodUtils";
 import { getPlatforms } from "../../../src/features/platforms/services/getPlatforms";
@@ -745,6 +746,8 @@ export default function DashboardScreen() {
 
   const [performanceTargets, setPerformanceTargets] =
     useState<PerformanceTargets | null>(null);
+  const [earningsPerformanceSummary, setEarningsPerformanceSummary] =
+    useState<any>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -973,6 +976,16 @@ export default function DashboardScreen() {
     }
   }
 
+  async function loadEarningsPerformanceSummary() {
+    try {
+      const response = await getEarningsPerformanceAnalysis();
+      setEarningsPerformanceSummary(response);
+    } catch (error) {
+      console.log("Erro ao carregar resumo de desempenho dos ganhos:", error);
+      setEarningsPerformanceSummary(null);
+    }
+  }
+
   async function loadDashboardPlatforms() {
     try {
       const [allPlatforms, selectedPlatforms] = await Promise.all([
@@ -1142,6 +1155,7 @@ export default function DashboardScreen() {
         loadPeriodExpenses(response?.startDate, response?.endDate),
         loadPeriodEntries(response?.startDate, response?.endDate),
         loadDashboardPlatforms(),
+        loadEarningsPerformanceSummary(),
       ]);
 
       const loggedUser = response?.user ?? null;
@@ -2388,6 +2402,28 @@ export default function DashboardScreen() {
 
           <View style={styles.modernHeaderActions}>
             <NotificationBell />
+
+            <TouchableOpacity
+              style={[
+                styles.modernHeaderIconButton,
+                {
+                  backgroundColor:
+                    earningsPerformanceSummary?.overall?.backgroundColor ?? theme.card,
+                  borderColor:
+                    earningsPerformanceSummary?.overall?.borderColor ?? theme.border,
+                },
+              ]}
+              onPress={() => router.push("/(private)/earnings-performance" as never)}
+            >
+              <Ionicons
+                name={
+                  (earningsPerformanceSummary?.overall?.iconName ??
+                    "analytics-outline") as keyof typeof Ionicons.glyphMap
+                }
+                size={21}
+                color={earningsPerformanceSummary?.overall?.color ?? "#A1A1AA"}
+              />
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[
