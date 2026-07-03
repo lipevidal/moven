@@ -13,13 +13,17 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
 import { useGlobalLoading } from '../../../src/components/GlobalLoadingProvider';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
+import { decode as decodeBase64 } from 'base64-arraybuffer';
 
 import { supabase } from '../../../src/database/supabase';
 import { getExpenses } from '../../../src/features/expenses/services/getExpenses';
@@ -379,6 +383,20 @@ export default function ExpensesScreen() {
   const [expenseDate, setExpenseDate] = useState(formatDate(new Date()));
   const [expenseLocation, setExpenseLocation] = useState('');
   const [expenseVehicleId, setExpenseVehicleId] = useState('nenhum');
+  const [expenseReceiptFiles, setExpenseReceiptFiles] = useState<any[]>([]);
+  const [savedExpenseReceipts, setSavedExpenseReceipts] = useState<
+    Array<{ url: string; fileName: string }>
+  >([]);
+  const [receiptRenameModalVisible, setReceiptRenameModalVisible] = useState(false);
+  const [receiptRenameValue, setReceiptRenameValue] = useState('');
+  const [receiptRenameContext, setReceiptRenameContext] = useState<{
+    type: 'newForm' | 'savedForm' | 'expenseList';
+    index: number;
+    expense?: any;
+  } | null>(null);
+  const [renamingReceipt, setRenamingReceipt] = useState(false);
+  const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
+  const [vehicleDropdownVisible, setVehicleDropdownVisible] = useState(false);
   const [expenseErrors, setExpenseErrors] = useState<ExpenseFormErrors>({});
   const [lastOpenExpenseToken, setLastOpenExpenseToken] = useState('');
 
@@ -755,6 +773,379 @@ export default function ExpensesScreen() {
     }));
   }
 
+  function getLastUsedExpenseVehicleId() {
+    const lastExpenseWithVehicle = [...expenses]
+      .filter((expense) => expense.vehicle_id || expense.vehicle?.id)
+      .sort(
+        (a, b) =>
+          new Date(b.expense_date ?? b.created_at ?? 0).getTime() -
+          new Date(a.expense_date ?? a.created_at ?? 0).getTime(),
+      )[0];
+
+    return lastExpenseWithVehicle?.vehicle_id ?? lastExpenseWithVehicle?.vehicle?.id ?? null;
+  }
+
+  function getSelectedExpenseVehicle() {
+    if (expenseVehicleId === 'nenhum') return null;
+
+    return vehicles.find((vehicle) => String(vehicle.id) === String(expenseVehicleId)) ?? null;
+  }
+
+  function getSelectedExpenseVehicleTitle() {
+    const selectedVehicle = getSelectedExpenseVehicle();
+
+    if (!selectedVehicle) return 'Nenhum veículo';
+
+    return [selectedVehicle.brand, selectedVehicle.model].filter(Boolean).join(' ') || 'Veículo';
+  }
+
+  function getSelectedExpenseVehicleSubtitle() {
+    const selectedVehicle = getSelectedExpenseVehicle();
+
+    if (!selectedVehicle) return 'Despesa geral';
+
+    return String(selectedVehicle?.plate ?? '').trim().toUpperCase() || 'Sem placa';
+  }
+
+  function normalizeExpenseReceipts(expense: any) {
+    const rawReceipts = expense?.receipt_files;
+
+    if (Array.isArray(rawReceipts)) {
+      return rawReceipts
+        .map((item: any) => ({
+          url: String(item?.url ?? '').trim(),
+          fileName: String(item?.fileName ?? item?.file_name ?? 'Comprovante').trim(),
+        }))
+        .filter((item: any) => item.url);
+    }
+
+    if (typeof rawReceipts === 'string') {
+      try {
+        const parsed = JSON.parse(rawReceipts);
+
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((item: any) => ({
+              url: String(item?.url ?? '').trim(),
+              fileName: String(item?.fileName ?? item?.file_name ?? 'Comprovante').trim(),
+            }))
+            .filter((item: any) => item.url);
+        }
+      } catch {
+        // Mantém compatibilidade com registros antigos.
+      }
+    }
+
+    if (expense?.receipt_url) {
+      return [
+        {
+          url: String(expense.receipt_url),
+          fileName: String(expense.receipt_file_name ?? 'Comprovante'),
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  function getExpenseReceiptsCount() {
+    return savedExpenseReceipts.length + expenseReceiptFiles.length;
+  }
+
+  function getReceiptFileIcon(fileName?: string | null) {
+    const normalizedName = String(fileName ?? '').toLowerCase();
+
+    if (
+      normalizedName.endsWith('.jpg') ||
+      normalizedName.endsWith('.jpeg') ||
+      normalizedName.endsWith('.png') ||
+      normalizedName.endsWith('.webp') ||
+      normalizedName.endsWith('.heic')
+    ) {
+      return 'image-outline' as keyof typeof Ionicons.glyphMap;
+    }
+
+    if (normalizedName.endsWith('.pdf')) {
+      return 'document-text-outline' as keyof typeof Ionicons.glyphMap;
+    }
+
+    return 'document-attach-outline' as keyof typeof Ionicons.glyphMap;
+  }
+
+  function getExpenseReceiptList(expense: any) {
+    return normalizeExpenseReceipts(expense);
+  }
+
+  async function handleOpenExpenseReceipt(url?: string | null) {
+    try {
+      if (!url) {
+        Alert.alert('Comprovante indisponível', 'Não encontrei o link deste comprovante.');
+        return;
+      }
+
+      const canOpen = await Linking.canOpenURL(url);
+
+      if (!canOpen) {
+        Alert.alert('Não foi possível abrir', 'O link do comprovante não pôde ser aberto neste aparelho.');
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch (error) {
+      console.log('Erro ao abrir comprovante:', error);
+      Alert.alert('Erro', 'Não foi possível abrir este comprovante.');
+    }
+  }
+
+  function getStoragePathFromReceiptUrl(url?: string | null) {
+    if (!url) return null;
+
+    const decodedUrl = decodeURIComponent(String(url));
+    const marker = '/storage/v1/object/public/expense-receipts/';
+    const markerIndex = decodedUrl.indexOf(marker);
+
+    if (markerIndex === -1) return null;
+
+    return decodedUrl.slice(markerIndex + marker.length).split('?')[0];
+  }
+
+  async function updateExpenseReceipts(expense: any, receipts: Array<{ url: string; fileName: string }>) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) throw userError;
+
+    if (!user?.id) {
+      Alert.alert('Sessão expirada', 'Entre novamente para alterar comprovantes.');
+      return;
+    }
+
+    const firstReceipt = receipts[0] ?? null;
+
+    const { error } = await supabase
+      .from('expenses')
+      .update({
+        receipt_files: receipts,
+        receipt_url: firstReceipt?.url ?? null,
+        receipt_file_name: firstReceipt?.fileName ?? null,
+      })
+      .eq('id', expense.id)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+
+    await loadData();
+  }
+
+  function openReceiptRenameModal(
+    type: 'newForm' | 'savedForm' | 'expenseList',
+    index: number,
+    currentName?: string | null,
+    expense?: any,
+  ) {
+    setReceiptRenameContext({
+      type,
+      index,
+      expense,
+    });
+    setReceiptRenameValue(currentName ?? '');
+    setReceiptRenameModalVisible(true);
+  }
+
+  function closeReceiptRenameModal() {
+    if (renamingReceipt) return;
+
+    setReceiptRenameModalVisible(false);
+    setReceiptRenameValue('');
+    setReceiptRenameContext(null);
+  }
+
+  async function handleConfirmReceiptRename() {
+    try {
+      const nextName = receiptRenameValue.trim();
+
+      if (!nextName) {
+        Alert.alert('Nome obrigatório', 'Informe um nome para o comprovante.');
+        return;
+      }
+
+      if (!receiptRenameContext) return;
+
+      setRenamingReceipt(true);
+
+      if (receiptRenameContext.type === 'newForm') {
+        setExpenseReceiptFiles((current) =>
+          current.map((file, index) =>
+            index === receiptRenameContext.index
+              ? {
+                  ...file,
+                  name: nextName,
+                }
+              : file,
+          ),
+        );
+      }
+
+      if (receiptRenameContext.type === 'savedForm') {
+        setSavedExpenseReceipts((current) =>
+          current.map((receipt, index) =>
+            index === receiptRenameContext.index
+              ? {
+                  ...receipt,
+                  fileName: nextName,
+                }
+              : receipt,
+          ),
+        );
+      }
+
+      if (receiptRenameContext.type === 'expenseList' && receiptRenameContext.expense?.id) {
+        const receipts = getExpenseReceiptList(receiptRenameContext.expense).map(
+          (receipt, index) =>
+            index === receiptRenameContext.index
+              ? {
+                  ...receipt,
+                  fileName: nextName,
+                }
+              : receipt,
+        );
+
+        await updateExpenseReceipts(receiptRenameContext.expense, receipts);
+      }
+
+      closeReceiptRenameModal();
+    } catch (error) {
+      console.log('Erro ao renomear comprovante:', error);
+      Alert.alert('Erro', 'Não foi possível renomear este comprovante.');
+    } finally {
+      setRenamingReceipt(false);
+    }
+  }
+
+  function handleDeleteExpenseReceiptFromList(expense: any, receiptIndex: number) {
+    Alert.alert(
+      'Excluir comprovante',
+      'Deseja realmente remover este comprovante desta despesa?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const receipts = getExpenseReceiptList(expense);
+              const receiptToRemove = receipts[receiptIndex];
+              const nextReceipts = receipts.filter((_, index) => index !== receiptIndex);
+
+              const storagePath = getStoragePathFromReceiptUrl(receiptToRemove?.url);
+
+              if (storagePath) {
+                const { error: storageError } = await supabase.storage
+                  .from('expense-receipts')
+                  .remove([storagePath]);
+
+                if (storageError) {
+                  console.log('Não foi possível excluir o arquivo do Storage:', storageError);
+                }
+              }
+
+              await updateExpenseReceipts(expense, nextReceipts);
+            } catch (error) {
+              console.log('Erro ao excluir comprovante:', error);
+              Alert.alert('Erro', 'Não foi possível excluir este comprovante.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  async function handlePickExpenseReceipts() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+        multiple: true,
+      });
+
+      if (result.canceled) return;
+
+      const files = result.assets ?? [];
+
+      if (files.length === 0) return;
+
+      setExpenseReceiptFiles((current) => [...current, ...files]);
+    } catch (error) {
+      console.log('Erro ao selecionar comprovantes:', error);
+      Alert.alert('Erro', 'Não foi possível selecionar os comprovantes.');
+    }
+  }
+
+  function removeNewExpenseReceipt(index: number) {
+    setExpenseReceiptFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function removeSavedExpenseReceipt(index: number) {
+    setSavedExpenseReceipts((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function clearExpenseReceipts() {
+    setExpenseReceiptFiles([]);
+    setSavedExpenseReceipts([]);
+  }
+
+  async function uploadExpenseReceipts(userId: string) {
+    const uploadedReceipts = [];
+
+    for (const file of expenseReceiptFiles) {
+      if (!file?.uri) continue;
+
+      const originalFileName = String(file.name ?? 'comprovante').trim() || 'comprovante';
+      const safeFileName = originalFileName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]/g, '-');
+
+      const extension = safeFileName.includes('.')
+        ? safeFileName.split('.').pop()
+        : 'file';
+
+      const storagePath = `${userId}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`;
+
+      /*
+        Usamos a API nova File para ler o arquivo local em base64,
+        sem depender de enum de encoding do expo-file-system.
+      */
+      const localFile = new File(file.uri);
+      const base64File = await localFile.base64();
+      const arrayBuffer = decodeBase64(base64File);
+
+      const { error: uploadError } = await supabase.storage
+        .from('expense-receipts')
+        .upload(storagePath, arrayBuffer, {
+          contentType: file.mimeType ?? 'application/octet-stream',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('expense-receipts')
+        .getPublicUrl(storagePath);
+
+      uploadedReceipts.push({
+        url: data.publicUrl,
+        fileName: originalFileName,
+      });
+    }
+
+    return [...savedExpenseReceipts, ...uploadedReceipts];
+  }
+
   function resetExpenseForm() {
     setActiveDatePicker(null);
     setEditingExpenseId(null);
@@ -764,11 +1155,16 @@ export default function ExpensesScreen() {
     setExpenseDate(formatDate(new Date()));
     setExpenseLocation('');
     setExpenseVehicleId('nenhum');
+    setExpenseReceiptFiles([]);
+    setSavedExpenseReceipts([]);
+    setCategoryDropdownVisible(false);
+    setVehicleDropdownVisible(false);
     setExpenseErrors({});
   }
 
   function openCreateExpenseModal() {
     resetExpenseForm();
+    setExpenseVehicleId(getLastUsedExpenseVehicleId() ?? 'nenhum');
     setExpenseModalVisible(true);
   }
 
@@ -781,6 +1177,10 @@ export default function ExpensesScreen() {
     setExpenseDate(formatDate(expense.expense_date ?? new Date()));
     setExpenseLocation(expense.location ?? '');
     setExpenseVehicleId(expense.vehicle_id ?? expense.vehicle?.id ?? 'nenhum');
+    setExpenseReceiptFiles([]);
+    setSavedExpenseReceipts(normalizeExpenseReceipts(expense));
+    setCategoryDropdownVisible(false);
+    setVehicleDropdownVisible(false);
     setExpenseErrors({});
     setExpandedExpenseId(null);
     setExpenseModalVisible(true);
@@ -850,6 +1250,9 @@ export default function ExpensesScreen() {
 
       parsedDate.setHours(12, 0, 0, 0);
 
+      const receiptFiles = await uploadExpenseReceipts(user.id);
+      const firstReceipt = receiptFiles[0] ?? null;
+
       const expenseData = {
         description: expenseDescription.trim(),
         amount: parseCurrency(expenseAmount),
@@ -857,6 +1260,9 @@ export default function ExpensesScreen() {
         expense_date: toLocalISOString(parsedDate),
         location: expenseLocation.trim() || null,
         vehicle_id: expenseVehicleId === 'nenhum' ? null : expenseVehicleId,
+        receipt_files: receiptFiles,
+        receipt_url: firstReceipt?.url ?? null,
+        receipt_file_name: firstReceipt?.fileName ?? null,
       };
 
       const { error } = editingExpenseId
@@ -889,11 +1295,17 @@ export default function ExpensesScreen() {
 
       Alert.alert(
         'Erro ao salvar despesa',
-        message.includes('expense_date')
-          ? 'Não encontrei a coluna expense_date na tabela expenses. Confira o nome da coluna no Supabase.'
-          : message.includes('vehicle_id')
-            ? 'Não encontrei a coluna vehicle_id na tabela expenses. Confira a estrutura da tabela no Supabase.'
-            : 'Não foi possível salvar a despesa. Confira os dados e tente novamente.',
+        message.includes('network request failed')
+          ? 'Não foi possível enviar o comprovante. Confira sua conexão e se o bucket expense-receipts existe no Supabase Storage.'
+          : message.includes('expense_date')
+            ? 'Não encontrei a coluna expense_date na tabela expenses. Confira o nome da coluna no Supabase.'
+            : message.includes('vehicle_id')
+              ? 'Não encontrei a coluna vehicle_id na tabela expenses. Confira a estrutura da tabela no Supabase.'
+              : message.includes('receipt_files') ||
+                  message.includes('receipt_url') ||
+                  message.includes('receipt_file_name')
+                ? 'Não encontrei as colunas de comprovante na tabela expenses. Rode o SQL dos comprovantes no Supabase.'
+                : 'Não foi possível salvar a despesa. Confira os dados e tente novamente.',
       );
     } finally {
       setSavingExpense(false);
@@ -1341,6 +1753,89 @@ export default function ExpensesScreen() {
                     />
                   ) : null}
 
+                  {getExpenseReceiptList(expense).length > 0 ? (
+                    <View style={styles.expenseReceiptsBox}>
+                      <View style={styles.expenseReceiptsHeader}>
+                        <Ionicons name="attach-outline" size={17} color="#93C5FD" />
+                        <Text style={styles.expenseReceiptsTitle}>
+                          Comprovantes anexados
+                        </Text>
+                        <View style={styles.expenseReceiptsCountBadge}>
+                          <Text style={styles.expenseReceiptsCountText}>
+                            {getExpenseReceiptList(expense).length}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {getExpenseReceiptList(expense).map((receipt, index) => (
+                        <View key={`${receipt.url}-${index}`} style={styles.expenseReceiptItem}>
+                          <TouchableOpacity
+                            activeOpacity={0.86}
+                            style={styles.expenseReceiptOpenArea}
+                            onPress={() => handleOpenExpenseReceipt(receipt.url)}
+                          >
+                            <View style={styles.expenseReceiptIconBox}>
+                              <Ionicons
+                                name={getReceiptFileIcon(receipt.fileName)}
+                                size={18}
+                                color="#93C5FD"
+                              />
+                            </View>
+
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.expenseReceiptName} numberOfLines={1}>
+                                {receipt.fileName || `Comprovante ${index + 1}`}
+                              </Text>
+                              <Text style={styles.expenseReceiptHint}>
+                                Toque para abrir
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+
+                          <View style={styles.expenseReceiptActions}>
+                            <TouchableOpacity
+                              activeOpacity={0.86}
+                              style={styles.expenseReceiptRenameButton}
+                              onPress={() =>
+                                openReceiptRenameModal(
+                                  'expenseList',
+                                  index,
+                                  receipt.fileName,
+                                  expense,
+                                )
+                              }
+                            >
+                              <Ionicons name="pencil-outline" size={16} color="#93C5FD" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              activeOpacity={0.86}
+                              style={styles.expenseReceiptOpenButton}
+                              onPress={() => handleOpenExpenseReceipt(receipt.url)}
+                            >
+                              <Ionicons name="open-outline" size={16} color="#06130B" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              activeOpacity={0.86}
+                              style={styles.expenseReceiptDeleteButton}
+                              onPress={() => handleDeleteExpenseReceiptFromList(expense, index)}
+                            >
+                              <Ionicons name="trash-outline" size={16} color="#FCA5A5" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.expenseNoReceiptsBox}>
+                      <Ionicons name="document-attach-outline" size={17} color="#71717A" />
+                      <Text style={styles.expenseNoReceiptsText}>
+                        Nenhum comprovante anexado.
+                      </Text>
+                    </View>
+                  )}
+
                   <View style={styles.expenseActionsRow}>
                     <TouchableOpacity
                       activeOpacity={0.86}
@@ -1545,16 +2040,19 @@ export default function ExpensesScreen() {
               </View>
 
               <Text style={styles.fieldLabel}>Descrição</Text>
-              <TextInput
-                value={expenseDescription}
-                onChangeText={(text) => {
-                  setExpenseDescription(text);
-                  clearExpenseError('description');
-                }}
-                placeholder="Ex: Troca de óleo"
-                placeholderTextColor="#71717A"
-                style={[styles.input, expenseErrors.description && styles.inputError]}
-              />
+              <View style={[styles.iconInputBox, expenseErrors.description && styles.inputError]}>
+                <Ionicons name="create-outline" size={20} color="#A1A1AA" />
+                <TextInput
+                  value={expenseDescription}
+                  onChangeText={(text) => {
+                    setExpenseDescription(text);
+                    clearExpenseError('description');
+                  }}
+                  placeholder="Ex: Troca de óleo"
+                  placeholderTextColor="#71717A"
+                  style={styles.iconInput}
+                />
+              </View>
               {expenseErrors.description ? (
                 <Text style={styles.errorText}>{expenseErrors.description}</Text>
               ) : null}
@@ -1562,17 +2060,20 @@ export default function ExpensesScreen() {
               <View style={styles.formRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldLabel}>Valor</Text>
-                  <TextInput
-                    value={expenseAmount}
-                    onChangeText={(text) => {
-                      setExpenseAmount(maskCurrency(text));
-                      clearExpenseError('amount');
-                    }}
-                    placeholder="0,00"
-                    placeholderTextColor="#71717A"
-                    keyboardType="numeric"
-                    style={[styles.input, expenseErrors.amount && styles.inputError]}
-                  />
+                  <View style={[styles.iconInputBox, expenseErrors.amount && styles.inputError]}>
+                    <Ionicons name="cash-outline" size={19} color="#22C55E" />
+                    <TextInput
+                      value={expenseAmount}
+                      onChangeText={(text) => {
+                        setExpenseAmount(maskCurrency(text));
+                        clearExpenseError('amount');
+                      }}
+                      placeholder="0,00"
+                      placeholderTextColor="#71717A"
+                      keyboardType="numeric"
+                      style={styles.iconInput}
+                    />
+                  </View>
                   {expenseErrors.amount ? (
                     <Text style={styles.errorText}>{expenseErrors.amount}</Text>
                   ) : null}
@@ -1613,169 +2114,199 @@ export default function ExpensesScreen() {
               {activeDatePicker === 'expense' ? renderInlineCalendar() : null}
 
               <Text style={styles.fieldLabel}>Categoria</Text>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[
+                  styles.dropdownButton,
+                  expenseErrors.category && styles.inputError,
+                ]}
+                onPress={() => setCategoryDropdownVisible(true)}
+              >
+                <View style={styles.dropdownIconBox}>
+                  <Ionicons
+                    name={expenseCategoryIcons[expenseCategory] ?? 'pricetag-outline'}
+                    size={20}
+                    color={expenseCategory ? '#FCA5A5' : '#71717A'}
+                  />
+                </View>
+
+                <View style={styles.dropdownTextContent}>
+                  <Text style={styles.dropdownLabel}>Categoria</Text>
+                  <Text
+                    style={[
+                      styles.dropdownValue,
+                      !expenseCategory && styles.dropdownPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {expenseCategory || 'Selecione uma categoria'}
+                  </Text>
+                </View>
+
+                <Ionicons name="chevron-down" size={20} color="#71717A" />
+              </TouchableOpacity>
+
               {expenseErrors.category ? (
-                <Text style={[styles.errorText, { marginBottom: 8 }]}>
+                <Text style={[styles.errorText, { marginTop: -6 }]}>
                   {expenseErrors.category}
                 </Text>
               ) : null}
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoryChipsScroll}
-              >
-                {expenseCategories.map((item) => {
-                  const selected = expenseCategory === item;
-
-                  return (
-                    <TouchableOpacity
-                      key={item}
-                      activeOpacity={0.86}
-                      style={[
-                        styles.categoryChip,
-                        selected && styles.categoryChipActive,
-                        expenseErrors.category && styles.categoryChipError,
-                      ]}
-                      onPress={() => {
-                        setExpenseCategory(item);
-                        clearExpenseError('category');
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.categoryChipIcon,
-                          selected && styles.categoryChipIconActive,
-                        ]}
-                      >
-                        <Ionicons
-                          name={expenseCategoryIcons[item] ?? 'pricetag-outline'}
-                          size={17}
-                          color={selected ? '#06130B' : '#FCA5A5'}
-                        />
-                      </View>
-
-                      <Text
-                        style={[
-                          styles.categoryChipText,
-                          selected && styles.categoryChipTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {item}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-
               <Text style={styles.fieldLabel}>Veículo</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.vehiclePicker}
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={styles.dropdownButton}
+                onPress={() => setVehicleDropdownVisible(true)}
               >
+                <View style={styles.dropdownIconBox}>
+                  <Ionicons
+                    name={expenseVehicleId === 'nenhum' ? 'remove-circle-outline' : 'car-sport-outline'}
+                    size={20}
+                    color={expenseVehicleId === 'nenhum' ? '#71717A' : '#22C55E'}
+                  />
+                </View>
+
+                <View style={styles.dropdownTextContent}>
+                  <Text style={styles.dropdownLabel}>Veículo da despesa</Text>
+                  <Text style={styles.dropdownValue} numberOfLines={1}>
+                    {getSelectedExpenseVehicleTitle()}
+                  </Text>
+                  <Text style={styles.dropdownSubtitle} numberOfLines={1}>
+                    {getSelectedExpenseVehicleSubtitle()}
+                  </Text>
+                </View>
+
+                <Ionicons name="chevron-down" size={20} color="#71717A" />
+              </TouchableOpacity>
+
+              <Text style={styles.fieldLabel}>Comprovantes</Text>
+              <View style={styles.receiptUploadBox}>
                 <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={[
-                    styles.vehicleSelectCard,
-                    expenseVehicleId === 'nenhum' && styles.vehicleSelectCardActive,
-                  ]}
-                  onPress={() => setExpenseVehicleId('nenhum')}
+                  activeOpacity={0.86}
+                  style={styles.receiptButton}
+                  onPress={handlePickExpenseReceipts}
                 >
-                  <View
-                    style={[
-                      styles.vehicleSelectIcon,
-                      expenseVehicleId === 'nenhum' && styles.vehicleSelectIconActive,
-                    ]}
-                  >
-                    <Ionicons
-                      name="remove-circle-outline"
-                      size={18}
-                      color={expenseVehicleId === 'nenhum' ? '#06130B' : '#A1A1AA'}
-                    />
+                  <View style={styles.receiptIconBox}>
+                    <Ionicons name="cloud-upload-outline" size={21} color="#93C5FD" />
                   </View>
 
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.vehicleSelectTitle,
-                        expenseVehicleId === 'nenhum' && styles.vehicleSelectTitleActive,
-                      ]}
-                    >
-                      Nenhum veículo
+                  <View style={styles.receiptTextContent}>
+                    <Text style={styles.receiptTitle}>
+                      {getExpenseReceiptsCount() > 0
+                        ? `${getExpenseReceiptsCount()} comprovante(s) anexado(s)`
+                        : 'Adicionar comprovantes'}
                     </Text>
-                    <Text
-                      style={[
-                        styles.vehicleSelectPlate,
-                        expenseVehicleId === 'nenhum' && styles.vehicleSelectPlateActive,
-                      ]}
-                    >
-                      Despesa geral
+                    <Text style={styles.receiptSubtitle} numberOfLines={1}>
+                      Fotos, PDF ou qualquer arquivo da despesa
                     </Text>
                   </View>
+
+                  <Ionicons name="add-circle-outline" size={22} color="#93C5FD" />
                 </TouchableOpacity>
 
-                {vehicles.map((vehicle) => {
-                  const selected = expenseVehicleId === vehicle.id;
-                  const plate = String(vehicle?.plate ?? '').trim().toUpperCase();
+                {getExpenseReceiptsCount() > 0 ? (
+                  <View style={styles.receiptFilesList}>
+                    {savedExpenseReceipts.map((item, index) => (
+                      <View key={`saved-${item.url}-${index}`} style={styles.receiptFileItem}>
+                        <View style={styles.receiptFileIcon}>
+                          <Ionicons
+                            name={getReceiptFileIcon(item.fileName)}
+                            size={17}
+                            color="#93C5FD"
+                          />
+                        </View>
 
-                  return (
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.receiptFileName} numberOfLines={1}>
+                            {item.fileName}
+                          </Text>
+                          <Text style={styles.receiptFileStatus}>Salvo</Text>
+                        </View>
+
+                        <View style={styles.receiptFileActions}>
+                          <TouchableOpacity
+                            activeOpacity={0.86}
+                            style={styles.receiptFileRenameButton}
+                            onPress={() =>
+                              openReceiptRenameModal('savedForm', index, item.fileName)
+                            }
+                          >
+                            <Ionicons name="pencil-outline" size={16} color="#93C5FD" />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            activeOpacity={0.86}
+                            style={styles.receiptFileRemoveButton}
+                            onPress={() => removeSavedExpenseReceipt(index)}
+                          >
+                            <Ionicons name="trash-outline" size={16} color="#FCA5A5" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+
+                    {expenseReceiptFiles.map((file, index) => (
+                      <View key={`${file.uri}-${index}`} style={styles.receiptFileItem}>
+                        <View style={styles.receiptFileIcon}>
+                          <Ionicons
+                            name={getReceiptFileIcon(file.name)}
+                            size={17}
+                            color="#93C5FD"
+                          />
+                        </View>
+
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.receiptFileName} numberOfLines={1}>
+                            {file.name ?? 'Comprovante'}
+                          </Text>
+                          <Text style={styles.receiptFileStatus}>Novo arquivo</Text>
+                        </View>
+
+                        <View style={styles.receiptFileActions}>
+                          <TouchableOpacity
+                            activeOpacity={0.86}
+                            style={styles.receiptFileRenameButton}
+                            onPress={() =>
+                              openReceiptRenameModal('newForm', index, file.name ?? 'Comprovante')
+                            }
+                          >
+                            <Ionicons name="pencil-outline" size={16} color="#93C5FD" />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            activeOpacity={0.86}
+                            style={styles.receiptFileRemoveButton}
+                            onPress={() => removeNewExpenseReceipt(index)}
+                          >
+                            <Ionicons name="trash-outline" size={16} color="#FCA5A5" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+
                     <TouchableOpacity
-                      key={vehicle.id}
-                      activeOpacity={0.85}
-                      style={[
-                        styles.vehicleSelectCard,
-                        selected && styles.vehicleSelectCardActive,
-                      ]}
-                      onPress={() => setExpenseVehicleId(vehicle.id)}
+                      activeOpacity={0.86}
+                      style={styles.clearReceiptsButton}
+                      onPress={clearExpenseReceipts}
                     >
-                      <View
-                        style={[
-                          styles.vehicleSelectIcon,
-                          selected && styles.vehicleSelectIconActive,
-                        ]}
-                      >
-                        <Ionicons
-                          name="car-sport-outline"
-                          size={18}
-                          color={selected ? '#06130B' : '#A1A1AA'}
-                        />
-                      </View>
-
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={[
-                            styles.vehicleSelectTitle,
-                            selected && styles.vehicleSelectTitleActive,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {[vehicle.brand, vehicle.model].filter(Boolean).join(' ') || 'Veículo'}
-                        </Text>
-
-                        <Text
-                          style={[
-                            styles.vehicleSelectPlate,
-                            selected && styles.vehicleSelectPlateActive,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {plate || 'Sem placa'}
-                        </Text>
-                      </View>
+                      <Ionicons name="trash-outline" size={16} color="#FCA5A5" />
+                      <Text style={styles.clearReceiptsText}>Remover todos</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                  </View>
+                ) : null}
+              </View>
 
               <Text style={styles.fieldLabel}>Local ou observação</Text>
-              <TextInput
-                value={expenseLocation}
-                onChangeText={setExpenseLocation}
-                placeholder="Ex: Posto Shell, oficina, mercado..."
-                placeholderTextColor="#71717A"
-                style={styles.input}
-              />
+              <View style={styles.iconInputBox}>
+                <Ionicons name="location-outline" size={20} color="#A1A1AA" />
+                <TextInput
+                  value={expenseLocation}
+                  onChangeText={setExpenseLocation}
+                  placeholder="Ex: Posto Shell, oficina, mercado..."
+                  placeholderTextColor="#71717A"
+                  style={styles.iconInput}
+                />
+              </View>
 
               <TouchableOpacity
                 activeOpacity={0.9}
@@ -1797,6 +2328,249 @@ export default function ExpensesScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={receiptRenameModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlayCenter}>
+          <View style={styles.renameReceiptModalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalEyebrow}>Comprovante</Text>
+                <Text style={styles.modalTitle}>Renomear arquivo</Text>
+              </View>
+
+              <TouchableOpacity onPress={closeReceiptRenameModal}>
+                <Ionicons name="close" size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>Nome do comprovante</Text>
+            <View style={styles.iconInputBox}>
+              <Ionicons name="pencil-outline" size={20} color="#93C5FD" />
+              <TextInput
+                value={receiptRenameValue}
+                onChangeText={setReceiptRenameValue}
+                placeholder="Ex: Nota combustível"
+                placeholderTextColor="#71717A"
+                style={styles.iconInput}
+                autoFocus
+              />
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.confirmButton, renamingReceipt && styles.confirmButtonDisabled]}
+              onPress={handleConfirmReceiptRename}
+              disabled={renamingReceipt}
+            >
+              {renamingReceipt ? (
+                <ActivityIndicator color="#06130B" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={21} color="#06130B" />
+                  <Text style={styles.confirmButtonText}>Salvar nome</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={categoryDropdownVisible} transparent animationType="fade">
+        <View style={styles.modalOverlayCenter}>
+          <View style={styles.dropdownModalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalEyebrow}>Despesa</Text>
+                <Text style={styles.modalTitle}>Selecionar categoria</Text>
+              </View>
+
+              <TouchableOpacity onPress={() => setCategoryDropdownVisible(false)}>
+                <Ionicons name="close" size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.dropdownListContent}
+            >
+              {expenseCategories.map((item) => {
+                const selected = expenseCategory === item;
+
+                return (
+                  <TouchableOpacity
+                    key={item}
+                    activeOpacity={0.86}
+                    style={[
+                      styles.dropdownOption,
+                      selected && styles.dropdownOptionActive,
+                    ]}
+                    onPress={() => {
+                      setExpenseCategory(item);
+                      clearExpenseError('category');
+                      setCategoryDropdownVisible(false);
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.dropdownOptionIcon,
+                        selected && styles.dropdownOptionIconActive,
+                      ]}
+                    >
+                      <Ionicons
+                        name={expenseCategoryIcons[item] ?? 'pricetag-outline'}
+                        size={19}
+                        color={selected ? '#06130B' : '#FCA5A5'}
+                      />
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.dropdownOptionTitle,
+                        selected && styles.dropdownOptionTitleActive,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+
+                    {selected ? (
+                      <Ionicons name="checkmark-circle" size={21} color="#06130B" />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={vehicleDropdownVisible} transparent animationType="fade">
+        <View style={styles.modalOverlayCenter}>
+          <View style={styles.dropdownModalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalEyebrow}>Despesa</Text>
+                <Text style={styles.modalTitle}>Selecionar veículo</Text>
+              </View>
+
+              <TouchableOpacity onPress={() => setVehicleDropdownVisible(false)}>
+                <Ionicons name="close" size={26} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.dropdownListContent}
+            >
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[
+                  styles.dropdownOption,
+                  expenseVehicleId === 'nenhum' && styles.dropdownOptionActive,
+                ]}
+                onPress={() => {
+                  setExpenseVehicleId('nenhum');
+                  setVehicleDropdownVisible(false);
+                }}
+              >
+                <View
+                  style={[
+                    styles.dropdownOptionIcon,
+                    expenseVehicleId === 'nenhum' && styles.dropdownOptionIconActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="remove-circle-outline"
+                    size={19}
+                    color={expenseVehicleId === 'nenhum' ? '#06130B' : '#A1A1AA'}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.dropdownOptionTitle,
+                      expenseVehicleId === 'nenhum' && styles.dropdownOptionTitleActive,
+                    ]}
+                  >
+                    Nenhum veículo
+                  </Text>
+                  <Text
+                    style={[
+                      styles.dropdownOptionSubtitle,
+                      expenseVehicleId === 'nenhum' && styles.dropdownOptionSubtitleActive,
+                    ]}
+                  >
+                    Despesa geral
+                  </Text>
+                </View>
+
+                {expenseVehicleId === 'nenhum' ? (
+                  <Ionicons name="checkmark-circle" size={21} color="#06130B" />
+                ) : null}
+              </TouchableOpacity>
+
+              {vehicles.map((vehicle) => {
+                const selected = expenseVehicleId === vehicle.id;
+                const plate = String(vehicle?.plate ?? '').trim().toUpperCase();
+
+                return (
+                  <TouchableOpacity
+                    key={vehicle.id}
+                    activeOpacity={0.86}
+                    style={[
+                      styles.dropdownOption,
+                      selected && styles.dropdownOptionActive,
+                    ]}
+                    onPress={() => {
+                      setExpenseVehicleId(vehicle.id);
+                      setVehicleDropdownVisible(false);
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.dropdownOptionIcon,
+                        selected && styles.dropdownOptionIconActive,
+                      ]}
+                    >
+                      <Ionicons
+                        name="car-sport-outline"
+                        size={19}
+                        color={selected ? '#06130B' : '#22C55E'}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.dropdownOptionTitle,
+                          selected && styles.dropdownOptionTitleActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {[vehicle.brand, vehicle.model].filter(Boolean).join(' ') || 'Veículo'}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.dropdownOptionSubtitle,
+                          selected && styles.dropdownOptionSubtitleActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {plate || 'Sem placa'}
+                      </Text>
+                    </View>
+
+                    {selected ? (
+                      <Ionicons name="checkmark-circle" size={21} color="#06130B" />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       <Modal visible={filtersModalVisible} transparent animationType="fade">
@@ -2491,6 +3265,145 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
+  expenseReceiptsBox: {
+    borderRadius: 18,
+    backgroundColor: '#0B1220',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 11,
+    gap: 8,
+    marginTop: 3,
+  },
+
+  expenseReceiptsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 2,
+  },
+
+  expenseReceiptsTitle: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  expenseReceiptsCountBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: 'rgba(147,197,253,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(147,197,253,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+  },
+
+  expenseReceiptsCountText: {
+    color: '#93C5FD',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  expenseReceiptItem: {
+    minHeight: 48,
+    borderRadius: 15,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+
+  expenseReceiptOpenArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+
+  expenseReceiptIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  expenseReceiptName: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  expenseReceiptHint: {
+    color: '#A1A1AA',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+
+  expenseReceiptActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  expenseReceiptRenameButton: {
+    width: 31,
+    height: 31,
+    borderRadius: 11,
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  expenseReceiptOpenButton: {
+    width: 31,
+    height: 31,
+    borderRadius: 11,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  expenseReceiptDeleteButton: {
+    width: 31,
+    height: 31,
+    borderRadius: 11,
+    backgroundColor: 'rgba(239,68,68,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  expenseNoReceiptsBox: {
+    minHeight: 42,
+    borderRadius: 15,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  expenseNoReceiptsText: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
   expenseActionsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -2732,6 +3645,27 @@ const styles = StyleSheet.create({
     marginBottom: 13,
   },
 
+  iconInputBox: {
+    minHeight: 56,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 14,
+    marginBottom: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  iconInput: {
+    flex: 1,
+    minHeight: 54,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
   inputError: {
     borderColor: '#EF4444',
     backgroundColor: 'rgba(239,68,68,0.08)',
@@ -2932,6 +3866,268 @@ const styles = StyleSheet.create({
     color: '#06130B',
   },
 
+  dropdownButton: {
+    minHeight: 62,
+    borderRadius: 19,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    marginBottom: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  dropdownIconBox: {
+    width: 39,
+    height: 39,
+    borderRadius: 14,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  dropdownTextContent: {
+    flex: 1,
+  },
+
+  dropdownLabel: {
+    color: '#71717A',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+
+  dropdownValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  dropdownPlaceholder: {
+    color: '#71717A',
+  },
+
+  dropdownSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 3,
+    textTransform: 'uppercase',
+  },
+
+  receiptUploadBox: {
+    marginBottom: 13,
+  },
+
+  receiptButton: {
+    minHeight: 62,
+    borderRadius: 19,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  receiptIconBox: {
+    width: 39,
+    height: 39,
+    borderRadius: 14,
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  receiptTextContent: {
+    flex: 1,
+  },
+
+  receiptTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  receiptSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+
+  receiptFilesList: {
+    gap: 8,
+    marginTop: 10,
+  },
+
+  receiptFileItem: {
+    minHeight: 48,
+    borderRadius: 15,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+
+  receiptFileIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    backgroundColor: 'rgba(59,130,246,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  receiptFileName: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  receiptFileStatus: {
+    color: '#A1A1AA',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+
+  receiptFileActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  receiptFileRenameButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 11,
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  receiptFileRemoveButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 11,
+    backgroundColor: 'rgba(239,68,68,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  clearReceiptsButton: {
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239,68,68,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  clearReceiptsText: {
+    color: '#FCA5A5',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  renameReceiptModalContent: {
+    backgroundColor: '#111827',
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+  },
+
+  dropdownModalContent: {
+    backgroundColor: '#111827',
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    maxHeight: '82%',
+  },
+
+  dropdownListContent: {
+    gap: 9,
+    paddingBottom: 8,
+  },
+
+  dropdownOption: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  dropdownOptionActive: {
+    backgroundColor: '#22C55E',
+    borderColor: '#22C55E',
+  },
+
+  dropdownOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  dropdownOptionIconActive: {
+    backgroundColor: 'rgba(6,19,11,0.12)',
+  },
+
+  dropdownOptionTitle: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  dropdownOptionTitleActive: {
+    color: '#06130B',
+  },
+
+  dropdownOptionSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 3,
+    textTransform: 'uppercase',
+  },
+
+  dropdownOptionSubtitleActive: {
+    color: '#14532D',
+  },
+
   confirmButton: {
     height: 58,
     borderRadius: 19,
@@ -3014,6 +4210,3 @@ const styles = StyleSheet.create({
     color: '#06130B',
   },
 });
-
-
-
