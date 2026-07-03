@@ -35,6 +35,32 @@ type StandaloneGainErrors = {
   amount?: string;
 };
 
+type PerformanceTargets = {
+  bad_gain_per_hour: number;
+  good_gain_per_hour: number;
+  bad_gain_per_km: number;
+  good_gain_per_km: number;
+};
+
+type PerformanceTargetDraft = {
+  badGainPerHour: number;
+  goodGainPerHour: number;
+  badGainPerKm: number;
+  goodGainPerKm: number;
+};
+
+const DEFAULT_PERFORMANCE_TARGETS: PerformanceTargetDraft = {
+  badGainPerHour: 30,
+  goodGainPerHour: 50,
+  badGainPerKm: 1.5,
+  goodGainPerKm: 2.5,
+};
+
+const BAD_GAIN_PER_HOUR_OPTIONS = [20, 25, 30, 35, 40, 45, 50];
+const GOOD_GAIN_PER_HOUR_OPTIONS = [40, 45, 50, 55, 60, 70, 80, 100];
+const BAD_GAIN_PER_KM_OPTIONS = [0.8, 1, 1.2, 1.5, 1.8, 2];
+const GOOD_GAIN_PER_KM_OPTIONS = [1.5, 1.8, 2, 2.2, 2.5, 3, 3.5, 4];
+
 function formatDateInput(date: Date) {
   return date.toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -107,6 +133,53 @@ function formatCurrency(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+
+function formatTargetMoney(value: number) {
+  return Number(value ?? 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function mapPerformanceTargetsFromDatabase(data: any): PerformanceTargets | null {
+  if (!data) return null;
+
+  const targets = {
+    bad_gain_per_hour: Number(data.bad_gain_per_hour ?? 0),
+    good_gain_per_hour: Number(data.good_gain_per_hour ?? 0),
+    bad_gain_per_km: Number(data.bad_gain_per_km ?? 0),
+    good_gain_per_km: Number(data.good_gain_per_km ?? 0),
+  };
+
+  return isPerformanceTargetsComplete(targets) ? targets : null;
+}
+
+function isPerformanceTargetsComplete(targets?: PerformanceTargets | null) {
+  if (!targets) return false;
+
+  return (
+    Number(targets.bad_gain_per_hour) > 0 &&
+    Number(targets.good_gain_per_hour) > 0 &&
+    Number(targets.bad_gain_per_km) > 0 &&
+    Number(targets.good_gain_per_km) > 0 &&
+    Number(targets.bad_gain_per_hour) < Number(targets.good_gain_per_hour) &&
+    Number(targets.bad_gain_per_km) < Number(targets.good_gain_per_km)
+  );
+}
+
+function getPerformanceTargetDraft(
+  targets?: PerformanceTargets | null,
+): PerformanceTargetDraft {
+  if (!targets) return DEFAULT_PERFORMANCE_TARGETS;
+
+  return {
+    badGainPerHour: Number(targets.bad_gain_per_hour),
+    goodGainPerHour: Number(targets.good_gain_per_hour),
+    badGainPerKm: Number(targets.bad_gain_per_km),
+    goodGainPerKm: Number(targets.good_gain_per_km),
+  };
 }
 
 function formatTimer(seconds: number) {
@@ -191,10 +264,23 @@ export default function TabsLayout() {
   const [gainErrors, setGainErrors] = useState<StandaloneGainErrors>({});
   const [savingGain, setSavingGain] = useState(false);
 
+
+  const [performanceTargets, setPerformanceTargets] =
+    useState<PerformanceTargets | null>(null);
+  const [performanceTargetsModalVisible, setPerformanceTargetsModalVisible] =
+    useState(false);
+  const [performanceTargetDraft, setPerformanceTargetDraft] =
+    useState<PerformanceTargetDraft>(DEFAULT_PERFORMANCE_TARGETS);
+  const [savingPerformanceTargets, setSavingPerformanceTargets] =
+    useState(false);
+  const [openJourneyAfterPerformanceTargets, setOpenJourneyAfterPerformanceTargets] =
+    useState(false);
+
   useFocusEffect(
     useCallback(() => {
       loadActiveSession();
       loadPlatforms();
+      loadPerformanceTargets();
     }, []),
   );
 
@@ -436,7 +522,139 @@ export default function TabsLayout() {
     } as never);
   }
 
-  function openNewJourney() {
+
+  async function loadPerformanceTargets() {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user?.id) {
+      setPerformanceTargets(null);
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('user_performance_targets')
+      .select(
+        'bad_gain_per_hour, good_gain_per_hour, bad_gain_per_km, good_gain_per_km',
+      )
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.log('Erro ao carregar parâmetros de desempenho:', error);
+      setPerformanceTargets(null);
+      return null;
+    }
+
+    const targets = mapPerformanceTargetsFromDatabase(data);
+
+    setPerformanceTargets(targets);
+
+    if (targets) {
+      setPerformanceTargetDraft(getPerformanceTargetDraft(targets));
+    }
+
+    return targets;
+  }
+
+  function openPerformanceTargetsModal({
+    openJourneyAfterSave = false,
+  }: { openJourneyAfterSave?: boolean } = {}) {
+    setQuickActionsVisible(false);
+    setPerformanceTargetDraft(
+      getPerformanceTargetDraft(performanceTargets),
+    );
+    setOpenJourneyAfterPerformanceTargets(openJourneyAfterSave);
+    setPerformanceTargetsModalVisible(true);
+  }
+
+  function closePerformanceTargetsModal() {
+    setPerformanceTargetsModalVisible(false);
+    setOpenJourneyAfterPerformanceTargets(false);
+    setSavingPerformanceTargets(false);
+  }
+
+  async function handleSavePerformanceTargets() {
+    if (performanceTargetDraft.badGainPerHour >= performanceTargetDraft.goodGainPerHour) {
+      Alert.alert(
+        'Ajuste o ganho por hora',
+        'O ganho por hora bom precisa ser maior que o ganho por hora ruim.',
+      );
+      return;
+    }
+
+    if (performanceTargetDraft.badGainPerKm >= performanceTargetDraft.goodGainPerKm) {
+      Alert.alert(
+        'Ajuste o ganho por KM',
+        'O ganho por KM bom precisa ser maior que o ganho por KM ruim.',
+      );
+      return;
+    }
+
+    try {
+      setSavingPerformanceTargets(true);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user?.id) {
+        Alert.alert('Sessão expirada', 'Entre novamente para salvar os parâmetros.');
+        return;
+      }
+
+      const payload = {
+        user_id: user.id,
+        bad_gain_per_hour: performanceTargetDraft.badGainPerHour,
+        good_gain_per_hour: performanceTargetDraft.goodGainPerHour,
+        bad_gain_per_km: performanceTargetDraft.badGainPerKm,
+        good_gain_per_km: performanceTargetDraft.goodGainPerKm,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('user_performance_targets')
+        .upsert(payload, { onConflict: 'user_id' })
+        .select(
+          'bad_gain_per_hour, good_gain_per_hour, bad_gain_per_km, good_gain_per_km',
+        )
+        .single();
+
+      if (error) throw error;
+
+      const targets = mapPerformanceTargetsFromDatabase(data);
+
+      setPerformanceTargets(targets);
+      setPerformanceTargetsModalVisible(false);
+
+      if (openJourneyAfterPerformanceTargets) {
+        setOpenJourneyAfterPerformanceTargets(false);
+        router.push('/(private)/(tabs)/nova-jornada' as never);
+      }
+    } catch (error: any) {
+      console.log('Erro ao salvar parâmetros de desempenho:', error);
+
+      const message = String(error?.message ?? '').toLowerCase();
+
+      Alert.alert(
+        'Erro ao salvar parâmetros',
+        message.includes('user_performance_targets') ||
+          message.includes('relation') ||
+          message.includes('schema cache')
+          ? 'Rode o SQL da tabela user_performance_targets no Supabase e tente novamente.'
+          : 'Não foi possível salvar seus parâmetros. Tente novamente.',
+      );
+    } finally {
+      setSavingPerformanceTargets(false);
+    }
+  }
+
+  async function openNewJourney() {
     setQuickActionsVisible(false);
 
     if (hasActiveSession) {
@@ -444,6 +662,14 @@ export default function TabsLayout() {
         'Jornada em andamento',
         'Finalize ou exclua a jornada atual antes de iniciar uma nova.',
       );
+      return;
+    }
+
+    const targets = performanceTargets ?? (await loadPerformanceTargets());
+
+    if (!isPerformanceTargetsComplete(targets)) {
+      setPerformanceTargetDraft(getPerformanceTargetDraft(targets));
+      openPerformanceTargetsModal({ openJourneyAfterSave: true });
       return;
     }
 
@@ -1348,6 +1574,14 @@ export default function TabsLayout() {
               style={styles.quickActionExpense}
               iconBoxStyle={styles.quickActionIconRed}
               onPress={openExpenseForm}
+            />
+
+            <QuickActionButton
+              icon="options-outline"
+              label="Parâmetros"
+              style={styles.quickActionTargets}
+              iconBoxStyle={styles.quickActionIconCyan}
+              onPress={() => openPerformanceTargetsModal()}
             />
 
             {hasActiveSession ? (
@@ -2562,6 +2796,174 @@ export default function TabsLayout() {
         </KeyboardAvoidingView>
       </Modal>
 
+      <Modal
+        visible={performanceTargetsModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closePerformanceTargetsModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.performanceTargetsOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.performanceTargetsContent}>
+            <View style={styles.performanceTargetsHeader}>
+              <View style={styles.performanceTargetsHeaderIcon}>
+                <Ionicons name="speedometer-outline" size={25} color="#06130B" />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.performanceTargetsEyebrow}>
+                  Parâmetros de desempenho
+                </Text>
+                <Text style={styles.performanceTargetsTitle}>
+                  Definir metas de ganho
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.performanceTargetsCloseButton}
+                onPress={closePerformanceTargetsModal}
+              >
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.performanceTargetsDescription}>
+              Defina quando uma jornada deve ser considerada ruim ou boa com base no ganho por hora e no ganho por KM.
+            </Text>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.performanceTargetsScrollContent}
+            >
+              <View style={styles.performanceTargetsPreviewCard}>
+                <View style={styles.performanceTargetsPreviewRow}>
+                  <View style={styles.performanceTargetsPreviewIconRed}>
+                    <Ionicons name="trending-down-outline" size={18} color="#FCA5A5" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.performanceTargetsPreviewLabel}>Ruim</Text>
+                    <Text style={styles.performanceTargetsPreviewText}>
+                      Abaixo dos valores ruins, o app poderá indicar que a jornada não está compensando.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.performanceTargetsPreviewDivider} />
+
+                <View style={styles.performanceTargetsPreviewRow}>
+                  <View style={styles.performanceTargetsPreviewIconGreen}>
+                    <Ionicons name="trending-up-outline" size={18} color="#BBF7D0" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.performanceTargetsPreviewLabel}>Bom</Text>
+                    <Text style={styles.performanceTargetsPreviewText}>
+                      Acima dos valores bons, o app poderá destacar que a jornada está valendo a pena.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <PerformanceRangeSelector
+                title="Ganho por hora ruim"
+                description="Valor mínimo aceitável por hora trabalhada"
+                value={performanceTargetDraft.badGainPerHour}
+                options={BAD_GAIN_PER_HOUR_OPTIONS}
+                suffix="/h"
+                onChange={(value) => {
+                  setPerformanceTargetDraft((current) => ({
+                    ...current,
+                    badGainPerHour: value,
+                    goodGainPerHour:
+                      value >= current.goodGainPerHour
+                        ? GOOD_GAIN_PER_HOUR_OPTIONS.find((option) => option > value) ?? current.goodGainPerHour
+                        : current.goodGainPerHour,
+                  }));
+                }}
+              />
+
+              <PerformanceRangeSelector
+                title="Ganho por hora bom"
+                description="Meta ideal para considerar a jornada boa"
+                value={performanceTargetDraft.goodGainPerHour}
+                options={GOOD_GAIN_PER_HOUR_OPTIONS}
+                suffix="/h"
+                onChange={(value) => {
+                  setPerformanceTargetDraft((current) => ({
+                    ...current,
+                    goodGainPerHour: value,
+                    badGainPerHour:
+                      value <= current.badGainPerHour
+                        ? BAD_GAIN_PER_HOUR_OPTIONS.filter((option) => option < value).slice(-1)[0] ?? current.badGainPerHour
+                        : current.badGainPerHour,
+                  }));
+                }}
+              />
+
+              <PerformanceRangeSelector
+                title="Ganho por KM ruim"
+                description="Valor mínimo aceitável por quilômetro rodado"
+                value={performanceTargetDraft.badGainPerKm}
+                options={BAD_GAIN_PER_KM_OPTIONS}
+                suffix="/km"
+                onChange={(value) => {
+                  setPerformanceTargetDraft((current) => ({
+                    ...current,
+                    badGainPerKm: value,
+                    goodGainPerKm:
+                      value >= current.goodGainPerKm
+                        ? GOOD_GAIN_PER_KM_OPTIONS.find((option) => option > value) ?? current.goodGainPerKm
+                        : current.goodGainPerKm,
+                  }));
+                }}
+              />
+
+              <PerformanceRangeSelector
+                title="Ganho por KM bom"
+                description="Meta ideal para considerar a corrida ou jornada boa"
+                value={performanceTargetDraft.goodGainPerKm}
+                options={GOOD_GAIN_PER_KM_OPTIONS}
+                suffix="/km"
+                onChange={(value) => {
+                  setPerformanceTargetDraft((current) => ({
+                    ...current,
+                    goodGainPerKm: value,
+                    badGainPerKm:
+                      value <= current.badGainPerKm
+                        ? BAD_GAIN_PER_KM_OPTIONS.filter((option) => option < value).slice(-1)[0] ?? current.badGainPerKm
+                        : current.badGainPerKm,
+                  }));
+                }}
+              />
+            </ScrollView>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[
+                styles.performanceTargetsSaveButton,
+                savingPerformanceTargets && styles.saveGainButtonDisabled,
+              ]}
+              disabled={savingPerformanceTargets}
+              onPress={handleSavePerformanceTargets}
+            >
+              {savingPerformanceTargets ? (
+                <ActivityIndicator color="#06130B" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={22} color="#06130B" />
+                  <Text style={styles.performanceTargetsSaveButtonText}>
+                    Salvar parâmetros
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={platformDrawerVisible} transparent animationType="slide">
         <View style={styles.platformDrawerOverlay}>
           <View style={styles.platformDrawerContent}>
@@ -2675,6 +3077,88 @@ function QuickActionButton({
   );
 }
 
+
+function PerformanceRangeSelector({
+  title,
+  description,
+  value,
+  options,
+  suffix,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  value: number;
+  options: number[];
+  suffix: string;
+  onChange: (value: number) => void;
+}) {
+  const selectedIndex = Math.max(
+    options.findIndex((option) => option === value),
+    0,
+  );
+
+  const progress =
+    options.length > 1 ? (selectedIndex / (options.length - 1)) * 100 : 0;
+
+  return (
+    <View style={styles.performanceRangeCard}>
+      <View style={styles.performanceRangeHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.performanceRangeTitle}>{title}</Text>
+          <Text style={styles.performanceRangeDescription}>{description}</Text>
+        </View>
+
+        <View style={styles.performanceRangeValueBadge}>
+          <Text style={styles.performanceRangeValueText}>
+            R$ {formatTargetMoney(value)}{suffix}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.performanceRangeTrack}>
+        <View
+          style={[
+            styles.performanceRangeTrackFill,
+            { width: `${progress}%` },
+          ]}
+        />
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.performanceRangeOptions}
+      >
+        {options.map((option) => {
+          const selected = option === value;
+
+          return (
+            <TouchableOpacity
+              key={`${title}-${option}`}
+              activeOpacity={0.86}
+              style={[
+                styles.performanceRangeOption,
+                selected && styles.performanceRangeOptionActive,
+              ]}
+              onPress={() => onChange(option)}
+            >
+              <Text
+                style={[
+                  styles.performanceRangeOptionText,
+                  selected && styles.performanceRangeOptionTextActive,
+                ]}
+              >
+                R$ {formatTargetMoney(option)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -2734,7 +3218,7 @@ const styles = StyleSheet.create({
 
   quickBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.80)',
+    backgroundColor: 'rgba(0,0,0,0.90)',
     zIndex: 60,
   },
 
@@ -2743,7 +3227,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: Platform.OS === 'ios' ? 60 : 60,
-    height: 180,
+    height: 230,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 300,
@@ -4058,6 +4542,274 @@ const styles = StyleSheet.create({
   },
 
   savePlatformsButtonText: {
+    color: '#06130B',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  
+  quickActionTargets: {
+    transform: [{ translateY: -162 }],
+  },
+
+  quickActionIconCyan: {
+    backgroundColor: '#0891B2',
+  },
+
+  performanceTargetsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'flex-end',
+  },
+
+  performanceTargetsContent: {
+    width: '100%',
+    maxHeight: '92%',
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderWidth: 1,
+    borderColor: '#18181B',
+    paddingTop: 12,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+  },
+
+  performanceTargetsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+
+  performanceTargetsHeaderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#22C55E',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  performanceTargetsEyebrow: {
+    color: '#22C55E',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  performanceTargetsTitle: {
+    color: '#FFFFFF',
+    fontSize: 21,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  performanceTargetsCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  performanceTargetsDescription: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+
+  performanceTargetsScrollContent: {
+    paddingBottom: 18,
+  },
+
+  performanceTargetsPreviewCard: {
+    backgroundColor: '#0B1220',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 14,
+    marginBottom: 14,
+  },
+
+  performanceTargetsPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  performanceTargetsPreviewIconRed: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239,68,68,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  performanceTargetsPreviewIconGreen: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34,197,94,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  performanceTargetsPreviewLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  performanceTargetsPreviewText: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 2,
+  },
+
+  performanceTargetsPreviewDivider: {
+    height: 1,
+    backgroundColor: '#1F2937',
+    marginVertical: 12,
+  },
+
+  performanceRangeCard: {
+    backgroundColor: '#111827',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    padding: 14,
+    marginBottom: 12,
+  },
+
+  performanceRangeHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  performanceRangeTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  performanceRangeDescription: {
+    color: '#71717A',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 3,
+  },
+
+  performanceRangeValueBadge: {
+    minWidth: 82,
+    minHeight: 40,
+    borderRadius: 16,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+
+  performanceRangeValueText: {
+    color: '#86EFAC',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  performanceRangeTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#27272A',
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+
+  performanceRangeTrackFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+
+  performanceRangeOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+
+  performanceRangeOption: {
+    minWidth: 66,
+    minHeight: 40,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+
+  performanceRangeOptionActive: {
+    backgroundColor: '#22C55E',
+    borderColor: '#86EFAC',
+  },
+
+  performanceRangeOptionText: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  performanceRangeOptionTextActive: {
+    color: '#06130B',
+  },
+
+  performanceTargetsSaveButton: {
+    height: 60,
+    borderRadius: 22,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    shadowColor: '#22C55E',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+
+  performanceTargetsSaveButtonText: {
     color: '#06130B',
     fontSize: 15,
     fontWeight: '900',

@@ -24,6 +24,7 @@ import {
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
+import { useGlobalLoading } from "../../../src/components/GlobalLoadingProvider";
 import { supabase } from "../../../src/database/supabase";
 
 import {
@@ -94,6 +95,13 @@ const periodOptions: { label: string; value: DashboardPeriod }[] = [
   { label: "Ano", value: "year" },
 ];
 
+type PerformanceTargets = {
+  bad_gain_per_hour: number | string | null;
+  good_gain_per_hour: number | string | null;
+  bad_gain_per_km: number | string | null;
+  good_gain_per_km: number | string | null;
+};
+
 const expenseCategoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   Manutenção: "build-outline",
   "Lavagem/Limpeza": "water-outline",
@@ -116,6 +124,95 @@ const expenseCategoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   "Imposto de Renda": "receipt-outline",
   Outros: "ellipsis-horizontal-circle-outline",
 };
+
+
+const performanceColors = {
+  good: "#22C55E",
+  bad: "#EF4444",
+  medium: "#FACC15",
+  neutral: "#FFFFFF",
+};
+
+const platformVisualConfig: Record<
+  string,
+  { color: string; icon?: keyof typeof Ionicons.glyphMap; forceIcon?: boolean }
+> = {
+  "99": { color: "#FACC15" },
+  "99 food": { color: "#FACC15" },
+  "99food": { color: "#FACC15" },
+  ifood: { color: "#EF4444" },
+  indrive: { color: "#86EFAC" },
+  keeta: { color: "#166534" },
+  lalamove: { color: "#F97316" },
+  loggi: { color: "#3B82F6" },
+  "mercado livre": { color: "#FACC15" },
+  particular: {
+    color: "#71717A",
+    icon: "disc-outline",
+    forceIcon: true,
+  },
+  produtos: { color: "#92400E" },
+  rappi: { color: "#FB923C" },
+  shopee: { color: "#EA580C" },
+  shoppe: { color: "#EA580C" },
+  uber: { color: "#000000" },
+  "uber eats": { color: "#000000" },
+  "ze delivery": { color: "#FDE047" },
+  "zé delivery": { color: "#FDE047" },
+};
+
+function normalizePlatformName(platformName?: string | null) {
+  return String(platformName ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function getPlatformVisual(platformName?: string | null) {
+  const normalizedName = normalizePlatformName(platformName);
+
+  return (
+    platformVisualConfig[normalizedName] ?? {
+      color: "#22C55E",
+      icon: "cash-outline" as keyof typeof Ionicons.glyphMap,
+      forceIcon: false,
+    }
+  );
+}
+
+function getPlatformChartColor(platformName?: string | null) {
+  return getPlatformVisual(platformName).color;
+}
+
+function getPlatformFallbackIcon(platformName?: string | null) {
+  return getPlatformVisual(platformName).icon ?? "cash-outline";
+}
+
+function shouldForcePlatformFallbackIcon(platformName?: string | null) {
+  return Boolean(getPlatformVisual(platformName).forceIcon);
+}
+
+function getPlatformIconContrastColor(platformName?: string | null) {
+  const normalizedName = normalizePlatformName(platformName);
+
+  if (
+    [
+      "99",
+      "99 food",
+      "99food",
+      "mercado livre",
+      "ze delivery",
+      "zé delivery",
+      "indrive",
+    ].includes(normalizedName)
+  ) {
+    return "#06130B";
+  }
+
+  return "#FFFFFF";
+}
 
 function getExpenseIcon(category?: string | null) {
   if (!category) return "receipt-outline" as const;
@@ -195,6 +292,13 @@ function formatGoalCurrency(value: number) {
 function formatDecimal(value: number) {
   return Number(value ?? 0).toLocaleString("pt-BR", {
     minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatPerformanceDecimal(value: number) {
+  return Number(value ?? 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
@@ -350,6 +454,12 @@ function getMonthWeeks(referenceDate: Date) {
 
 function getDayFromBarItem(item: any) {
   if (item?.date) {
+    const directDateMatch = String(item.date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+    if (directDateMatch) {
+      return Number(directDateMatch[3]);
+    }
+
     const parsedDate = new Date(item.date);
 
     if (!Number.isNaN(parsedDate.getTime())) {
@@ -369,20 +479,45 @@ function getDayFromBarItem(item: any) {
   return Number(match[1]);
 }
 
+function getBarItemDateKey(item: any, referenceDate: Date) {
+  if (item?.date) {
+    const directDateMatch = String(item.date).match(/^(\d{4}-\d{2}-\d{2})/);
+
+    if (directDateMatch) {
+      return directDateMatch[1];
+    }
+
+    const parsedDate = new Date(item.date);
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return toLocalDateKey(parsedDate);
+    }
+  }
+
+  const day = getDayFromBarItem(item);
+
+  if (!day) return null;
+
+  const year = referenceDate.getFullYear();
+  const month = String(referenceDate.getMonth() + 1).padStart(2, "0");
+  const normalizedDay = String(day).padStart(2, "0");
+
+  return `${year}-${month}-${normalizedDay}`;
+}
+
 function buildMonthWeeksBarChartData(items: any[], referenceDate: Date) {
   const weeks = getMonthWeeks(referenceDate);
-  const year = referenceDate.getFullYear();
-  const month = referenceDate.getMonth();
 
   return weeks.map((week) => {
+    const weekStartKey = toLocalDateKey(week.visibleStart);
+    const weekEndKey = toLocalDateKey(week.visibleEnd);
+
     const value = items.reduce((total, item) => {
-      const day = getDayFromBarItem(item);
+      const itemDateKey = getBarItemDateKey(item, referenceDate);
 
-      if (!day) return total;
+      if (!itemDateKey) return total;
 
-      const itemDate = new Date(year, month, day, 12, 0, 0, 0);
-
-      if (itemDate >= week.start && itemDate <= week.end) {
+      if (itemDateKey >= weekStartKey && itemDateKey <= weekEndKey) {
         return total + Number(item.value ?? 0);
       }
 
@@ -397,11 +532,15 @@ function buildMonthWeeksBarChartData(items: any[], referenceDate: Date) {
 }
 
 function getEntryDate(entry: any) {
-  const dateValue =
-    entry?.earning_date ||
-    entry?.created_at ||
-    entry?.session?.started_at ||
-    entry?.session?.finished_at;
+  const dateValue = entry?.session_id
+    ? entry?.session?.started_at ||
+      entry?.earning_date ||
+      entry?.created_at ||
+      entry?.session?.finished_at
+    : entry?.earning_date ||
+      entry?.created_at ||
+      entry?.session?.started_at ||
+      entry?.session?.finished_at;
 
   const parsed = new Date(dateValue);
 
@@ -446,11 +585,19 @@ function getDateKeyFromValue(value?: string | Date | null) {
 }
 
 function getEntryDateKey(entry: any) {
-  const dateValue =
-    entry?.earning_date ||
-    entry?.created_at ||
-    entry?.session?.started_at ||
-    entry?.session?.finished_at;
+  /*
+    Ganhos vinculados a uma jornada pertencem ao dia em que a jornada começou.
+    Por isso, quando houver session_id, priorizamos session.started_at.
+  */
+  const dateValue = entry?.session_id
+    ? entry?.session?.started_at ||
+      entry?.earning_date ||
+      entry?.created_at ||
+      entry?.session?.finished_at
+    : entry?.earning_date ||
+      entry?.created_at ||
+      entry?.session?.started_at ||
+      entry?.session?.finished_at;
 
   return getDateKeyFromValue(dateValue);
 }
@@ -529,6 +676,7 @@ function buildYearEntriesBarChartData(entries: any[], referenceDate: Date) {
 }
 
 export default function DashboardScreen() {
+  const { withLoading } = useGlobalLoading();
   const [period, setPeriod] = useState<DashboardPeriod>("week");
   const [periodTab, setPeriodTab] = useState<DashboardPeriod>("week");
   const [referenceDate, setReferenceDate] = useState(new Date());
@@ -586,6 +734,17 @@ export default function DashboardScreen() {
   const [savingSessionEarning, setSavingSessionEarning] = useState(false);
   const [returnToSessionDetailsAfterEarningEdit, setReturnToSessionDetailsAfterEarningEdit] =
     useState(false);
+
+  const [sessionEditModalVisible, setSessionEditModalVisible] = useState(false);
+  const [sessionEditStartTime, setSessionEditStartTime] = useState('');
+  const [sessionEditEndTime, setSessionEditEndTime] = useState('');
+  const [sessionEditStartKm, setSessionEditStartKm] = useState('');
+  const [sessionEditEndKm, setSessionEditEndKm] = useState('');
+  const [sessionEditErrors, setSessionEditErrors] = useState<Record<string, string>>({});
+  const [savingSessionEdit, setSavingSessionEdit] = useState(false);
+
+  const [performanceTargets, setPerformanceTargets] =
+    useState<PerformanceTargets | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -720,6 +879,18 @@ export default function DashboardScreen() {
             ]);
           },
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "user_performance_targets",
+            filter: `user_id=eq.${loggedUser.id}`,
+          },
+          async () => {
+            await loadPerformanceTargets(loggedUser.id);
+          },
+        )
         .subscribe();
     }
 
@@ -780,6 +951,25 @@ export default function DashboardScreen() {
     } catch (error) {
       console.log("Erro ao verificar admin:", error);
       setIsSystemAdmin(false);
+    }
+  }
+
+  async function loadPerformanceTargets(userId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("user_performance_targets")
+        .select(
+          "bad_gain_per_hour, good_gain_per_hour, bad_gain_per_km, good_gain_per_km",
+        )
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      setPerformanceTargets(data ?? null);
+    } catch (error) {
+      console.log("Erro ao carregar parâmetros de desempenho:", error);
+      setPerformanceTargets(null);
     }
   }
 
@@ -942,6 +1132,7 @@ export default function DashboardScreen() {
   }
 
   async function loadDashboard() {
+    await withLoading(async () => {
     try {
       const response = await getDashboardData(period, referenceDate);
 
@@ -961,10 +1152,12 @@ export default function DashboardScreen() {
         await Promise.all([
           loadProfileAvatar(loggedUser.id),
           loadAdminStatus(loggedUser.id),
+          loadPerformanceTargets(loggedUser.id),
         ]);
       } else {
         setProfileAvatarUrl(null);
         setIsSystemAdmin(false);
+        setPerformanceTargets(null);
       }
 
       if (period === "day") {
@@ -978,6 +1171,8 @@ export default function DashboardScreen() {
     } catch (error) {
       console.log(error);
     }
+  
+    });
   }
 
   async function closeGoalModal() {
@@ -1067,6 +1262,16 @@ export default function DashboardScreen() {
     ? dashboardRevenue / Number(data.totalKm)
     : 0;
 
+  const dashboardRevenuePerHourColor = getPerformanceMetricColor(
+    dashboardRevenuePerHour,
+    "hour",
+  );
+
+  const dashboardRevenuePerKmColor = getPerformanceMetricColor(
+    dashboardRevenuePerKm,
+    "km",
+  );
+
   const expensesPercent =
     dashboardRevenue > 0
       ? Math.round((dashboardExpenses / dashboardRevenue) * 100)
@@ -1099,6 +1304,82 @@ export default function DashboardScreen() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  function formatSessionEditTime(value?: string | null) {
+    if (!value) return "";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function maskTimeInput(value: string) {
+    const numbers = value.replace(/\D/g, "").slice(0, 4);
+
+    if (numbers.length <= 2) return numbers;
+
+    return `${numbers.slice(0, 2)}:${numbers.slice(2)}`;
+  }
+
+  function parseTimeInput(value: string) {
+    const [hour, minute] = value.split(":").map(Number);
+
+    if (
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59
+    ) {
+      return null;
+    }
+
+    return { hour, minute };
+  }
+
+  function buildSessionDateTime(baseValue: string | Date | null | undefined, timeValue: string) {
+    const parsedTime = parseTimeInput(timeValue);
+
+    if (!parsedTime) return null;
+
+    const baseDate = baseValue ? new Date(baseValue) : new Date(referenceDate);
+
+    if (Number.isNaN(baseDate.getTime())) return null;
+
+    const date = new Date(baseDate);
+    date.setHours(parsedTime.hour, parsedTime.minute, 0, 0);
+
+    return date;
+  }
+
+  function maskSessionKmInput(value: string) {
+    const numbers = value.replace(/\D/g, "").slice(0, 7);
+
+    return numbers ? Number(numbers).toLocaleString("pt-BR") : "";
+  }
+
+  function parseSessionKmInput(value: string) {
+    const numbers = value.replace(/\D/g, "");
+
+    if (!numbers) return null;
+
+    const parsed = Number(numbers);
+
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function clearSessionEditError(field: string) {
+    setSessionEditErrors((current) => ({
+      ...current,
+      [field]: "",
+    }));
   }
 
   function openSessionDetails(session: any) {
@@ -1191,6 +1472,32 @@ export default function DashboardScreen() {
 
   function getPlatformInitial(platformName?: string | null) {
     return String(platformName || '?').trim().slice(0, 1).toUpperCase() || '?';
+  }
+
+  function getPerformanceMetricColor(
+    value: number,
+    metric: "hour" | "km",
+  ) {
+    const bad = Number(
+      metric === "hour"
+        ? performanceTargets?.bad_gain_per_hour
+        : performanceTargets?.bad_gain_per_km,
+    );
+
+    const good = Number(
+      metric === "hour"
+        ? performanceTargets?.good_gain_per_hour
+        : performanceTargets?.good_gain_per_km,
+    );
+
+    if (Number(value ?? 0) <= 0 || !bad || !good || bad >= good) {
+      return performanceColors.neutral;
+    }
+
+    if (value >= good) return performanceColors.good;
+    if (value < bad) return performanceColors.bad;
+
+    return performanceColors.medium;
   }
 
   function openEditEntryModal(entry: any) {
@@ -1519,6 +1826,161 @@ export default function DashboardScreen() {
     }
   }
 
+  async function openSessionEditModal() {
+    if (!selectedSession?.id) return;
+
+    try {
+      setSessionEditErrors({});
+      setSavingSessionEdit(false);
+
+      const { data: sessionResponse, error } = await supabase
+        .from("work_sessions")
+        .select("id, started_at, finished_at, start_km, end_km")
+        .eq("id", selectedSession.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const sessionData = sessionResponse ?? selectedSession;
+
+      setSessionEditStartTime(formatSessionEditTime(sessionData.started_at));
+      setSessionEditEndTime(formatSessionEditTime(sessionData.finished_at));
+      setSessionEditStartKm(
+        sessionData.start_km != null
+          ? maskSessionKmInput(String(sessionData.start_km))
+          : "",
+      );
+      setSessionEditEndKm(
+        sessionData.end_km != null
+          ? maskSessionKmInput(String(sessionData.end_km))
+          : "",
+      );
+
+      setSessionDetailsModalVisible(false);
+
+      setTimeout(() => {
+        setSessionEditModalVisible(true);
+      }, 260);
+    } catch (error) {
+      console.log("Erro ao carregar dados do turno para edição:", error);
+      Alert.alert("Erro", "Não foi possível carregar os dados deste turno.");
+    }
+  }
+
+  function closeSessionEditModal() {
+    setSessionEditModalVisible(false);
+    setSessionEditStartTime('');
+    setSessionEditEndTime('');
+    setSessionEditStartKm('');
+    setSessionEditEndKm('');
+    setSessionEditErrors({});
+    setSavingSessionEdit(false);
+
+    if (selectedSession?.id) {
+      setTimeout(() => {
+        setSessionDetailsModalVisible(true);
+      }, 260);
+    }
+  }
+
+  function validateSessionEditForm() {
+    const errors: Record<string, string> = {};
+
+    const startedAt = buildSessionDateTime(
+      selectedSession?.started_at ?? referenceDate,
+      sessionEditStartTime,
+    );
+
+    const finishedAt = buildSessionDateTime(
+      selectedSession?.finished_at ?? selectedSession?.started_at ?? referenceDate,
+      sessionEditEndTime,
+    );
+
+    const startKm = parseSessionKmInput(sessionEditStartKm);
+    const endKm = parseSessionKmInput(sessionEditEndKm);
+
+    if (!startedAt) {
+      errors.startTime = "Informe uma hora inicial válida.";
+    }
+
+    if (!finishedAt) {
+      errors.endTime = "Informe uma hora final válida.";
+    }
+
+    if (startedAt && finishedAt && finishedAt <= startedAt) {
+      errors.endTime = "A hora final precisa ser maior que a hora inicial.";
+    }
+
+    if (startKm === null) {
+      errors.startKm = "Informe o KM inicial.";
+    }
+
+    if (endKm === null) {
+      errors.endKm = "Informe o KM final.";
+    }
+
+    if (startKm !== null && endKm !== null && endKm < startKm) {
+      errors.endKm = "O KM final não pode ser menor que o KM inicial.";
+    }
+
+    setSessionEditErrors(errors);
+
+    if (Object.keys(errors).length > 0 || !startedAt || !finishedAt || startKm === null || endKm === null) {
+      return null;
+    }
+
+    return {
+      startedAt,
+      finishedAt,
+      startKm,
+      endKm,
+    };
+  }
+
+  async function handleSaveSessionEdit() {
+    try {
+      if (!selectedSession?.id) return;
+
+      const validated = validateSessionEditForm();
+
+      if (!validated) return;
+
+      const sessionId = selectedSession.id;
+
+      setSavingSessionEdit(true);
+
+      const { error } = await supabase
+        .from("work_sessions")
+        .update({
+          started_at: toLocalISOString(validated.startedAt),
+          finished_at: toLocalISOString(validated.finishedAt),
+          start_km: validated.startKm,
+          end_km: validated.endKm,
+        })
+        .eq("id", sessionId);
+
+      if (error) throw error;
+
+      setSessionEditModalVisible(false);
+      setSessionEditStartTime('');
+      setSessionEditEndTime('');
+      setSessionEditStartKm('');
+      setSessionEditEndKm('');
+      setSessionEditErrors({});
+
+      await refreshSessionDetailsAfterEarningChange(sessionId);
+
+      setTimeout(() => {
+        setSessionDetailsModalVisible(true);
+      }, 260);
+    } catch (error) {
+      console.log("Erro ao editar turno:", error);
+      Alert.alert("Erro", "Não foi possível editar este turno.");
+    } finally {
+      setSavingSessionEdit(false);
+    }
+  }
+
   function openSessionEarningEditModal(earning: any) {
     setEditingSessionEarning(earning);
     setSessionEarningAmount(formatCurrencyInput(Number(earning.amount ?? 0)));
@@ -1801,16 +2263,6 @@ export default function DashboardScreen() {
     return "Gastos registrados no ano selecionado";
   }
 
-  const colors = [
-    "#22C55E",
-    "#3B82F6",
-    "#F59E0B",
-    "#8B5CF6",
-    "#EF4444",
-    "#14B8A6",
-    "#EC4899",
-  ];
-
   const platformTotals = data.platformTotals ?? {};
 
   const pieData = Object.entries(platformTotals)
@@ -1821,9 +2273,13 @@ export default function DashboardScreen() {
       return {
         value: Number(value),
         text: `${dashboardRevenue > 0 ? ((Number(value) / dashboardRevenue) * 100).toFixed(0) : 0}%`,
-        color: colors[index % colors.length],
+        color: getPlatformChartColor(platform),
         label: platform,
-        logo_url: platformInfo?.logo_url ?? null,
+        logo_url: shouldForcePlatformFallbackIcon(platform)
+          ? null
+          : platformInfo?.logo_url ?? null,
+        fallbackIcon: getPlatformFallbackIcon(platform),
+        iconColor: getPlatformIconContrastColor(platform),
       };
     });
 
@@ -2172,8 +2628,13 @@ export default function DashboardScreen() {
                 Ganho/h
               </Text>
             </View>
-            <Text style={[styles.modernStatValue, { color: theme.text }]}>
-              R$ {formatDecimal(dashboardRevenuePerHour)}
+            <Text
+              style={[
+                styles.modernStatValue,
+                { color: dashboardRevenuePerHourColor },
+              ]}
+            >
+              R$ {formatPerformanceDecimal(dashboardRevenuePerHour)}
             </Text>
           </View>
 
@@ -2191,8 +2652,13 @@ export default function DashboardScreen() {
                 Ganho/km
               </Text>
             </View>
-            <Text style={[styles.modernStatValue, { color: theme.text }]}>
-              R$ {formatDecimal(dashboardRevenuePerKm)}
+            <Text
+              style={[
+                styles.modernStatValue,
+                { color: dashboardRevenuePerKmColor },
+              ]}
+            >
+              R$ {formatPerformanceDecimal(dashboardRevenuePerKm)}
             </Text>
           </View>
         </View>
@@ -2370,8 +2836,18 @@ export default function DashboardScreen() {
                         <Ionicons name="analytics-outline" size={15} color="#22C55E" />
                         <Text style={styles.daySessionStatLabel}>Ganho/h</Text>
                       </View>
-                      <Text style={styles.daySessionStatValueGreen}>
-                        R$ {formatCurrency(session.revenuePerHour)}
+                      <Text
+                        style={[
+                          styles.daySessionStatValue,
+                          {
+                            color: getPerformanceMetricColor(
+                              Number(session.revenuePerHour ?? 0),
+                              "hour",
+                            ),
+                          },
+                        ]}
+                      >
+                        R$ {formatPerformanceDecimal(session.revenuePerHour)}
                       </Text>
                     </View>
 
@@ -2380,8 +2856,18 @@ export default function DashboardScreen() {
                         <Ionicons name="navigate-outline" size={15} color="#A78BFA" />
                         <Text style={styles.daySessionStatLabel}>Ganho/km</Text>
                       </View>
-                      <Text style={styles.daySessionStatValuePurple}>
-                        R$ {formatCurrency(session.revenuePerKm)}
+                      <Text
+                        style={[
+                          styles.daySessionStatValue,
+                          {
+                            color: getPerformanceMetricColor(
+                              Number(session.revenuePerKm ?? 0),
+                              "km",
+                            ),
+                          },
+                        ]}
+                      >
+                        R$ {formatPerformanceDecimal(session.revenuePerKm)}
                       </Text>
                     </View>
                   </View>
@@ -2441,8 +2927,28 @@ export default function DashboardScreen() {
             ) : (
               periodEntries.map((entry) => (
                 <View key={String(entry.id)} style={styles.periodEntryItem}>
-                  <View style={[styles.periodEntryIcon, styles.periodEntryIconStandalone]}>
-                    <Ionicons name="gift-outline" size={21} color="#86EFAC" />
+                  <View
+                    style={[
+                      styles.periodEntryIcon,
+                      {
+                        backgroundColor: getPlatformChartColor(entry.platform),
+                        borderColor: getPlatformChartColor(entry.platform),
+                      },
+                    ]}
+                  >
+                    {getPlatformByName(entry.platform)?.logo_url &&
+                    !shouldForcePlatformFallbackIcon(entry.platform) ? (
+                      <Image
+                        source={{ uri: getPlatformByName(entry.platform)?.logo_url }}
+                        style={styles.periodEntryPlatformLogo}
+                      />
+                    ) : (
+                      <Ionicons
+                        name={getPlatformFallbackIcon(entry.platform)}
+                        size={21}
+                        color={getPlatformIconContrastColor(entry.platform)}
+                      />
+                    )}
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -2552,10 +3058,17 @@ export default function DashboardScreen() {
                         style={styles.pieLegendLogo}
                       />
                     ) : (
-                      <View style={styles.pieLegendLogoFallback}>
-                        <Text style={styles.pieLegendLogoText}>
-                          {getPlatformInitial(item.label)}
-                        </Text>
+                      <View
+                        style={[
+                          styles.pieLegendLogoFallback,
+                          { backgroundColor: item.color },
+                        ]}
+                      >
+                        <Ionicons
+                          name={item.fallbackIcon}
+                          size={20}
+                          color={item.iconColor}
+                        />
                       </View>
                     )}
 
@@ -3399,6 +3912,15 @@ export default function DashboardScreen() {
                     {formatHours(selectedSession.totalHours)} trabalhados ·{" "}
                     {formatNumber(selectedSession.totalKm)} km rodados
                   </Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    style={styles.editSessionButton}
+                    onPress={openSessionEditModal}
+                  >
+                    <Ionicons name="create-outline" size={18} color="#BFDBFE" />
+                    <Text style={styles.editSessionButtonText}>Editar turno</Text>
+                  </TouchableOpacity>
                 </View>
 
                 <Text style={styles.sessionDetailsSectionTitle}>
@@ -3506,6 +4028,156 @@ export default function DashboardScreen() {
             )}
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={sessionEditModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeSessionEditModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.entryEditOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.sessionEditModal}>
+            <View style={styles.entryEditHeader}>
+              <View>
+                <Text style={styles.entryEditEyebrow}>Dados do turno</Text>
+                <Text style={styles.entryEditTitle}>Editar turno</Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={closeSessionEditModal}
+              >
+                <Ionicons name="close" size={27} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.entryEditDescription}>
+              Ajuste os horários e a quilometragem. O dashboard, tempo, KM, ganho/h e ganho/km serão recalculados imediatamente.
+            </Text>
+
+            <View style={styles.sessionEditInfoCard}>
+              <Ionicons name="information-circle-outline" size={20} color="#60A5FA" />
+              <Text style={styles.sessionEditInfoText}>
+                A edição altera os dados base do turno finalizado, sem mudar os ganhos lançados.
+              </Text>
+            </View>
+
+            <View style={styles.sessionEditGrid}>
+              <View style={styles.sessionEditField}>
+                <Text style={styles.entryEditLabel}>Hora inicial</Text>
+                <TextInput
+                  value={sessionEditStartTime}
+                  onChangeText={(value) => {
+                    setSessionEditStartTime(maskTimeInput(value));
+                    clearSessionEditError("startTime");
+                  }}
+                  placeholder="00:00"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  maxLength={5}
+                  style={[
+                    styles.entryEditInput,
+                    sessionEditErrors.startTime && styles.entryEditInputError,
+                  ]}
+                />
+                {sessionEditErrors.startTime ? (
+                  <Text style={styles.entryEditError}>{sessionEditErrors.startTime}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.sessionEditField}>
+                <Text style={styles.entryEditLabel}>Hora final</Text>
+                <TextInput
+                  value={sessionEditEndTime}
+                  onChangeText={(value) => {
+                    setSessionEditEndTime(maskTimeInput(value));
+                    clearSessionEditError("endTime");
+                  }}
+                  placeholder="00:00"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  maxLength={5}
+                  style={[
+                    styles.entryEditInput,
+                    sessionEditErrors.endTime && styles.entryEditInputError,
+                  ]}
+                />
+                {sessionEditErrors.endTime ? (
+                  <Text style={styles.entryEditError}>{sessionEditErrors.endTime}</Text>
+                ) : null}
+              </View>
+            </View>
+
+            <View style={styles.sessionEditGrid}>
+              <View style={styles.sessionEditField}>
+                <Text style={styles.entryEditLabel}>KM inicial</Text>
+                <TextInput
+                  value={sessionEditStartKm}
+                  onChangeText={(value) => {
+                    setSessionEditStartKm(maskSessionKmInput(value));
+                    clearSessionEditError("startKm");
+                  }}
+                  placeholder="0"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  style={[
+                    styles.entryEditInput,
+                    sessionEditErrors.startKm && styles.entryEditInputError,
+                  ]}
+                />
+                {sessionEditErrors.startKm ? (
+                  <Text style={styles.entryEditError}>{sessionEditErrors.startKm}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.sessionEditField}>
+                <Text style={styles.entryEditLabel}>KM final</Text>
+                <TextInput
+                  value={sessionEditEndKm}
+                  onChangeText={(value) => {
+                    setSessionEditEndKm(maskSessionKmInput(value));
+                    clearSessionEditError("endKm");
+                  }}
+                  placeholder="0"
+                  placeholderTextColor="#71717A"
+                  keyboardType="numeric"
+                  style={[
+                    styles.entryEditInput,
+                    sessionEditErrors.endKm && styles.entryEditInputError,
+                  ]}
+                />
+                {sessionEditErrors.endKm ? (
+                  <Text style={styles.entryEditError}>{sessionEditErrors.endKm}</Text>
+                ) : null}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[
+                styles.entryEditSaveButton,
+                savingSessionEdit && styles.entryEditSaveButtonDisabled,
+              ]}
+              disabled={savingSessionEdit}
+              onPress={handleSaveSessionEdit}
+            >
+              {savingSessionEdit ? (
+                <ActivityIndicator color="#06130B" />
+              ) : (
+                <>
+                  <Ionicons name="save-outline" size={21} color="#06130B" />
+                  <Text style={styles.entryEditSaveButtonText}>
+                    Salvar turno
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -4553,6 +5225,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
+  periodEntryPlatformLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    backgroundColor: "#FFFFFF",
+  },
+
   periodEntryIcon: {
     width: 44,
     height: 44,
@@ -5345,11 +6024,14 @@ const styles = StyleSheet.create({
     padding: 10,
     borderWidth: 1,
     borderColor: "#1F2937",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   daySessionStatHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
   },
 
@@ -5357,6 +6039,7 @@ const styles = StyleSheet.create({
     color: "#A1A1AA",
     fontSize: 11,
     fontWeight: "800",
+    textAlign: "center",
   },
 
   daySessionStatValue: {
@@ -5364,6 +6047,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     marginTop: 4,
+    textAlign: "center",
   },
 
   daySessionDetailsButton: {
@@ -6362,6 +7046,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     marginTop: 4,
+    textAlign: "center",
   },
 
   daySessionStatValuePurple: {
@@ -6369,6 +7054,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     marginTop: 4,
+    textAlign: "center",
   },
 
   sessionDetailRowModern: {
@@ -6470,5 +7156,61 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
   },
+  
+  editSessionButton: {
+    minHeight: 46,
+    borderRadius: 16,
+    backgroundColor: "rgba(59,130,246,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.28)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 14,
+  },
 
+  editSessionButtonText: {
+    color: "#BFDBFE",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  sessionEditModal: {
+    backgroundColor: "#111827",
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+  },
+
+  sessionEditInfoCard: {
+    minHeight: 54,
+    borderRadius: 18,
+    backgroundColor: "rgba(59,130,246,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.22)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+
+  sessionEditInfoText: {
+    flex: 1,
+    color: "#BFDBFE",
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+  },
+
+  sessionEditGrid: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  sessionEditField: {
+    flex: 1,
+  },
 });

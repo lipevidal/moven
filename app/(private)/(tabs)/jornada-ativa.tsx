@@ -18,6 +18,7 @@ import { getPrivateChatMessages } from '../../../src/features/privateChat/servic
 import { sendPrivateChatMessage } from '../../../src/features/privateChat/services/sendPrivateChatMessage';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useGlobalLoading } from '../../../src/components/GlobalLoadingProvider';
 import { searchMunicipalities } from '../../../src/features/municipalities/services/searchMunicipalities';
 import { updateSessionMunicipality } from '../../../src/features/municipalities/services/updateSessionMunicipality';
 import { getActiveSession } from '../../../src/features/workSessions/services/getActiveSession';
@@ -326,7 +327,15 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
   };
 }
 
+type PerformanceTargets = {
+  bad_gain_per_hour: number | null;
+  good_gain_per_hour: number | null;
+  bad_gain_per_km: number | null;
+  good_gain_per_km: number | null;
+};
+
 export default function ActiveSessionScreen() {
+  const { withLoading } = useGlobalLoading();
   const [session, setSession] = useState<any>(null);
   const [rides, setRides] = useState<any[]>([]);
   const [cityChatVisible, setCityChatVisible] = useState(false);
@@ -336,6 +345,8 @@ export default function ActiveSessionScreen() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [nowTick, setNowTick] = useState(Date.now());
   const [currentUserId, setCurrentUserId] = useState('');
+  const [performanceTargets, setPerformanceTargets] =
+    useState<PerformanceTargets | null>(null);
   const [gainModalVisible, setGainModalVisible] = useState(false);
   const [kmModalVisible, setKmModalVisible] = useState(false);
   const [finishModalVisible, setFinishModalVisible] = useState(false);
@@ -892,6 +903,7 @@ export default function ActiveSessionScreen() {
     setEditingFinishedRide(null);
     setFinishedRideAmount('');
 
+    await syncSessionEarningsDateToSessionStart(session.id);
     await loadSession();
     notifyActiveSessionChanged();
   }
@@ -922,6 +934,7 @@ export default function ActiveSessionScreen() {
   }
 
   async function loadSession() {
+    await withLoading(async () => {
     const response = await getActiveSession();
 
     if (!response) {
@@ -938,11 +951,85 @@ export default function ActiveSessionScreen() {
     setRides(ridesResponse);
 
     await loadPlatforms();
+  
+    });
   }
 
   function notifyActiveSessionChanged() {
     DeviceEventEmitter.emit('movenapp:active-session-refresh');
     DeviceEventEmitter.emit('movenapp:dashboard-refresh');
+  }
+
+  function getSessionStartEarningDate() {
+    if (!session?.started_at) return null;
+
+    const startedAt = new Date(session.started_at);
+
+    if (Number.isNaN(startedAt.getTime())) return null;
+
+    /*
+      Regra do app:
+      ganhos vinculados a uma jornada pertencem ao dia em que a jornada começou.
+
+      Exemplo:
+      início quinta 19:00 e conclusão sexta 01:00
+      => os ganhos continuam na quinta.
+
+      Usamos 12:00 do dia inicial para evitar deslocamento de data por fuso horário.
+    */
+    const earningDate = new Date(startedAt);
+    earningDate.setHours(12, 0, 0, 0);
+
+    return earningDate.toISOString();
+  }
+
+  async function syncSessionEarningsDateToSessionStart(sessionId?: string | null) {
+    try {
+      if (!sessionId) return;
+
+      const earningDate = getSessionStartEarningDate();
+
+      if (!earningDate) return;
+
+      const { error } = await supabase
+        .from('earnings')
+        .update({
+          earning_date: earningDate,
+        })
+        .eq('session_id', sessionId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.log('Erro ao sincronizar data dos ganhos com o início da jornada:', error);
+    }
+  }
+
+
+  async function loadPerformanceTargets() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user?.id) {
+      setPerformanceTargets(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('user_performance_targets')
+      .select(
+        'bad_gain_per_hour, good_gain_per_hour, bad_gain_per_km, good_gain_per_km',
+      )
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.log('Erro ao carregar parâmetros de desempenho:', error);
+      setPerformanceTargets(null);
+      return;
+    }
+
+    setPerformanceTargets(data ?? null);
   }
 
   useEffect(() => {
@@ -1073,6 +1160,11 @@ export default function ActiveSessionScreen() {
     }
 
     loadUser();
+  }, []);
+
+
+  useEffect(() => {
+    loadPerformanceTargets();
   }, []);
 
   const earnings = session?.earnings ?? [];
@@ -1340,6 +1432,7 @@ export default function ActiveSessionScreen() {
     setRideEndKm('');
     setRideAmount('');
 
+    await syncSessionEarningsDateToSessionStart(session.id);
     await loadSession();
     notifyActiveSessionChanged();
 
@@ -1402,6 +1495,8 @@ export default function ActiveSessionScreen() {
         amount,
       });
     }
+
+    await syncSessionEarningsDateToSessionStart(session.id);
 
     setGainModalVisible(false);
     setSelectedPlatform('');
@@ -1565,11 +1660,15 @@ export default function ActiveSessionScreen() {
       }
     }
 
+    await syncSessionEarningsDateToSessionStart(session.id);
+
     await finishWorkSession({
       session_id: session.id,
       end_km: parsedKm,
       finished_at: finishDate.toISOString(),
     });
+
+    await syncSessionEarningsDateToSessionStart(session.id);
 
     notifyActiveSessionChanged();
 
@@ -1595,6 +1694,31 @@ export default function ActiveSessionScreen() {
     if (hours <= 0) return 0;
 
     return Number(ride.amount) / hours;
+  }
+
+
+  function getPerformanceMetricColor(params: {
+    value: number;
+    bad?: number | null;
+    good?: number | null;
+  }) {
+    const value = Number(params.value ?? 0);
+    const bad = Number(params.bad ?? 0);
+    const good = Number(params.good ?? 0);
+
+    if (value <= 0 || !bad || !good || bad >= good) {
+      return '#FFFFFF';
+    }
+
+    if (value >= good) {
+      return '#22C55E';
+    }
+
+    if (value < bad) {
+      return '#EF4444';
+    }
+
+    return '#FACC15';
   }
 
   useEffect(() => {
@@ -1907,7 +2031,18 @@ export default function ActiveSessionScreen() {
               </View>
               <Text style={styles.activeModernMetricLabel}>Ganho/h</Text>
             </View>
-            <Text style={styles.activeModernMetricValueBlue}>
+            <Text
+              style={[
+                styles.activeModernMetricValueBlue,
+                {
+                  color: getPerformanceMetricColor({
+                    value: gainPerHour,
+                    bad: performanceTargets?.bad_gain_per_hour,
+                    good: performanceTargets?.good_gain_per_hour,
+                  }),
+                },
+              ]}
+            >
               R$ {Number(gainPerHour ?? 0).toFixed(2).replace('.', ',')}
             </Text>
           </View>
@@ -1919,7 +2054,18 @@ export default function ActiveSessionScreen() {
               </View>
               <Text style={styles.activeModernMetricLabel}>Ganho/km</Text>
             </View>
-            <Text style={styles.activeModernMetricValuePurple}>
+            <Text
+              style={[
+                styles.activeModernMetricValuePurple,
+                {
+                  color: getPerformanceMetricColor({
+                    value: gainPerKm,
+                    bad: performanceTargets?.bad_gain_per_km,
+                    good: performanceTargets?.good_gain_per_km,
+                  }),
+                },
+              ]}
+            >
               R$ {Number(gainPerKm ?? 0).toFixed(2).replace('.', ',')}
             </Text>
           </View>
@@ -8135,28 +8281,28 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   activeModernMetricValueGreen: {
-    color: '#4ADE80',
+    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 4,
     textAlign: 'center',
   },
   activeModernMetricValueBlue: {
-    color: '#60A5FA',
+    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 4,
     textAlign: 'center'
   },
   activeModernMetricValuePurple: {
-    color: '#C084FC',
+    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 4,
     textAlign: 'center',
   },
   activeModernMetricValueOrange: {
-    color: '#FBBF24',
+    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 4,

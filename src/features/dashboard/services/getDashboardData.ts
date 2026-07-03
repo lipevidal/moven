@@ -134,7 +134,15 @@ function getPreviousPeriodRange(period: DashboardPeriod, referenceDate: Date) {
 }
 
 function getSessionDate(session: SessionItem) {
-  return session.finished_at ?? session.started_at ?? null;
+  /*
+    Regra do MovenApp:
+    uma jornada pertence exclusivamente ao dia em que começou.
+
+    Exemplo:
+    começou quinta 19:00 e terminou sexta 01:00
+    => faturamento, gráficos e totais entram na quinta.
+  */
+  return session.started_at ?? null;
 }
 
 function getSessionHours(session: SessionItem) {
@@ -176,6 +184,14 @@ function groupPlatformTotals(earnings: EarningItem[]) {
 }
 
 function getEarningDate(earning: EarningItem, fallbackDate?: string | null) {
+  /*
+    Para ganhos de jornada, fallbackDate será o started_at da jornada.
+    Nesse caso ele deve ter prioridade absoluta sobre earning_date/created_at.
+  */
+  if (earning.session_id && fallbackDate) {
+    return fallbackDate;
+  }
+
   return earning.earning_date ?? earning.created_at ?? fallbackDate ?? null;
 }
 
@@ -312,6 +328,13 @@ async function getRevenueByRange(userId: string, start: Date, end: Date) {
 }
 
 async function getSessionsByPeriod(userId: string, start: Date, end: Date) {
+  /*
+    IMPORTANTE:
+    jornadas devem ser filtradas pela data de início, não pela data de finalização.
+
+    Se começou quinta 19:00 e terminou sexta 01:00,
+    essa jornada pertence à quinta.
+  */
   const { data, error } = await supabase
     .from('work_sessions')
     .select(
@@ -326,16 +349,18 @@ async function getSessionsByPeriod(userId: string, start: Date, end: Date) {
       earnings (
         id,
         platform,
+        description,
         amount,
+        earning_date,
         created_at
       )
       `,
     )
     .eq('user_id', userId)
     .eq('status', 'finished')
-    .gte('finished_at', toLocalISOString(start))
-    .lte('finished_at', toLocalISOString(end))
-    .order('finished_at', { ascending: false });
+    .gte('started_at', toLocalISOString(start))
+    .lte('started_at', toLocalISOString(end))
+    .order('started_at', { ascending: false });
 
   if (error) {
     throw error;
@@ -346,11 +371,17 @@ async function getSessionsByPeriod(userId: string, start: Date, end: Date) {
 
 function getSessionEarningsWithDate(sessions: SessionItem[]) {
   return sessions.flatMap((session) => {
-    const fallbackDate = getSessionDate(session);
+    const sessionStartDate = getSessionDate(session);
 
     return (session.earnings ?? []).map((earning) => ({
       ...earning,
-      earning_date: getEarningDate(earning, fallbackDate),
+
+      /*
+        Regra fixa:
+        todo ganho vinculado à jornada herda a data inicial da jornada.
+        Não usamos earning_date original nem created_at para ganho com session_id.
+      */
+      earning_date: sessionStartDate,
       session_id: session.id,
     }));
   });

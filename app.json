@@ -8,7 +8,9 @@
     "scheme": "movenapp",
     "jsEngine": "hermes",
     "android": {
-      "package": "com.lipevidal.moven"
+      "package": "com.lipevidal.moven",
+      "softwareKeyboardLayoutMode": "pan",
+      "edgeToEdgeEnabled": false
     },
     "plugins": [
       "expo-router",

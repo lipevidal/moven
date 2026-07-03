@@ -17,6 +17,7 @@ import {
 
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
+import { useGlobalLoading } from '../../../src/components/GlobalLoadingProvider';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
 
@@ -336,6 +337,7 @@ function getVehicleLabel(vehicle: any) {
 
 
 export default function ExpensesScreen() {
+  const { withLoading } = useGlobalLoading();
   const params = useLocalSearchParams<{ openExpense?: string; t?: string }>();
   const mainScrollRef = useRef<ScrollView>(null);
   const [periodType, setPeriodType] = useState<PeriodType>('week');
@@ -528,6 +530,7 @@ export default function ExpensesScreen() {
   }
 
   async function loadData() {
+    await withLoading(async () => {
     try {
       setLoading(true);
 
@@ -563,6 +566,8 @@ export default function ExpensesScreen() {
     } finally {
       setLoading(false);
     }
+  
+    });
   }
 
   function handleSelectPeriod(type: PeriodType) {
@@ -1105,22 +1110,42 @@ export default function ExpensesScreen() {
 
           <View style={styles.summaryMiniGrid}>
             <View style={styles.summaryMiniCard}>
-              <Text style={styles.summaryMiniLabel}>Faturamento</Text>
+              <View style={styles.summaryMiniHeader}>
+                <View style={[styles.summaryMiniIconBox, styles.summaryMiniIconRevenue]}>
+                  <Ionicons name="cash-outline" size={17} color="#86EFAC" />
+                </View>
+                <Text style={styles.summaryMiniLabel}>Faturamento</Text>
+              </View>
               <Text style={styles.summaryMiniValue}>R$ {formatCurrency(totalRevenue)}</Text>
             </View>
 
             <View style={styles.summaryMiniCard}>
-              <Text style={styles.summaryMiniLabel}>Peso no faturamento</Text>
+              <View style={styles.summaryMiniHeader}>
+                <View style={[styles.summaryMiniIconBox, styles.summaryMiniIconWeight]}>
+                  <Ionicons name="pie-chart-outline" size={17} color="#FCA5A5" />
+                </View>
+                <Text style={styles.summaryMiniLabel}>Peso no faturamento</Text>
+              </View>
               <Text style={styles.summaryMiniValue}>{expensePercentageOfRevenue}%</Text>
             </View>
 
             <View style={styles.summaryMiniCard}>
-              <Text style={styles.summaryMiniLabel}>Qtd. despesas</Text>
+              <View style={styles.summaryMiniHeader}>
+                <View style={[styles.summaryMiniIconBox, styles.summaryMiniIconCount]}>
+                  <Ionicons name="receipt-outline" size={17} color="#C4B5FD" />
+                </View>
+                <Text style={styles.summaryMiniLabel}>Qtd. despesas</Text>
+              </View>
               <Text style={styles.summaryMiniValue}>{filteredExpenses.length}</Text>
             </View>
 
             <View style={styles.summaryMiniCard}>
-              <Text style={styles.summaryMiniLabel}>Ticket médio</Text>
+              <View style={styles.summaryMiniHeader}>
+                <View style={[styles.summaryMiniIconBox, styles.summaryMiniIconAverage]}>
+                  <Ionicons name="stats-chart-outline" size={17} color="#93C5FD" />
+                </View>
+                <Text style={styles.summaryMiniLabel}>Ticket médio</Text>
+              </View>
               <Text style={styles.summaryMiniValue}>R$ {formatCurrency(averageExpense)}</Text>
             </View>
           </View>
@@ -2099,25 +2124,71 @@ const styles = StyleSheet.create({
 
   summaryMiniCard: {
     width: '48%',
-    minHeight: 72,
+    minHeight: 86,
     backgroundColor: '#18181B',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#27272A',
-    padding: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   summaryMiniLabel: {
+    flex: 1,
     color: '#A1A1AA',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
+    textAlign: 'left',
+    lineHeight: 13,
   },
 
   summaryMiniValue: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '900',
-    marginTop: 8,
+    marginTop: 6,
+    textAlign: 'center',
+    alignSelf: 'center',
+  },
+
+  summaryMiniHeader: {
+    width: '100%',
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  summaryMiniIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+
+  summaryMiniIconRevenue: {
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderColor: 'rgba(34,197,94,0.24)',
+  },
+
+  summaryMiniIconWeight: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderColor: 'rgba(239,68,68,0.24)',
+  },
+
+  summaryMiniIconCount: {
+    backgroundColor: 'rgba(139,92,246,0.12)',
+    borderColor: 'rgba(139,92,246,0.24)',
+  },
+
+  summaryMiniIconAverage: {
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderColor: 'rgba(59,130,246,0.24)',
   },
 
   chartContainer: {
@@ -2943,3 +3014,6 @@ const styles = StyleSheet.create({
     color: '#06130B',
   },
 });
+
+
+
