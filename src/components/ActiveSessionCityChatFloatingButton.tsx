@@ -1522,7 +1522,7 @@ export function ActiveSessionCityChatFloatingButton() {
           ]}
           onPress={openCityChat}
         >
-          <Ionicons name="chatbubbles-outline" size={28} color="#FFFFFF" />
+          <Ionicons name="chatbubbles-outline" size={28} color="#080808" />
 
           {unreadChatCount > 0 ? (
             <View style={styles.unreadBadge}>
@@ -1569,7 +1569,7 @@ export function ActiveSessionCityChatFloatingButton() {
 
               <View style={styles.chatHeader}>
                 <View style={styles.chatHeaderIcon}>
-                  <Ionicons name="chatbubbles-outline" size={24} color="#60A5FA" />
+                  <Ionicons name="chatbubbles-outline" size={24} color="#D4A64A" />
                 </View>
 
                 <View style={{ flex: 1 }}>
@@ -1588,7 +1588,7 @@ export function ActiveSessionCityChatFloatingButton() {
                   style={styles.closeButton}
                   onPress={() => setCityChatVisible(false)}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -1599,7 +1599,7 @@ export function ActiveSessionCityChatFloatingButton() {
                   onPress={openDriversModalFromChat}
                 >
                   <View style={styles.runningMiniDot} />
-                  <Ionicons name="radio-outline" size={15} color="#86EFAC" />
+                  <Ionicons name="radio-outline" size={15} color="#22C55E" />
                   <Text style={styles.runningMiniText}>
                     {visibleOnlineDrivers.length} rodando
                   </Text>
@@ -1610,7 +1610,7 @@ export function ActiveSessionCityChatFloatingButton() {
                   style={styles.changeCityMiniButton}
                   onPress={openMunicipalityModalFromChat}
                 >
-                  <Ionicons name="location-outline" size={15} color="#BBF7D0" />
+                  <Ionicons name="location-outline" size={15} color="#E8D49B" />
                   <Text style={styles.changeCityMiniText}>Cidade</Text>
                 </TouchableOpacity>
               </View>
@@ -1621,7 +1621,7 @@ export function ActiveSessionCityChatFloatingButton() {
                     <Ionicons
                       name="chatbubble-ellipses-outline"
                       size={15}
-                      color="#BFDBFE"
+                      color="#E8D49B"
                     />
                     <Text style={styles.unreadFloatingText}>
                       {initialUnreadMessageCount}{' '}
@@ -1636,7 +1636,7 @@ export function ActiveSessionCityChatFloatingButton() {
                     style={styles.unreadDownButton}
                     onPress={() => scrollCityChatToBottom(true)}
                   >
-                    <Ionicons name="arrow-down" size={18} color="#FFFFFF" />
+                    <Ionicons name="arrow-down" size={18} color="#080808" />
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -1657,7 +1657,7 @@ export function ActiveSessionCityChatFloatingButton() {
                       <Ionicons
                         name="chatbubble-ellipses-outline"
                         size={32}
-                        color="#71717A"
+                        color="#8F8A91"
                       />
                     </View>
 
@@ -1792,7 +1792,7 @@ export function ActiveSessionCityChatFloatingButton() {
                                       : 'play'
                                   }
                                   size={18}
-                                  color="#FFFFFF"
+                                  color="#F5F0E6"
                                 />
                               </TouchableOpacity>
 
@@ -1875,7 +1875,7 @@ export function ActiveSessionCityChatFloatingButton() {
                     style={styles.replyPreviewClose}
                     onPress={() => setReplyingCityMessage(null)}
                   >
-                    <Ionicons name="close" size={18} color="#A1A1AA" />
+                    <Ionicons name="close" size={18} color="#9B969B" />
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -1883,7 +1883,7 @@ export function ActiveSessionCityChatFloatingButton() {
               {recorderState?.isRecording || sendingAudio ? (
                 <View style={styles.recordingBar}>
                   <View style={styles.recordingPulse}>
-                    <Ionicons name="mic" size={19} color="#FFFFFF" />
+                    <Ionicons name="mic" size={19} color="#080808" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -1918,19 +1918,19 @@ export function ActiveSessionCityChatFloatingButton() {
                     ]}
                     onPress={handleStopAudioRecordingAndSend}
                   >
-                    <Ionicons name="send" size={20} color="#FFFFFF" />
+                    <Ionicons name="send" size={20} color="#080808" />
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.inputBar}>
                   <View style={styles.inputWrapper}>
-                    <Ionicons name="chatbubble-outline" size={19} color="#71717A" />
+                    <Ionicons name="chatbubble-outline" size={19} color="#8F8A91" />
 
                     <TextInput
                       value={chatMessage}
                       onChangeText={setChatMessage}
                       placeholder="Mensagem para a cidade..."
-                      placeholderTextColor="#71717A"
+                      placeholderTextColor="#8F8A91"
                       style={styles.input}
                       multiline
                     />
@@ -1942,7 +1942,7 @@ export function ActiveSessionCityChatFloatingButton() {
                       style={styles.sendButton}
                       onPress={handleSendCityMessage}
                     >
-                      <Ionicons name="send" size={20} color="#FFFFFF" />
+                      <Ionicons name="send" size={20} color="#080808" />
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
@@ -1950,7 +1950,7 @@ export function ActiveSessionCityChatFloatingButton() {
                       style={styles.micButton}
                       onPress={handleStartAudioRecording}
                     >
-                      <Ionicons name="mic-outline" size={23} color="#FFFFFF" />
+                      <Ionicons name="mic-outline" size={23} color="#080808" />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1990,7 +1990,7 @@ export function ActiveSessionCityChatFloatingButton() {
                           <Ionicons
                             name="person-circle-outline"
                             size={21}
-                            color="#DDD6FE"
+                            color="#E8D49B"
                           />
                         </View>
 
@@ -2003,7 +2003,7 @@ export function ActiveSessionCityChatFloatingButton() {
                           </Text>
                         </View>
 
-                        <Ionicons name="chevron-forward" size={19} color="#71717A" />
+                        <Ionicons name="chevron-forward" size={19} color="#8F8A91" />
                       </TouchableOpacity>
                     ) : null}
 
@@ -2019,7 +2019,7 @@ export function ActiveSessionCityChatFloatingButton() {
                           <Ionicons
                             name="chatbubble-ellipses-outline"
                             size={20}
-                            color="#BFDBFE"
+                            color="#E8D49B"
                           />
                         </View>
 
@@ -2032,7 +2032,7 @@ export function ActiveSessionCityChatFloatingButton() {
                           </Text>
                         </View>
 
-                        <Ionicons name="chevron-forward" size={19} color="#71717A" />
+                        <Ionicons name="chevron-forward" size={19} color="#8F8A91" />
                       </TouchableOpacity>
                     ) : null}
 
@@ -2042,7 +2042,7 @@ export function ActiveSessionCityChatFloatingButton() {
                       onPress={() => handleReplyCityMessage(selectedCityMessage)}
                     >
                       <View style={styles.messageActionIconGreen}>
-                        <Ionicons name="return-up-back-outline" size={20} color="#BBF7D0" />
+                        <Ionicons name="return-up-back-outline" size={20} color="#E8D49B" />
                       </View>
 
                       <View style={{ flex: 1 }}>
@@ -2054,7 +2054,7 @@ export function ActiveSessionCityChatFloatingButton() {
                         </Text>
                       </View>
 
-                      <Ionicons name="chevron-forward" size={19} color="#71717A" />
+                      <Ionicons name="chevron-forward" size={19} color="#8F8A91" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -2086,7 +2086,7 @@ export function ActiveSessionCityChatFloatingButton() {
 
               <View style={styles.driversHeader}>
                 <View style={styles.municipalityHeaderIcon}>
-                  <Ionicons name="location-outline" size={24} color="#22C55E" />
+                  <Ionicons name="location-outline" size={24} color="#D4A64A" />
                 </View>
 
                 <View style={{ flex: 1 }}>
@@ -2102,18 +2102,18 @@ export function ActiveSessionCityChatFloatingButton() {
                   style={styles.closeButton}
                   onPress={closeMunicipalityModalAndReturnToChat}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.municipalitySearchBox}>
-                <Ionicons name="search-outline" size={20} color="#71717A" />
+                <Ionicons name="search-outline" size={20} color="#8F8A91" />
 
                 <TextInput
                   value={municipalitySearch}
                   onChangeText={handleSearchMunicipalities}
                   placeholder="Buscar cidade..."
-                  placeholderTextColor="#71717A"
+                  placeholderTextColor="#8F8A91"
                   style={styles.municipalitySearchInput}
                   autoCapitalize="words"
                 />
@@ -2128,7 +2128,7 @@ export function ActiveSessionCityChatFloatingButton() {
                 {municipalities.length === 0 ? (
                   <View style={styles.emptyBox}>
                     <View style={styles.emptyIcon}>
-                      <Ionicons name="map-outline" size={32} color="#71717A" />
+                      <Ionicons name="map-outline" size={32} color="#8F8A91" />
                     </View>
 
                     <Text style={styles.emptyTitle}>
@@ -2157,7 +2157,7 @@ export function ActiveSessionCityChatFloatingButton() {
                           <Ionicons
                             name={selected ? 'checkmark-circle' : 'location-outline'}
                             size={21}
-                            color={selected ? '#22C55E' : '#A1A1AA'}
+                            color={selected ? '#D4A64A' : '#9B969B'}
                           />
                         </View>
 
@@ -2173,7 +2173,7 @@ export function ActiveSessionCityChatFloatingButton() {
                         <Ionicons
                           name="chevron-forward"
                           size={18}
-                          color="#52525B"
+                          color="#8F8A91"
                         />
                       </TouchableOpacity>
                     );
@@ -2222,7 +2222,7 @@ export function ActiveSessionCityChatFloatingButton() {
                 style={styles.closeButton}
                 onPress={closeDriversModalAndReturnToChat}
               >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={24} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2234,7 +2234,7 @@ export function ActiveSessionCityChatFloatingButton() {
               {visibleOnlineDrivers.length === 0 ? (
                 <View style={styles.emptyBox}>
                   <View style={styles.emptyIcon}>
-                    <Ionicons name="car-sport-outline" size={32} color="#71717A" />
+                    <Ionicons name="car-sport-outline" size={32} color="#8F8A91" />
                   </View>
 
                   <Text style={styles.emptyTitle}>Ninguém rodando agora</Text>
@@ -2297,22 +2297,21 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     elevation: 9999,
   },
-
   floatingButton: {
     width: BUTTON_SIZE,
     height: BUTTON_SIZE,
     borderRadius: 999,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#D4A64A',
     borderWidth: 3,
-    borderColor: '#0B1220',
+    borderColor: '#101014',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2563EB',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 10,
     },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.28,
     shadowRadius: 16,
     elevation: 18,
   },
@@ -2320,7 +2319,6 @@ const styles = StyleSheet.create({
   floatingButtonLoading: {
     opacity: 0.85,
   },
-
   unreadBadge: {
     position: 'absolute',
     right: -5,
@@ -2330,14 +2328,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#EF4444',
     borderWidth: 2,
-    borderColor: '#09090B',
+    borderColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
   },
-
   unreadBadgeText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 10,
     fontWeight: '900',
   },
@@ -2350,19 +2347,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
-
   chatBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: 'rgba(0,0,0,0.82)',
   },
-
   chatSheet: {
     height: '100%',
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderWidth: 0,
-    borderColor: '#18181B',
+    borderColor: '#2A2830',
     paddingHorizontal: 15,
     paddingTop: Platform.OS === 'ios' ? 54 : 24,
     paddingBottom: Platform.OS === 'ios' ? 8 : 10,
@@ -2376,12 +2371,11 @@ const styles = StyleSheet.create({
     marginTop: -8,
     marginBottom: 2,
   },
-
   sheetHandle: {
     width: 58,
     height: 6,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#4A4438',
     alignSelf: 'center',
     marginBottom: 9,
   },
@@ -2392,79 +2386,71 @@ const styles = StyleSheet.create({
     gap: 9,
     marginBottom: 8,
   },
-
   chatHeaderIcon: {
     width: 42,
     height: 42,
-    borderRadius: 16,
-    backgroundColor: 'rgba(37,99,235,0.16)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.13)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.26)',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   chatEyebrow: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-
   chatTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 19,
     fontWeight: '900',
     marginTop: 1,
   },
-
   chatSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 2,
   },
 
   chatWindowHint: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 10,
     fontWeight: '800',
     marginTop: 3,
   },
-
-
   closeButton: {
     width: 42,
     height: 42,
-    borderRadius: 15,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   chatQuickBar: {
     minHeight: 38,
-    borderRadius: 17,
-    backgroundColor: 'rgba(15,23,42,0.72)',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.16)',
+    borderColor: '#2A2830',
     padding: 5,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
     marginBottom: 8,
   },
-
   runningMiniButton: {
     flex: 1,
     minHeight: 30,
     borderRadius: 999,
     backgroundColor: 'rgba(34,197,94,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.18)',
+    borderColor: 'rgba(34,197,94,0.20)',
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2477,37 +2463,33 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#22C55E',
   },
-
   runningMiniText: {
-    color: '#DCFCE7',
+    color: '#86EFAC',
     fontSize: 12,
     fontWeight: '900',
   },
-
   changeCityMiniButton: {
     minHeight: 30,
     borderRadius: 999,
-    backgroundColor: 'rgba(37,99,235,0.15)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
   },
-
   changeCityMiniText: {
-    color: '#DBEAFE',
+    color: '#E8D49B',
     fontSize: 12,
     fontWeight: '900',
   },
-
   unreadFloatingBanner: {
     minHeight: 42,
-    borderRadius: 16,
-    backgroundColor: 'rgba(37,99,235,0.15)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.32)',
+    borderColor: 'rgba(212,166,74,0.30)',
     paddingHorizontal: 10,
     paddingVertical: 7,
     marginBottom: 8,
@@ -2523,18 +2505,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
-
   unreadFloatingText: {
-    color: '#DBEAFE',
+    color: '#E8D49B',
     fontSize: 12,
     fontWeight: '900',
   },
-
   unreadDownButton: {
     width: 32,
     height: 32,
     borderRadius: 999,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2546,24 +2526,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 2,
   },
-
   unreadDividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(96,165,250,0.25)',
+    backgroundColor: 'rgba(212,166,74,0.22)',
   },
-
   unreadDividerPill: {
     borderRadius: 999,
-    backgroundColor: 'rgba(37,99,235,0.16)',
+    backgroundColor: 'rgba(212,166,74,0.13)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.28)',
+    borderColor: 'rgba(212,166,74,0.26)',
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-
   unreadDividerText: {
-    color: '#BFDBFE',
+    color: '#E8D49B',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -2587,24 +2564,24 @@ const styles = StyleSheet.create({
   emptyIcon: {
     width: 58,
     height: 58,
-    borderRadius: 22,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
 
   emptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     textAlign: 'center',
   },
 
   emptyText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
@@ -2633,13 +2610,13 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   avatarFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -2647,7 +2624,7 @@ const styles = StyleSheet.create({
   messageBubble: {
     minWidth: 100,
     maxWidth: Dimensions.get('window').width * 0.7,
-    borderRadius: 19,
+    borderRadius: 14,
     paddingHorizontal: 13,
     paddingTop: 10,
     paddingBottom: 10,
@@ -2659,20 +2636,20 @@ const styles = StyleSheet.create({
   },
 
   messageBubbleOther: {
-    backgroundColor: '#18181B',
-    borderColor: '#27272A',
+    backgroundColor: '#18171D',
+    borderColor: '#2A2830',
     borderBottomLeftRadius: 7,
   },
 
   messageBubbleMe: {
-    backgroundColor: '#2563EB',
-    borderColor: '#60A5FA',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
     borderBottomRightRadius: 7,
     alignSelf: 'flex-end',
   },
 
   messageUserName: {
-    color: '#BFDBFE',
+    color: '#E8D49B',
     fontSize: 11,
     fontWeight: '900',
     marginBottom: 4,
@@ -2703,11 +2680,11 @@ const styles = StyleSheet.create({
   messageReplyLine: {
     width: 3,
     borderRadius: 999,
-    backgroundColor: '#60A5FA',
+    backgroundColor: '#D4A64A',
   },
 
   messageReplyLineMe: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#E8D49B',
   },
 
   messageReplyAuthor: {
@@ -2718,11 +2695,11 @@ const styles = StyleSheet.create({
   },
 
   messageReplyAuthorMe: {
-    color: '#DBEAFE',
+    color: '#E8D49B',
   },
 
   messageReplyText: {
-    color: '#D4D4D8',
+    color: '#D8D1C4',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 16,
@@ -2747,7 +2724,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 999,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2786,7 +2763,7 @@ const styles = StyleSheet.create({
   },
 
   audioDuration: {
-    color: '#D4D4D8',
+    color: '#D8D1C4',
     fontSize: 12,
     fontWeight: '900',
     marginRight: 4,
@@ -2802,7 +2779,7 @@ const styles = StyleSheet.create({
   },
 
   messageText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 19,
@@ -2810,11 +2787,11 @@ const styles = StyleSheet.create({
   },
 
   messageTextMe: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
   },
 
   messageHour: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
     alignSelf: 'flex-end',
@@ -2822,14 +2799,14 @@ const styles = StyleSheet.create({
   },
 
   messageHourMe: {
-    color: '#DBEAFE',
+    color: '#E8D49B',
   },
 
   messageRightHour: {
     position: 'absolute',
     right: -37,
     bottom: 1,
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
     textAlign: 'right',
@@ -2837,15 +2814,15 @@ const styles = StyleSheet.create({
   },
 
   messageRightHourMe: {
-    color: '#DBEAFE',
+    color: '#E8D49B',
   },
 
   replyPreviewBox: {
     minHeight: 54,
-    borderRadius: 18,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 12,
     paddingVertical: 9,
     flexDirection: 'row',
@@ -2858,17 +2835,17 @@ const styles = StyleSheet.create({
     width: 4,
     height: 34,
     borderRadius: 999,
-    backgroundColor: '#60A5FA',
+    backgroundColor: '#D4A64A',
   },
 
   replyPreviewLabel: {
-    color: '#BFDBFE',
+    color: '#E8D49B',
     fontSize: 11,
     fontWeight: '900',
   },
 
   replyPreviewText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '700',
     marginTop: 2,
@@ -2878,7 +2855,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 12,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2890,17 +2867,17 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 4 : 0,
     borderTopWidth: 1,
-    borderTopColor: '#18181B',
+    borderTopColor: '#18171D',
   },
 
   inputWrapper: {
     flex: 1,
     minHeight: 48,
     maxHeight: 110,
-    borderRadius: 18,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 12,
     paddingVertical: 9,
     flexDirection: 'row',
@@ -2910,7 +2887,7 @@ const styles = StyleSheet.create({
 
   input: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '700',
     maxHeight: 90,
@@ -2919,22 +2896,22 @@ const styles = StyleSheet.create({
   sendButton: {
     width: 48,
     height: 48,
-    borderRadius: 18,
-    backgroundColor: '#2563EB',
+    borderRadius: 14,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   sendButtonDisabled: {
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     opacity: 0.7,
   },
 
   micButton: {
     width: 48,
     height: 48,
-    borderRadius: 18,
-    backgroundColor: '#22C55E',
+    borderRadius: 14,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2942,9 +2919,9 @@ const styles = StyleSheet.create({
   recordingBar: {
     minHeight: 58,
     borderRadius: 21,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 11,
     paddingVertical: 9,
     flexDirection: 'row',
@@ -2964,7 +2941,7 @@ const styles = StyleSheet.create({
   },
 
   recordingTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -2979,7 +2956,7 @@ const styles = StyleSheet.create({
   cancelAudioButton: {
     width: 42,
     height: 42,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: 'rgba(239,68,68,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(248,113,113,0.24)',
@@ -2990,14 +2967,14 @@ const styles = StyleSheet.create({
   sendAudioButton: {
     width: 42,
     height: 42,
-    borderRadius: 16,
-    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   sendAudioButtonDisabled: {
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     opacity: 0.75,
   },
 
@@ -3016,10 +2993,10 @@ const styles = StyleSheet.create({
   messageActionsCard: {
     marginHorizontal: 0,
     marginBottom: Platform.OS === 'ios' ? 12 : 4,
-    borderRadius: 26,
-    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#2A2830',
     padding: 14,
     shadowColor: '#000000',
     shadowOffset: {
@@ -3041,7 +3018,7 @@ const styles = StyleSheet.create({
   },
 
   messageActionsEyebrow: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -3049,7 +3026,7 @@ const styles = StyleSheet.create({
   },
 
   messageActionsTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
     marginTop: 2,
@@ -3066,8 +3043,8 @@ const styles = StyleSheet.create({
 
   messageActionOption: {
     minHeight: 62,
-    borderRadius: 19,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
     borderColor: '#243142',
     paddingHorizontal: 11,
@@ -3081,10 +3058,10 @@ const styles = StyleSheet.create({
   messageActionIconBlue: {
     width: 42,
     height: 42,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: 'rgba(37,99,235,0.18)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.28)',
+    borderColor: 'rgba(212,166,74,0.26)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3092,7 +3069,7 @@ const styles = StyleSheet.create({
   messageActionIconGreen: {
     width: 42,
     height: 42,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: 'rgba(34,197,94,0.13)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.24)',
@@ -3103,7 +3080,7 @@ const styles = StyleSheet.create({
   messageActionIconPurple: {
     width: 42,
     height: 42,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: 'rgba(124,58,237,0.15)',
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.24)',
@@ -3112,13 +3089,13 @@ const styles = StyleSheet.create({
   },
 
   messageActionTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   messageActionSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 3,
@@ -3133,9 +3110,9 @@ const styles = StyleSheet.create({
     maxHeight: '78%',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    backgroundColor: '#09090B',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#18181B',
+    borderColor: '#2A2830',
     paddingHorizontal: 15,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 24 : 14,
@@ -3144,20 +3121,20 @@ const styles = StyleSheet.create({
   municipalityHeaderIcon: {
     width: 48,
     height: 48,
-    borderRadius: 18,
+    borderRadius: 14,
     backgroundColor: 'rgba(34,197,94,0.13)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   municipalitySearchBox: {
     minHeight: 52,
-    borderRadius: 19,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 13,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3167,7 +3144,7 @@ const styles = StyleSheet.create({
 
   municipalitySearchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '800',
   },
@@ -3182,10 +3159,10 @@ const styles = StyleSheet.create({
 
   municipalityItem: {
     minHeight: 62,
-    borderRadius: 20,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -3195,27 +3172,27 @@ const styles = StyleSheet.create({
   },
 
   municipalityItemSelected: {
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    backgroundColor: 'rgba(212,166,74,0.10)',
     borderColor: 'rgba(34,197,94,0.26)',
   },
 
   municipalityItemIcon: {
     width: 40,
     height: 40,
-    borderRadius: 15,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   municipalityItemName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   municipalityItemUf: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
     marginTop: 2,
@@ -3232,12 +3209,12 @@ const styles = StyleSheet.create({
   },
 
   driversSheet: {
-    maxHeight: '78%',
+    minHeight: '100%',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    backgroundColor: '#09090B',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#18181B',
+    borderColor: '#2A2830',
     paddingHorizontal: 15,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 24 : 14,
@@ -3253,10 +3230,10 @@ const styles = StyleSheet.create({
   driversHeaderIcon: {
     width: 48,
     height: 48,
-    borderRadius: 18,
+    borderRadius: 14,
     backgroundColor: 'rgba(34,197,94,0.13)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3271,10 +3248,10 @@ const styles = StyleSheet.create({
 
   driverItem: {
     minHeight: 58,
-    borderRadius: 20,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -3293,13 +3270,13 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   driverAvatarFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -3311,7 +3288,7 @@ const styles = StyleSheet.create({
   },
 
   driverName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -3320,7 +3297,7 @@ const styles = StyleSheet.create({
     maxWidth: 92,
     minHeight: 34,
     borderRadius: 14,
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.20)',
     paddingHorizontal: 8,
@@ -3330,7 +3307,7 @@ const styles = StyleSheet.create({
   },
 
   driverTimeText: {
-    color: '#BBF7D0',
+    color: '#E8D49B',
     fontSize: 10,
     fontWeight: '900',
     textAlign: 'center',

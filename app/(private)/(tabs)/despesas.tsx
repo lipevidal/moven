@@ -344,7 +344,7 @@ export default function ExpensesScreen() {
   const { withLoading } = useGlobalLoading();
   const params = useLocalSearchParams<{ openExpense?: string; t?: string }>();
   const mainScrollRef = useRef<ScrollView>(null);
-  const [periodType, setPeriodType] = useState<PeriodType>('week');
+  const [periodType, setPeriodType] = useState<PeriodType>('month');
   const [baseDate, setBaseDate] = useState(new Date());
 
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -1364,7 +1364,7 @@ export default function ExpensesScreen() {
     return (
       <View style={styles.inlineCalendarBox}>
         <View style={styles.inlineCalendarHeader}>
-          <Ionicons name="calendar-outline" size={18} color="#22C55E" />
+          <Ionicons name="calendar-outline" size={18} color="#D4A64A" />
           <Text style={styles.inlineCalendarTitle}>Escolha uma data</Text>
         </View>
 
@@ -1378,20 +1378,20 @@ export default function ExpensesScreen() {
           markedDates={{
             [toCalendarDateKey(getActiveCalendarDate())]: {
               selected: true,
-              selectedColor: '#22C55E',
-              selectedTextColor: '#06130B',
+              selectedColor: '#D4A64A',
+              selectedTextColor: '#080808',
             },
           }}
           theme={{
-            calendarBackground: '#111827',
-            dayTextColor: '#FFFFFF',
-            monthTextColor: '#FFFFFF',
+            calendarBackground: '#101014',
+            dayTextColor: '#F5F0E6',
+            monthTextColor: '#F5F0E6',
             textDisabledColor: '#3F3F46',
-            arrowColor: '#22C55E',
-            todayTextColor: '#22C55E',
-            selectedDayBackgroundColor: '#22C55E',
-            selectedDayTextColor: '#06130B',
-            textSectionTitleColor: '#A1A1AA',
+            arrowColor: '#D4A64A',
+            todayTextColor: '#D4A64A',
+            selectedDayBackgroundColor: '#D4A64A',
+            selectedDayTextColor: '#080808',
+            textSectionTitleColor: '#9B969B',
             textDayFontWeight: '700',
             textMonthFontWeight: '900',
             textDayHeaderFontWeight: '900',
@@ -1422,22 +1422,24 @@ export default function ExpensesScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
+        stickyHeaderIndices={[0]}
       >
         <View style={styles.topHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerEyebrow}>Controle financeiro</Text>
-            <Text style={styles.title}>Despesas</Text>
+          <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerEyebrow}>PAINEL FINANCEIRO</Text>
+              <Text style={styles.title}>Despesas</Text>
+              <Text style={styles.subtitle}>Controle seus custos por período, categoria e veículo.</Text>
+            </View>
 
-            <Text style={styles.subtitle}>Acompanhe seus gastos por período, categoria e veículo.</Text>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.headerAddButton}
+              onPress={openCreateExpenseModal}
+            >
+              <Ionicons name="add" size={30} color="#080808" />
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            activeOpacity={0.88}
-            style={styles.headerAddButton}
-            onPress={openCreateExpenseModal}
-          >
-            <Ionicons name="add" size={30} color="#06130B" />
-          </TouchableOpacity>
         </View>
 
         <View style={styles.periodMenu}>
@@ -1454,7 +1456,7 @@ export default function ExpensesScreen() {
                 <Ionicons
                   name={item.icon}
                   size={16}
-                  color={active ? '#06130B' : '#A1A1AA'}
+                  color={active ? '#080808' : '#9B969B'}
                 />
 
                 <Text style={[styles.periodText, active && styles.periodTextActive]}>
@@ -1472,7 +1474,7 @@ export default function ExpensesScreen() {
               style={styles.periodArrow}
               onPress={goPreviousPeriod}
             >
-              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+              <Ionicons name="chevron-back" size={22} color="#F5F0E6" />
             </TouchableOpacity>
           ) : (
             <View style={styles.periodArrow} />
@@ -1501,7 +1503,7 @@ export default function ExpensesScreen() {
               style={styles.periodArrow}
               onPress={goNextPeriod}
             >
-              <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+              <Ionicons name="chevron-forward" size={22} color="#F5F0E6" />
             </TouchableOpacity>
           ) : (
             <View style={styles.periodArrow} />
@@ -1635,7 +1637,7 @@ export default function ExpensesScreen() {
             style={styles.filterButton}
             onPress={() => setFiltersModalVisible(true)}
           >
-            <Ionicons name="options-outline" size={22} color="#FFFFFF" />
+            <Ionicons name="options-outline" size={22} color="#F5F0E6" />
 
             {activeFiltersCount > 0 ? (
               <View style={styles.filterBadge}>
@@ -1652,13 +1654,13 @@ export default function ExpensesScreen() {
                 <Ionicons
                   name={expenseCategoryIcons[item] ?? 'pricetag-outline'}
                   size={14}
-                  color="#06130B"
+                  color="#080808"
                 />
 
                 <Text style={styles.selectedFilterText}>{item}</Text>
 
                 <TouchableOpacity onPress={() => toggleCategoryFilter(item)}>
-                  <Ionicons name="close" size={16} color="#06130B" />
+                  <Ionicons name="close" size={16} color="#080808" />
                 </TouchableOpacity>
               </View>
             ))}
@@ -1667,7 +1669,7 @@ export default function ExpensesScreen() {
 
         {loading ? (
           <View style={styles.loadingList}>
-            <ActivityIndicator color="#22C55E" />
+            <ActivityIndicator color="#D4A64A" />
             <Text style={styles.loadingText}>Carregando despesas...</Text>
           </View>
         ) : filteredExpenses.length === 0 ? (
@@ -1687,7 +1689,7 @@ export default function ExpensesScreen() {
               style={styles.emptyStateButton}
               onPress={openCreateExpenseModal}
             >
-              <Ionicons name="add" size={21} color="#06130B" />
+              <Ionicons name="add" size={21} color="#080808" />
               <Text style={styles.emptyStateButtonText}>Nova despesa</Text>
             </TouchableOpacity>
           </View>
@@ -1813,7 +1815,7 @@ export default function ExpensesScreen() {
                               style={styles.expenseReceiptOpenButton}
                               onPress={() => handleOpenExpenseReceipt(receipt.url)}
                             >
-                              <Ionicons name="open-outline" size={16} color="#06130B" />
+                              <Ionicons name="open-outline" size={16} color="#080808" />
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -1842,7 +1844,7 @@ export default function ExpensesScreen() {
                       style={styles.expenseEditButton}
                       onPress={() => openEditExpenseModal(expense)}
                     >
-                      <Ionicons name="create-outline" size={18} color="#06130B" />
+                      <Ionicons name="create-outline" size={18} color="#080808" />
                       <Text style={styles.expenseEditButtonText}>Editar</Text>
                     </TouchableOpacity>
 
@@ -1878,7 +1880,7 @@ export default function ExpensesScreen() {
                   setPeriodModalVisible(false);
                 }}
               >
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+                <Ionicons name="close" size={26} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -1888,7 +1890,7 @@ export default function ExpensesScreen() {
               style={styles.datePickerButton}
               onPress={() => openDatePicker('customStart')}
             >
-              <Ionicons name="calendar-outline" size={19} color="#22C55E" />
+              <Ionicons name="calendar-outline" size={19} color="#D4A64A" />
               <Text style={styles.datePickerButtonText}>{customStartDate}</Text>
               <Ionicons
                 name={activeDatePicker === 'customStart' ? 'chevron-up' : 'chevron-down'}
@@ -1905,7 +1907,7 @@ export default function ExpensesScreen() {
               style={styles.datePickerButton}
               onPress={() => openDatePicker('customEnd')}
             >
-              <Ionicons name="calendar-outline" size={19} color="#22C55E" />
+              <Ionicons name="calendar-outline" size={19} color="#D4A64A" />
               <Text style={styles.datePickerButtonText}>{customEndDate}</Text>
               <Ionicons
                 name={activeDatePicker === 'customEnd' ? 'chevron-up' : 'chevron-down'}
@@ -1941,7 +1943,7 @@ export default function ExpensesScreen() {
               </View>
 
               <TouchableOpacity onPress={() => setPeriodListModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+                <Ionicons name="close" size={26} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -1951,7 +1953,7 @@ export default function ExpensesScreen() {
                 style={styles.currentPeriodButton}
                 onPress={handleGoToCurrentListedPeriod}
               >
-                <Ionicons name="refresh-outline" size={18} color="#06130B" />
+                <Ionicons name="refresh-outline" size={18} color="#080808" />
                 <Text style={styles.currentPeriodButtonText}>
                   {periodType === 'week' ? 'Ver semana atual' : 'Ver mês atual'}
                 </Text>
@@ -1983,7 +1985,7 @@ export default function ExpensesScreen() {
                       <Ionicons
                         name={periodType === 'week' ? 'calendar-outline' : 'calendar-number-outline'}
                         size={18}
-                        color={active ? '#06130B' : '#22C55E'}
+                        color={active ? '#080808' : '#D4A64A'}
                       />
                     </View>
 
@@ -1997,7 +1999,7 @@ export default function ExpensesScreen() {
                     </Text>
 
                     {active ? (
-                      <Ionicons name="checkmark-circle" size={20} color="#06130B" />
+                      <Ionicons name="checkmark-circle" size={20} color="#080808" />
                     ) : null}
                   </TouchableOpacity>
                 );
@@ -2035,13 +2037,13 @@ export default function ExpensesScreen() {
                     resetExpenseForm();
                   }}
                 >
-                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                  <Ionicons name="close" size={26} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
               <Text style={styles.fieldLabel}>Descrição</Text>
               <View style={[styles.iconInputBox, expenseErrors.description && styles.inputError]}>
-                <Ionicons name="create-outline" size={20} color="#A1A1AA" />
+                <Ionicons name="create-outline" size={20} color="#9B969B" />
                 <TextInput
                   value={expenseDescription}
                   onChangeText={(text) => {
@@ -2061,7 +2063,7 @@ export default function ExpensesScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldLabel}>Valor</Text>
                   <View style={[styles.iconInputBox, expenseErrors.amount && styles.inputError]}>
-                    <Ionicons name="cash-outline" size={19} color="#22C55E" />
+                    <Ionicons name="cash-outline" size={19} color="#D4A64A" />
                     <TextInput
                       value={expenseAmount}
                       onChangeText={(text) => {
@@ -2090,7 +2092,7 @@ export default function ExpensesScreen() {
                     ]}
                     onPress={() => openDatePicker('expense')}
                   >
-                    <Ionicons name="calendar-outline" size={18} color="#22C55E" />
+                    <Ionicons name="calendar-outline" size={18} color="#D4A64A" />
                     <Text
                       style={[styles.datePickerButtonText, styles.expenseDatePickerButtonText]}
                       numberOfLines={1}
@@ -2162,7 +2164,7 @@ export default function ExpensesScreen() {
                   <Ionicons
                     name={expenseVehicleId === 'nenhum' ? 'remove-circle-outline' : 'car-sport-outline'}
                     size={20}
-                    color={expenseVehicleId === 'nenhum' ? '#71717A' : '#22C55E'}
+                    color={expenseVehicleId === 'nenhum' ? '#71717A' : '#D4A64A'}
                   />
                 </View>
 
@@ -2298,7 +2300,7 @@ export default function ExpensesScreen() {
 
               <Text style={styles.fieldLabel}>Local ou observação</Text>
               <View style={styles.iconInputBox}>
-                <Ionicons name="location-outline" size={20} color="#A1A1AA" />
+                <Ionicons name="location-outline" size={20} color="#9B969B" />
                 <TextInput
                   value={expenseLocation}
                   onChangeText={setExpenseLocation}
@@ -2315,10 +2317,10 @@ export default function ExpensesScreen() {
                 disabled={savingExpense}
               >
                 {savingExpense ? (
-                  <ActivityIndicator color="#06130B" />
+                  <ActivityIndicator color="#080808" />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-circle-outline" size={22} color="#06130B" />
+                    <Ionicons name="checkmark-circle-outline" size={22} color="#080808" />
                     <Text style={styles.confirmButtonText}>
                       {editingExpenseId ? 'Salvar alterações' : 'Cadastrar despesa'}
                     </Text>
@@ -2340,7 +2342,7 @@ export default function ExpensesScreen() {
               </View>
 
               <TouchableOpacity onPress={closeReceiptRenameModal}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+                <Ionicons name="close" size={26} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2364,10 +2366,10 @@ export default function ExpensesScreen() {
               disabled={renamingReceipt}
             >
               {renamingReceipt ? (
-                <ActivityIndicator color="#06130B" />
+                <ActivityIndicator color="#080808" />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={21} color="#06130B" />
+                  <Ionicons name="checkmark-circle-outline" size={21} color="#080808" />
                   <Text style={styles.confirmButtonText}>Salvar nome</Text>
                 </>
               )}
@@ -2386,7 +2388,7 @@ export default function ExpensesScreen() {
               </View>
 
               <TouchableOpacity onPress={() => setCategoryDropdownVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+                <Ionicons name="close" size={26} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2420,7 +2422,7 @@ export default function ExpensesScreen() {
                       <Ionicons
                         name={expenseCategoryIcons[item] ?? 'pricetag-outline'}
                         size={19}
-                        color={selected ? '#06130B' : '#FCA5A5'}
+                        color={selected ? '#080808' : '#FCA5A5'}
                       />
                     </View>
 
@@ -2434,7 +2436,7 @@ export default function ExpensesScreen() {
                     </Text>
 
                     {selected ? (
-                      <Ionicons name="checkmark-circle" size={21} color="#06130B" />
+                      <Ionicons name="checkmark-circle" size={21} color="#080808" />
                     ) : null}
                   </TouchableOpacity>
                 );
@@ -2454,7 +2456,7 @@ export default function ExpensesScreen() {
               </View>
 
               <TouchableOpacity onPress={() => setVehicleDropdownVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+                <Ionicons name="close" size={26} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2482,7 +2484,7 @@ export default function ExpensesScreen() {
                   <Ionicons
                     name="remove-circle-outline"
                     size={19}
-                    color={expenseVehicleId === 'nenhum' ? '#06130B' : '#A1A1AA'}
+                    color={expenseVehicleId === 'nenhum' ? '#080808' : '#9B969B'}
                   />
                 </View>
 
@@ -2506,7 +2508,7 @@ export default function ExpensesScreen() {
                 </View>
 
                 {expenseVehicleId === 'nenhum' ? (
-                  <Ionicons name="checkmark-circle" size={21} color="#06130B" />
+                  <Ionicons name="checkmark-circle" size={21} color="#080808" />
                 ) : null}
               </TouchableOpacity>
 
@@ -2536,7 +2538,7 @@ export default function ExpensesScreen() {
                       <Ionicons
                         name="car-sport-outline"
                         size={19}
-                        color={selected ? '#06130B' : '#22C55E'}
+                        color={selected ? '#080808' : '#D4A64A'}
                       />
                     </View>
 
@@ -2563,7 +2565,7 @@ export default function ExpensesScreen() {
                     </View>
 
                     {selected ? (
-                      <Ionicons name="checkmark-circle" size={21} color="#06130B" />
+                      <Ionicons name="checkmark-circle" size={21} color="#080808" />
                     ) : null}
                   </TouchableOpacity>
                 );
@@ -2584,7 +2586,7 @@ export default function ExpensesScreen() {
                 </View>
 
                 <TouchableOpacity onPress={() => setFiltersModalVisible(false)}>
-                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                  <Ionicons name="close" size={26} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -2607,7 +2609,7 @@ export default function ExpensesScreen() {
                   <Ionicons
                     name="car-outline"
                     size={20}
-                    color={vehicleId === 'todos' ? '#06130B' : '#FFFFFF'}
+                    color={vehicleId === 'todos' ? '#080808' : '#F5F0E6'}
                   />
                   <Text
                     style={[
@@ -2628,7 +2630,7 @@ export default function ExpensesScreen() {
                     <Ionicons
                       name="car-sport-outline"
                       size={20}
-                      color={vehicleId === vehicle.id ? '#06130B' : '#FFFFFF'}
+                      color={vehicleId === vehicle.id ? '#080808' : '#F5F0E6'}
                     />
                     <Text
                       style={[
@@ -2663,7 +2665,7 @@ export default function ExpensesScreen() {
                       <Ionicons
                         name={item.icon as any}
                         size={20}
-                        color={active ? '#06130B' : '#FFFFFF'}
+                        color={active ? '#080808' : '#F5F0E6'}
                       />
 
                       <Text style={[styles.filterCardText, active && styles.filterCardTextActive]}>
@@ -2689,7 +2691,7 @@ export default function ExpensesScreen() {
                       <Ionicons
                         name={expenseCategoryIcons[item] ?? 'pricetag-outline'}
                         size={20}
-                        color={selected ? '#06130B' : '#FFFFFF'}
+                        color={selected ? '#080808' : '#F5F0E6'}
                       />
 
                       <Text
@@ -2721,7 +2723,7 @@ function DetailLine({
 }) {
   return (
     <View style={styles.detailLine}>
-      <Ionicons name={icon} size={16} color="#A1A1AA" />
+      <Ionicons name={icon} size={16} color="#9B969B" />
       <Text style={styles.expenseInfo}>{text}</Text>
     </View>
   );
@@ -2730,133 +2732,137 @@ function DetailLine({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
-
   screenKeyboardAvoidingView: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
-
   content: {
     paddingHorizontal: 18,
-    paddingTop: 54,
-    paddingBottom: 150,
+    paddingTop: 48,
+    paddingBottom: 154,
+    backgroundColor: '#050505',
   },
-
   topHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    marginBottom: 20,
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: '#070707',
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
+    zIndex: 20,
+    elevation: 20,
   },
 
   headerEyebrow: {
-    color: '#22C55E',
-    fontSize: 12,
+    color: '#D4A64A',
+    fontSize: 9,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.7,
   },
-
   title: {
-    color: '#FFFFFF',
-    fontSize: 30,
+    color: '#F5F0E6',
+    fontSize: 27,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.6,
   },
-
   subtitle: {
-    color: '#A1A1AA',
-    fontSize: 13,
+    color: '#9B969B',
+    fontSize: 12,
     fontWeight: '700',
     marginTop: 5,
     lineHeight: 18,
   },
-
   headerAddButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
-    backgroundColor: '#22C55E',
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#22C55E',
+    shadowColor: '#D4A64A',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.22,
     shadowRadius: 14,
     elevation: 8,
   },
-
   periodMenu: {
     flexDirection: 'row',
-    backgroundColor: '#111827',
-    borderRadius: 22,
-    padding: 5,
-    marginBottom: 14,
+    backgroundColor: '#101014',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
   },
-
   periodButton: {
     flex: 1,
-    minHeight: 48,
-    borderRadius: 17,
+    minHeight: 43,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
   },
-
   periodButtonActive: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
-
   periodText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontWeight: '900',
     fontSize: 11,
   },
-
   periodTextActive: {
-    color: '#06130B',
+    color: '#080808',
   },
-
   periodNavigatorCard: {
     height: 58,
-    backgroundColor: '#111827',
-    borderRadius: 21,
+    backgroundColor: '#18171D',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
   },
-
   periodArrow: {
-    width: 42,
+    width: 40,
     height: 42,
-    borderRadius: 15,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#18181B',
+    backgroundColor: 'rgba(212,166,74,0.08)',
   },
-
   periodNavigatorText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
     textAlign: 'center',
     textTransform: 'capitalize',
   },
-
   summaryCard: {
-    backgroundColor: '#111827',
-    borderRadius: 30,
-    padding: 18,
+    backgroundColor: '#080808',
+    borderRadius: 14,
+    padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderLeftWidth: 1,
+    //borderLeftColor: '#D4A64A',
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 10,
   },
 
   summaryTopRow: {
@@ -2865,29 +2871,29 @@ const styles = StyleSheet.create({
     gap: 13,
     marginBottom: 16,
   },
-
   summaryIconBox: {
-    width: 54,
-    height: 54,
-    borderRadius: 19,
+    width: 52,
+    height: 52,
+    borderRadius: 12,
     backgroundColor: 'rgba(239,68,68,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.22)',
+    borderColor: 'rgba(239,68,68,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   summaryLabel: {
-    color: '#A1A1AA',
-    fontSize: 13,
+    color: '#9B969B',
+    fontSize: 12,
     fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-
   summaryValue: {
-    color: '#FFFFFF',
-    fontSize: 31,
+    color: '#F5F0E6',
+    fontSize: 32,
     fontWeight: '900',
     marginTop: 3,
+    letterSpacing: -1,
   },
 
   summaryMiniGrid: {
@@ -2895,14 +2901,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
   },
-
   summaryMiniCard: {
     width: '48%',
     minHeight: 86,
-    backgroundColor: '#18181B',
-    borderRadius: 18,
+    backgroundColor: '#18171D',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 10,
     paddingVertical: 9,
     alignItems: 'center',
@@ -2911,7 +2916,7 @@ const styles = StyleSheet.create({
 
   summaryMiniLabel: {
     flex: 1,
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '900',
     textAlign: 'left',
@@ -2919,7 +2924,7 @@ const styles = StyleSheet.create({
   },
 
   summaryMiniValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
     marginTop: 6,
@@ -2935,19 +2940,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 7,
   },
-
   summaryMiniIconBox: {
     width: 30,
     height: 30,
-    borderRadius: 11,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
 
   summaryMiniIconRevenue: {
-    backgroundColor: 'rgba(34,197,94,0.12)',
-    borderColor: 'rgba(34,197,94,0.24)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderColor: 'rgba(212,166,74,0.24)',
   },
 
   summaryMiniIconWeight: {
@@ -2987,56 +2991,52 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
   },
-
   chartIconBox: {
     width: 28,
     height: 28,
-    borderRadius: 10,
+    borderRadius: 9,
     backgroundColor: 'rgba(239,68,68,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   chartTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
     flex: 1,
   },
 
   chartValue: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
   },
-
   progressTrack: {
-    height: 9,
+    height: 8,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     overflow: 'hidden',
   },
-
   progressFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#EF4444',
+    backgroundColor: '#D4A64A',
   },
-
   emptyChartBox: {
     marginTop: 18,
     minHeight: 76,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 14,
   },
 
   emptyChartText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
@@ -3050,14 +3050,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 10,
   },
-
   searchBox: {
     flex: 1,
-    height: 56,
-    borderRadius: 19,
-    backgroundColor: '#111827',
+    height: 54,
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3067,22 +3066,20 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: '100%',
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '700',
   },
-
   filterButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 19,
-    backgroundColor: '#111827',
+    width: 54,
+    height: 54,
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   filterBadge: {
     position: 'absolute',
     top: -4,
@@ -3090,14 +3087,14 @@ const styles = StyleSheet.create({
     minWidth: 20,
     height: 20,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
   },
 
   filterBadgeText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -3108,11 +3105,10 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 14,
   },
-
   selectedFilterCard: {
     height: 34,
-    borderRadius: 999,
-    backgroundColor: '#22C55E',
+    borderRadius: 10,
+    backgroundColor: '#D4A64A',
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3120,68 +3116,64 @@ const styles = StyleSheet.create({
   },
 
   selectedFilterText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 12,
     fontWeight: '900',
   },
-
   loadingList: {
     minHeight: 180,
-    borderRadius: 26,
-    backgroundColor: '#111827',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   loadingText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '800',
     marginTop: 10,
   },
-
   emptyState: {
     minHeight: 260,
-    borderRadius: 28,
-    backgroundColor: '#111827',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 22,
   },
-
   emptyStateIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 24,
-    backgroundColor: '#18181B',
+    width: 66,
+    height: 66,
+    borderRadius: 15,
+    backgroundColor: '#101014',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
 
   emptyStateTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
 
   emptyStateText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 19,
   },
-
   emptyStateButton: {
     height: 46,
-    borderRadius: 16,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3190,18 +3182,17 @@ const styles = StyleSheet.create({
   },
 
   emptyStateButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 14,
     fontWeight: '900',
   },
-
   expenseCard: {
-    backgroundColor: '#111827',
-    borderRadius: 24,
-    padding: 15,
+    backgroundColor: '#18171D',
+    borderRadius: 16,
+    padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
   },
 
   expenseRow: {
@@ -3209,18 +3200,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-
   expenseIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 11,
     backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.20)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   expenseTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
     fontSize: 15,
     marginBottom: 0,
@@ -3242,18 +3233,16 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 14,
   },
-
   expenseInfo: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 0,
     lineHeight: 15,
   },
-
   expenseDetails: {
     borderTopWidth: 1,
-    borderTopColor: '#27272A',
+    borderTopColor: '#2A2830',
     marginTop: 14,
     paddingTop: 12,
     gap: 7,
@@ -3264,12 +3253,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-
   expenseReceiptsBox: {
-    borderRadius: 18,
-    backgroundColor: '#0B1220',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#2A2830',
     padding: 11,
     gap: 8,
     marginTop: 3,
@@ -3284,7 +3272,7 @@ const styles = StyleSheet.create({
 
   expenseReceiptsTitle: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -3306,13 +3294,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
-
   expenseReceiptItem: {
     minHeight: 48,
-    borderRadius: 15,
-    backgroundColor: '#111827',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 10,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -3326,24 +3313,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
   },
-
   expenseReceiptIconBox: {
     width: 32,
     height: 32,
-    borderRadius: 11,
-    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderRadius: 9,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   expenseReceiptName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
 
   expenseReceiptHint: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
     marginTop: 2,
@@ -3354,44 +3340,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
-
   expenseReceiptRenameButton: {
     width: 31,
     height: 31,
-    borderRadius: 11,
-    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderRadius: 9,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(59,130,246,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   expenseReceiptOpenButton: {
     width: 31,
     height: 31,
-    borderRadius: 11,
-    backgroundColor: '#22C55E',
+    borderRadius: 9,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   expenseReceiptDeleteButton: {
     width: 31,
     height: 31,
-    borderRadius: 11,
+    borderRadius: 9,
     backgroundColor: 'rgba(239,68,68,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(239,68,68,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   expenseNoReceiptsBox: {
     minHeight: 42,
-    borderRadius: 15,
-    backgroundColor: '#111827',
+    borderRadius: 12,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3399,7 +3381,7 @@ const styles = StyleSheet.create({
   },
 
   expenseNoReceiptsText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -3409,12 +3391,11 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 12,
   },
-
   expenseEditButton: {
     flex: 1,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -3422,15 +3403,14 @@ const styles = StyleSheet.create({
   },
 
   expenseEditButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 13,
     fontWeight: '900',
   },
-
   expenseDeleteButton: {
     flex: 1,
     height: 44,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: 'rgba(239,68,68,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(239,68,68,0.24)',
@@ -3445,60 +3425,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
   },
-
   modalOverlayCenter: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    paddingHorizontal: 18,
+    backgroundColor: 'rgba(0,0,0,0.84)',
+    paddingHorizontal: 16,
     justifyContent: 'center',
   },
-
   modalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     maxHeight: '86%',
   },
-
   expenseModalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     maxHeight: '92%',
   },
-
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 18,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
     gap: 12,
   },
-
   modalEyebrow: {
-    color: '#22C55E',
-    fontSize: 11,
+    color: '#D4A64A',
+    fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
-
   modalTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
+    color: '#F5F0E6',
+    fontSize: 21,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.3,
   },
-
-
   currentPeriodButton: {
     height: 46,
-    borderRadius: 16,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3507,7 +3485,7 @@ const styles = StyleSheet.create({
   },
 
   currentPeriodButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -3520,59 +3498,55 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     gap: 9,
   },
-
   periodListItem: {
     minHeight: 58,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-
   periodListItemActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
-
   periodListIconBox: {
     width: 34,
     height: 34,
-    borderRadius: 12,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   periodListItemText: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
     textTransform: 'capitalize',
   },
 
   periodListItemTextActive: {
-    color: '#06130B',
+    color: '#080808',
   },
-
   calendarModalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     maxHeight: '88%',
   },
-
   inlineCalendarBox: {
-    backgroundColor: '#111827',
-    borderRadius: 22,
+    backgroundColor: '#101014',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 10,
     marginBottom: 14,
     overflow: 'hidden',
@@ -3587,18 +3561,17 @@ const styles = StyleSheet.create({
   },
 
   inlineCalendarTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
-
   datePickerButton: {
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    height: 55,
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    paddingHorizontal: 15,
+    borderColor: '#2A2830',
+    paddingHorizontal: 14,
     marginBottom: 13,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3613,7 +3586,7 @@ const styles = StyleSheet.create({
 
   datePickerButtonText: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '800',
   },
@@ -3623,45 +3596,42 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
   },
-
   fieldLabel: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    color: '#F5F0E6',
+    fontSize: 12,
     fontWeight: '900',
     marginBottom: 8,
     marginLeft: 4,
+    letterSpacing: 0.2,
   },
-
   input: {
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    height: 55,
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    color: '#FFFFFF',
-    paddingHorizontal: 15,
+    borderColor: '#2A2830',
+    color: '#F5F0E6',
+    paddingHorizontal: 14,
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 13,
   },
-
   iconInputBox: {
-    minHeight: 56,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    minHeight: 55,
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     marginBottom: 13,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-
   iconInput: {
     flex: 1,
-    minHeight: 54,
-    color: '#FFFFFF',
+    minHeight: 53,
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '700',
   },
@@ -3695,9 +3665,9 @@ const styles = StyleSheet.create({
   categoryChip: {
     height: 42,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingLeft: 7,
     paddingRight: 13,
     flexDirection: 'row',
@@ -3706,8 +3676,8 @@ const styles = StyleSheet.create({
   },
 
   categoryChipActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   categoryChipError: {
@@ -3728,14 +3698,14 @@ const styles = StyleSheet.create({
   },
 
   categoryChipText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
     maxWidth: 150,
   },
 
   categoryChipTextActive: {
-    color: '#06130B',
+    color: '#080808',
   },
 
   categoryGrid: {
@@ -3748,10 +3718,10 @@ const styles = StyleSheet.create({
   categoryCard: {
     width: '48%',
     minHeight: 72,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -3759,8 +3729,8 @@ const styles = StyleSheet.create({
   },
 
   categoryCardActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   categoryCardError: {
@@ -3768,7 +3738,7 @@ const styles = StyleSheet.create({
   },
 
   categoryCardText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 11,
     fontWeight: '900',
     textAlign: 'center',
@@ -3776,7 +3746,7 @@ const styles = StyleSheet.create({
   },
 
   categoryCardTextActive: {
-    color: '#06130B',
+    color: '#080808',
   },
 
   vehiclePicker: {
@@ -3787,10 +3757,10 @@ const styles = StyleSheet.create({
   vehicleSelectCard: {
     width: 205,
     minHeight: 58,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3798,15 +3768,15 @@ const styles = StyleSheet.create({
   },
 
   vehicleSelectCardActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   vehicleSelectIcon: {
     width: 34,
     height: 34,
     borderRadius: 12,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3816,17 +3786,17 @@ const styles = StyleSheet.create({
   },
 
   vehicleSelectTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
 
   vehicleSelectTitleActive: {
-    color: '#06130B',
+    color: '#080808',
   },
 
   vehicleSelectPlate: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 3,
@@ -3834,16 +3804,16 @@ const styles = StyleSheet.create({
   },
 
   vehicleSelectPlateActive: {
-    color: '#14532D',
+    color: '#5C481B',
   },
 
 
   vehicleChip: {
     height: 42,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 13,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3852,26 +3822,25 @@ const styles = StyleSheet.create({
   },
 
   vehicleChipActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   vehicleChipText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '900',
   },
 
   vehicleChipTextActive: {
-    color: '#06130B',
+    color: '#080808',
   },
-
   dropdownButton: {
-    minHeight: 62,
-    borderRadius: 19,
-    backgroundColor: '#18181B',
+    minHeight: 60,
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 13,
     paddingVertical: 10,
     marginBottom: 13,
@@ -3879,14 +3848,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-
   dropdownIconBox: {
-    width: 39,
-    height: 39,
-    borderRadius: 14,
-    backgroundColor: '#111827',
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3905,7 +3873,7 @@ const styles = StyleSheet.create({
   },
 
   dropdownValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -3915,7 +3883,7 @@ const styles = StyleSheet.create({
   },
 
   dropdownSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 3,
@@ -3925,27 +3893,25 @@ const styles = StyleSheet.create({
   receiptUploadBox: {
     marginBottom: 13,
   },
-
   receiptButton: {
-    minHeight: 62,
-    borderRadius: 19,
-    backgroundColor: '#18181B',
+    minHeight: 60,
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 13,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-
   receiptIconBox: {
-    width: 39,
-    height: 39,
-    borderRadius: 14,
-    backgroundColor: 'rgba(59,130,246,0.12)',
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(59,130,246,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3955,13 +3921,13 @@ const styles = StyleSheet.create({
   },
 
   receiptTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
 
   receiptSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 3,
@@ -3971,37 +3937,35 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 10,
   },
-
   receiptFileItem: {
     minHeight: 48,
-    borderRadius: 15,
-    backgroundColor: '#111827',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 10,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
   },
-
   receiptFileIcon: {
     width: 32,
     height: 32,
-    borderRadius: 11,
-    backgroundColor: 'rgba(59,130,246,0.10)',
+    borderRadius: 9,
+    backgroundColor: 'rgba(212,166,74,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   receiptFileName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
 
   receiptFileStatus: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
     marginTop: 2,
@@ -4012,14 +3976,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
-
   receiptFileRenameButton: {
     width: 30,
     height: 30,
-    borderRadius: 11,
-    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderRadius: 9,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(59,130,246,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4052,21 +4015,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
   },
-
   renameReceiptModalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
   },
-
   dropdownModalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     maxHeight: '82%',
   },
 
@@ -4074,29 +4037,26 @@ const styles = StyleSheet.create({
     gap: 9,
     paddingBottom: 8,
   },
-
   dropdownOption: {
     minHeight: 58,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-
   dropdownOptionActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
-
   dropdownOptionIcon: {
     width: 36,
     height: 36,
-    borderRadius: 13,
-    backgroundColor: '#111827',
+    borderRadius: 10,
+    backgroundColor: '#101014',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4107,17 +4067,17 @@ const styles = StyleSheet.create({
 
   dropdownOptionTitle: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
 
   dropdownOptionTitleActive: {
-    color: '#06130B',
+    color: '#080808',
   },
 
   dropdownOptionSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 3,
@@ -4125,13 +4085,12 @@ const styles = StyleSheet.create({
   },
 
   dropdownOptionSubtitleActive: {
-    color: '#14532D',
+    color: '#5C481B',
   },
-
   confirmButton: {
-    height: 58,
-    borderRadius: 19,
-    backgroundColor: '#22C55E',
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -4144,7 +4103,7 @@ const styles = StyleSheet.create({
   },
 
   confirmButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontWeight: '900',
     fontSize: 15,
   },
@@ -4169,7 +4128,7 @@ const styles = StyleSheet.create({
   },
 
   filterTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
     fontSize: 16,
     marginBottom: 12,
@@ -4180,26 +4139,24 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
   },
-
   filterCard: {
     width: '48%',
     minHeight: 76,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
   },
-
   filterCardActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   filterCardText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
     textAlign: 'center',
@@ -4207,6 +4164,6 @@ const styles = StyleSheet.create({
   },
 
   filterCardTextActive: {
-    color: '#06130B',
+    color: '#080808',
   },
 });

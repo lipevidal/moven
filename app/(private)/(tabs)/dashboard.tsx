@@ -3,10 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { PieChart } from "react-native-gifted-charts";
 import { NotificationBell } from "../../../src/features/notifications/components/NotificationBell";
-import { DashboardChallengeCard } from "../../../src/features/challenges/components/DashboardChallengeCard";
-import { GoalCard } from "../../../src/features/goals/components/GoalCard";
 import { DashboardGoalCard } from "../../../src/features/goals/components/DashboardGoalCard";
-import { AchievementProgressCards } from "../../../src/features/achievements/components/AchievementProgressCards";
 
 import {
   View,
@@ -133,6 +130,65 @@ const performanceColors = {
   medium: "#FACC15",
   neutral: "#FFFFFF",
 };
+
+
+function getDashboardPerformanceMetricPoints(status?: string | null) {
+  if (status === "above") return 100;
+  if (status === "intermediate") return 50;
+  if (status === "below") return 10;
+
+  return 0;
+}
+
+function getDashboardPerformanceExpensesPoints(expensesPercent?: number | null) {
+  const percent = Number(expensesPercent ?? 0);
+
+  if (percent <= 20) return 100;
+  if (percent <= 30) return 80;
+  if (percent <= 40) return 50;
+  if (percent <= 50) return 30;
+
+  return 10;
+}
+
+function getDashboardPerformanceScoreInfo(summary: any) {
+  if (!summary) {
+    return null;
+  }
+
+  const totalPoints =
+    getDashboardPerformanceMetricPoints(summary.hourStatus) +
+    getDashboardPerformanceMetricPoints(summary.kmStatus) +
+    getDashboardPerformanceExpensesPoints(summary.expensesPercent);
+
+  if (totalPoints <= 100) {
+    return {
+      level: "bad",
+      icon: "warning-outline" as keyof typeof Ionicons.glyphMap,
+      color: "#EF4444",
+      backgroundColor: "rgba(239,68,68,0.12)",
+      borderColor: "rgba(239,68,68,0.32)",
+    };
+  }
+
+  if (totalPoints <= 200) {
+    return {
+      level: "intermediate",
+      icon: "alert-circle-outline" as keyof typeof Ionicons.glyphMap,
+      color: "#FACC15",
+      backgroundColor: "rgba(250,204,21,0.12)",
+      borderColor: "rgba(250,204,21,0.32)",
+    };
+  }
+
+  return {
+    level: "good",
+    icon: "checkmark-circle-outline" as keyof typeof Ionicons.glyphMap,
+    color: "#22C55E",
+    backgroundColor: "rgba(34,197,94,0.12)",
+    borderColor: "rgba(34,197,94,0.32)",
+  };
+}
 
 const platformVisualConfig: Record<
   string,
@@ -288,6 +344,25 @@ function formatGoalCurrency(value: number) {
   return `R$ ${Number(value ?? 0).toLocaleString("pt-BR", {
     maximumFractionDigits: 0,
   })}`;
+}
+
+function getDayGreeting() {
+  const hour = new Date().getHours();
+
+  if (hour >= 5 && hour < 12) return "Bom dia";
+  if (hour >= 12 && hour < 18) return "Boa tarde";
+
+  return "Boa noite";
+}
+
+function getUserFirstName(user: any) {
+  const name =
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.email?.split("@")?.[0] ||
+    "Motorista";
+
+  return String(name).trim().split(" ")[0] || "Motorista";
 }
 
 function formatDecimal(value: number) {
@@ -690,6 +765,7 @@ export default function DashboardScreen() {
   const [allDashboardPlatforms, setAllDashboardPlatforms] = useState<any[]>([]);
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
   const [platformDrawerVisible, setPlatformDrawerVisible] = useState(false);
+  const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [returnToEntryModalAfterPlatforms, setReturnToEntryModalAfterPlatforms] =
     useState(false);
   const [selectedSession, setSelectedSession] = useState<any>(null);
@@ -1301,6 +1377,9 @@ export default function DashboardScreen() {
     user?.avatar_url ||
     user?.user_metadata?.avatar_url ||
     user?.user_metadata?.picture;
+
+  const headerGreeting = getDayGreeting();
+  const headerFirstName = getUserFirstName(user);
 
   function formatHours(value: number) {
     const totalMinutes = Math.round((value ?? 0) * 60);
@@ -2167,12 +2246,12 @@ export default function DashboardScreen() {
   const isLightMode = themeMode === "light";
 
   const theme = {
-    background: isLightMode ? "#F8FAFC" : "#09090B",
-    card: isLightMode ? "#FFFFFF" : "#18181B",
-    cardStrong: isLightMode ? "#F1F5F9" : "#111827",
-    border: isLightMode ? "#E2E8F0" : "#27272A",
-    text: isLightMode ? "#0F172A" : "#FFFFFF",
-    muted: isLightMode ? "#64748B" : "#A1A1AA",
+    background: isLightMode ? "#F8FAFC" : "#050505",
+    card: isLightMode ? "#FFFFFF" : "#18171D",
+    cardStrong: isLightMode ? "#F1F5F9" : "#101014",
+    border: isLightMode ? "#E2E8F0" : "#2A2830",
+    text: isLightMode ? "#0F172A" : "#F5F0E6",
+    muted: isLightMode ? "#64748B" : "#9B969B",
   };
 
   const goalPeriodInfo = getGoalPeriodFromDashboard(period, referenceDate);
@@ -2364,12 +2443,16 @@ export default function DashboardScreen() {
   const profitComparisonLabel =
     dashboardProfit >= 0 ? "Lucro líquido" : "Prejuízo";
 
+  const dashboardPerformanceScoreInfo =
+    getDashboardPerformanceScoreInfo(earningsPerformanceSummary);
+
   return (
     <>
       <ScrollView
         style={[styles.container, { backgroundColor: theme.background }]}
         contentContainerStyle={styles.modernContent}
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[1]}
       >
         <View style={styles.modernHeader}>
           <View style={styles.modernUserRow}>
@@ -2391,11 +2474,10 @@ export default function DashboardScreen() {
 
             <View>
               <Text style={[styles.modernGreeting, { color: theme.muted }]}>
-                Bom trabalho,
+                PAINEL OPERACIONAL
               </Text>
-              <Text style={[styles.modernTitle, { color: theme.text }]}>
-                Olá, {user?.user_metadata?.name?.split(" ")[0] ?? "Motorista"}{" "}
-                👋
+              <Text style={[styles.modernTitle, { color: theme.text }]} numberOfLines={1}>
+                {headerGreeting}, {headerFirstName}
               </Text>
             </View>
           </View>
@@ -2404,89 +2486,25 @@ export default function DashboardScreen() {
             <NotificationBell />
 
             <TouchableOpacity
+              activeOpacity={0.86}
               style={[
                 styles.modernHeaderIconButton,
-                {
-                  backgroundColor:
-                    earningsPerformanceSummary?.overall?.backgroundColor ?? theme.card,
-                  borderColor:
-                    earningsPerformanceSummary?.overall?.borderColor ?? theme.border,
-                },
+                styles.modernHeaderMenuButton,
               ]}
-              onPress={() => router.push("/(private)/earnings-performance" as never)}
+              onPress={() => setHeaderMenuVisible(true)}
             >
-              <Ionicons
-                name={
-                  (earningsPerformanceSummary?.overall?.iconName ??
-                    "analytics-outline") as keyof typeof Ionicons.glyphMap
-                }
-                size={21}
-                color={earningsPerformanceSummary?.overall?.color ?? "#A1A1AA"}
-              />
+              <Ionicons name="menu-outline" size={26} color="#D4A64A" />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.modernHeaderIconButton,
-                { backgroundColor: theme.card, borderColor: theme.border },
-              ]}
-              onPress={() => router.push("/(private)/rankings/xp" as never)}
-            >
-              <Ionicons name="trophy-outline" size={21} color="#FACC15" />
-            </TouchableOpacity>
-
-            {isSystemAdmin && (
-              <TouchableOpacity
-                style={[
-                  styles.modernHeaderIconButton,
-                  { backgroundColor: theme.card, borderColor: theme.border },
-                ]}
-                onPress={() => router.push("/(private)/admin" as never)}
-              >
-                <Ionicons name="shield-checkmark-outline" size={21} color="#60A5FA" />
-              </TouchableOpacity>
-            )}
-
-            {/*<TouchableOpacity
-              style={[
-                styles.modernHeaderIconButton,
-                { backgroundColor: theme.card, borderColor: theme.border },
-              ]}
-              onPress={() => router.push("/(private)/conversas")}
-            >
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={22}
-                color={theme.text}
-              />
-            </TouchableOpacity>*/}
-
-            {/*<TouchableOpacity
-              style={[
-                styles.modernHeaderIconButton,
-                { backgroundColor: theme.card, borderColor: theme.border },
-              ]}
-              onPress={() =>
-                setThemeMode((current) =>
-                  current === "dark" ? "light" : "dark",
-                )
-              }
-            >
-              <Ionicons
-                name={themeMode === "dark" ? "sunny-outline" : "moon-outline"}
-                size={21}
-                color={themeMode === "dark" ? "#FACC15" : "#0F172A"}
-              />
-            </TouchableOpacity>*/}
           </View>
         </View>
 
-        <View
-          style={[
-            styles.modernPeriodTabs,
-            { backgroundColor: theme.cardStrong, borderColor: theme.border },
-          ]}
-        >
+        <View style={styles.stickyPeriodHeader}>
+          <View
+            style={[
+              styles.modernPeriodTabs,
+              { backgroundColor: theme.cardStrong, borderColor: theme.border },
+            ]}
+          >
           {periodOptions.map((item) => (
             <TouchableOpacity
               key={item.value}
@@ -2509,20 +2527,20 @@ export default function DashboardScreen() {
                 {item.label}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
+            ))}
+          </View>
 
-        <View
-          style={[
-            styles.modernPeriodSelector,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
+          <View
+            style={[
+              styles.modernPeriodSelector,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
           <TouchableOpacity
             style={styles.modernPeriodArrow}
             onPress={() => changePeriod("prev")}
           >
-            <Ionicons name="chevron-back" size={24} color="#22C55E" />
+            <Ionicons name="chevron-back" size={24} color="#D4A64A" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -2534,24 +2552,25 @@ export default function DashboardScreen() {
               {periodLabel}
             </Text>
             <Text style={[styles.modernPeriodSubtitle, { color: theme.muted }]}>
-              Toque para selecionar outro período
+              Toque para trocar o período
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.modernPeriodArrow}
-            onPress={() => changePeriod("next")}
-          >
-            <Ionicons name="chevron-forward" size={24} color="#22C55E" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modernPeriodArrow}
+              onPress={() => changePeriod("next")}
+            >
+              <Ionicons name="chevron-forward" size={24} color="#D4A64A" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.modernHeroCard}>
-          <View style={{paddingTop: 10, paddingLeft: 10, paddingRight: 10}}>
+          <View style={{paddingTop: 0, paddingLeft: 5, paddingRight: 5}}>
             <View style={styles.modernHeroTopRow}>
               <View style={styles.modernHeroBadge}>
-                <Ionicons name="trending-up-outline" size={16} color="#BBF7D0" />
-                <Text style={styles.modernHeroBadgeText}>Lucro líquido</Text>
+                <Ionicons name="trending-up-outline" size={16} color="#D4A64A" />
+                <Text style={styles.modernHeroBadgeText}>Resultado operacional</Text>
               </View>
 
               <View
@@ -2577,7 +2596,7 @@ export default function DashboardScreen() {
               R$ {formatCurrency(dashboardProfit)}
             </Text>
             <Text style={styles.modernHeroSub}>
-              {formatDecimal(profitPercent)}% do faturamento virou lucro
+              {formatDecimal(profitPercent)}% do faturamento ficou como lucro
             </Text>
           </View>
 
@@ -2585,7 +2604,7 @@ export default function DashboardScreen() {
             <View style={styles.modernHeroMiniCard}>
               <View style={{flexDirection: 'row', gap: 5}}>
                 <View style={styles.modernMiniIconBlue}>
-                  <Ionicons name="cash-outline" size={18} color="#93C5FD" />
+                  <Ionicons name="cash-outline" size={18} color="#D4A64A" />
                 </View>
                 <Text style={styles.modernHeroMiniLabel}>Faturamento</Text>
               </View>
@@ -2620,7 +2639,7 @@ export default function DashboardScreen() {
           >
             <View style={{flexDirection: 'row', gap: 5}}>
               <View style={styles.modernStatIconBlue}>
-                <Ionicons name="time-outline" size={20} color="#60A5FA" />
+                <Ionicons name="time-outline" size={20} color="#D4A64A" />
               </View>
               <Text style={[styles.modernStatLabel, { color: theme.muted }]}>
                 Tempo
@@ -2639,7 +2658,7 @@ export default function DashboardScreen() {
           >
             <View style={{flexDirection: 'row', gap: 5}}>
               <View style={styles.modernStatIconOrange}>
-                <Ionicons name="speedometer-outline" size={20} color="#F59E0B" />
+                <Ionicons name="speedometer-outline" size={20} color="#D4A64A" />
               </View>
               <Text style={[styles.modernStatLabel, { color: theme.muted }]}>
                 KM rodado
@@ -2658,7 +2677,7 @@ export default function DashboardScreen() {
           >
             <View style={{flexDirection: 'row', gap: 5}}>
               <View style={styles.modernStatIconGreen}>
-                <Ionicons name="analytics-outline" size={20} color="#22C55E" />
+                <Ionicons name="analytics-outline" size={20} color="#D4A64A" />
               </View>
               <Text style={[styles.modernStatLabel, { color: theme.muted }]}>
                 Ganho/h
@@ -2823,7 +2842,7 @@ export default function DashboardScreen() {
                       <Ionicons
                         name="briefcase-outline"
                         size={20}
-                        color="#22C55E"
+                        color="#D4A64A"
                       />
                     </View>
 
@@ -2869,7 +2888,7 @@ export default function DashboardScreen() {
 
                     <View style={styles.daySessionStatBox}>
                       <View style={styles.daySessionStatHeader}>
-                        <Ionicons name="analytics-outline" size={15} color="#22C55E" />
+                        <Ionicons name="analytics-outline" size={15} color="#D4A64A" />
                         <Text style={styles.daySessionStatLabel}>Ganho/h</Text>
                       </View>
                       <Text
@@ -3048,7 +3067,7 @@ export default function DashboardScreen() {
                 Distribuição do faturamento
               </Text>
             </View>
-            <Ionicons name="pie-chart-outline" size={24} color="#22C55E" />
+            <Ionicons name="pie-chart-outline" size={24} color="#D4A64A" />
           </View>
 
           {pieData.length === 0 ? (
@@ -3151,7 +3170,7 @@ export default function DashboardScreen() {
                       : "Comparativo do período selecionado"}
                 </Text>
               </View>
-              <Ionicons name="bar-chart-outline" size={24} color="#22C55E" />
+              <Ionicons name="bar-chart-outline" size={24} color="#D4A64A" />
             </View>
 
             {period === "year" && (
@@ -3162,7 +3181,7 @@ export default function DashboardScreen() {
                     style={styles.yearChartArrowButton}
                     onPress={() => setYearChartSemester("first")}
                   >
-                    <Ionicons name="chevron-back" size={20} color="#22C55E" />
+                    <Ionicons name="chevron-back" size={20} color="#D4A64A" />
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.yearChartArrowPlaceholder} />
@@ -3178,7 +3197,7 @@ export default function DashboardScreen() {
                     style={styles.yearChartArrowButton}
                     onPress={() => setYearChartSemester("second")}
                   >
-                    <Ionicons name="chevron-forward" size={20} color="#22C55E" />
+                    <Ionicons name="chevron-forward" size={20} color="#D4A64A" />
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.yearChartArrowPlaceholder} />
@@ -3320,7 +3339,7 @@ export default function DashboardScreen() {
                 Comparação do resultado financeiro no período
               </Text>
             </View>
-            <Ionicons name="stats-chart-outline" size={24} color="#22C55E" />
+            <Ionicons name="stats-chart-outline" size={24} color="#D4A64A" />
           </View>
 
           <View style={styles.profitExpenseChart}>
@@ -3393,28 +3412,6 @@ export default function DashboardScreen() {
             </Text>
           </View>
         </View>
-
-        {/*}
-        <TouchableOpacity
-          style={styles.modernChallengeHub}
-          activeOpacity={0.86}
-          onPress={() => router.push("/(private)/desafios-area" as never)}
-        >
-          <View style={styles.modernChallengeIcon}>
-            <Ionicons name="trophy-outline" size={26} color="#FACC15" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.modernChallengeTitle}>
-              Desafios e conquistas
-            </Text>
-            <Text style={styles.modernChallengeText}>
-              Acompanhe XP, metas e evolução em uma área própria.
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={22} color="#A1A1AA" />
-        </TouchableOpacity>
-        */}
-
         {/*{data.nextRevision && (
           <View style={styles.modernRevisionCard}>
             <View style={styles.alertIcon}>
@@ -3660,6 +3657,109 @@ export default function DashboardScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      <Modal visible={headerMenuVisible} transparent animationType="fade">
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.headerMenuOverlay}
+          onPress={() => setHeaderMenuVisible(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.headerMenuCard}>
+            <View style={styles.headerMenuHeader}>
+              <View>
+                <Text style={styles.headerMenuEyebrow}>Menu rápido</Text>
+                <Text style={styles.headerMenuTitle}>Atalhos do painel</Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={styles.headerMenuCloseButton}
+                onPress={() => setHeaderMenuVisible(false)}
+              >
+                <Ionicons name="close" size={22} color="#F5F0E6" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.headerMenuItem}
+              onPress={() => {
+                setHeaderMenuVisible(false);
+                router.push("/(private)/financeiro-pessoal" as never);
+              }}
+            >
+              <View style={[styles.headerMenuItemIcon, styles.headerMenuItemIconGold]}>
+                <Ionicons name="wallet-outline" size={21} color="#D4A64A" />
+              </View>
+
+              <View style={styles.headerMenuItemTextBox}>
+                <Text style={styles.headerMenuItemTitle}>Financeiro pessoal</Text>
+                <Text style={styles.headerMenuItemSubtitle}>Receitas, dívidas e saldo</Text>
+              </View>
+
+              <Ionicons name="chevron-forward" size={18} color="#8F8A91" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.headerMenuItem}
+              onPress={() => {
+                setHeaderMenuVisible(false);
+                router.push("/(private)/earnings-performance" as never);
+              }}
+            >
+              <View
+                style={[
+                  styles.headerMenuItemIcon,
+                  {
+                    backgroundColor:
+                      dashboardPerformanceScoreInfo?.backgroundColor ??
+                      "rgba(155,150,155,0.12)",
+                    borderColor:
+                      dashboardPerformanceScoreInfo?.borderColor ??
+                      "rgba(155,150,155,0.24)",
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={dashboardPerformanceScoreInfo?.icon ?? "analytics-outline"}
+                  size={21}
+                  color={dashboardPerformanceScoreInfo?.color ?? "#9B969B"}
+                />
+              </View>
+
+              <View style={styles.headerMenuItemTextBox}>
+                <Text style={styles.headerMenuItemTitle}>Desempenho</Text>
+                <Text style={styles.headerMenuItemSubtitle}>Ganhos, metas e eficiência</Text>
+              </View>
+
+              <Ionicons name="chevron-forward" size={18} color="#8F8A91" />
+            </TouchableOpacity>
+
+            {isSystemAdmin ? (
+              <TouchableOpacity
+                activeOpacity={0.88}
+                style={styles.headerMenuItem}
+                onPress={() => {
+                  setHeaderMenuVisible(false);
+                  router.push("/(private)/admin" as never);
+                }}
+              >
+                <View style={[styles.headerMenuItemIcon, styles.headerMenuItemIconBlue]}>
+                  <Ionicons name="shield-checkmark-outline" size={21} color="#60A5FA" />
+                </View>
+
+                <View style={styles.headerMenuItemTextBox}>
+                  <Text style={styles.headerMenuItemTitle}>Administração</Text>
+                  <Text style={styles.headerMenuItemSubtitle}>Área administrativa</Text>
+                </View>
+
+                <Ionicons name="chevron-forward" size={18} color="#8F8A91" />
+              </TouchableOpacity>
+            ) : null}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal visible={platformDrawerVisible} transparent animationType="slide">
         <View style={styles.platformDrawerOverlay}>
           <View style={styles.platformDrawerContent}>
@@ -3728,7 +3828,7 @@ export default function DashboardScreen() {
                     <Ionicons
                       name={selected ? "checkmark-circle" : "ellipse-outline"}
                       size={24}
-                      color={selected ? "#22C55E" : "#71717A"}
+                      color={selected ? "#D4A64A" : "#71717A"}
                     />
                   </TouchableOpacity>
                 );
@@ -4372,7 +4472,7 @@ export default function DashboardScreen() {
                   markedDates={{
                     [toCalendarDate(referenceDate)]: {
                       selected: true,
-                      selectedColor: "#22C55E",
+                      selectedColor: "#D4A64A",
                     },
                   }}
                   onDayPress={(day) => {
@@ -4381,13 +4481,13 @@ export default function DashboardScreen() {
                     selectPeriod("day", selectedDate);
                   }}
                   theme={{
-                    calendarBackground: "#09090B",
-                    dayTextColor: "#FFFFFF",
-                    monthTextColor: "#FFFFFF",
-                    todayTextColor: "#22C55E",
-                    arrowColor: "#22C55E",
+                    calendarBackground: "#101014",
+                    dayTextColor: "#F5F0E6",
+                    monthTextColor: "#F5F0E6",
+                    todayTextColor: "#D4A64A",
+                    arrowColor: "#D4A64A",
                     selectedDayTextColor: "#FFFFFF",
-                    textDisabledColor: "#3F3F46",
+                    textDisabledColor: "#3A3430",
                   }}
                 />
               </View>
@@ -4419,7 +4519,7 @@ export default function DashboardScreen() {
                         <Ionicons
                           name="checkmark-circle"
                           size={22}
-                          color="#22C55E"
+                          color="#D4A64A"
                         />
                       )}
                     </TouchableOpacity>
@@ -4454,7 +4554,7 @@ export default function DashboardScreen() {
                         <Ionicons
                           name="checkmark-circle"
                           size={22}
-                          color="#22C55E"
+                          color="#D4A64A"
                         />
                       )}
                     </TouchableOpacity>
@@ -4508,7 +4608,10 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#09090B" },
+  container: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
   content: { paddingHorizontal: 18, paddingTop: 48, paddingBottom: 140 },
   header: {
     flexDirection: "row",
@@ -4540,7 +4643,7 @@ const styles = StyleSheet.create({
   },
   periodSelectorCard: {
     minHeight: 76,
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: "#18181B",
     borderWidth: 1,
     borderColor: "#27272A",
@@ -4624,7 +4727,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 150,
     backgroundColor: "#18181B",
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: "#27272A",
@@ -4632,7 +4735,7 @@ const styles = StyleSheet.create({
   metricCardFat: {
     flex: 1,
     backgroundColor: "rgba(96, 165, 250, 0.15)",
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: "#1E3A8A",
@@ -4640,7 +4743,7 @@ const styles = StyleSheet.create({
   metricCardDes: {
     flex: 1,
     backgroundColor: "rgba(248, 113, 113, 0.15)",
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: "#991B1B",
@@ -4693,7 +4796,7 @@ const styles = StyleSheet.create({
   statCard: {
     width: "47.8%",
     backgroundColor: "#18181B",
-    borderRadius: 22,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: "#27272A",
@@ -4711,7 +4814,7 @@ const styles = StyleSheet.create({
   },
   alertCard: {
     minHeight: 82,
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: "#2A1605",
     borderWidth: 1,
     borderColor: "#F59E0B",
@@ -4737,11 +4840,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   platformCard: {
-    backgroundColor: "#18181B",
-    borderRadius: 24,
+    backgroundColor: "#18171D",
+    borderRadius: 18,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
   },
   sectionTitle: {
     color: "#FFFFFF",
@@ -4778,57 +4881,84 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.75)",
+    backgroundColor: "rgba(0,0,0,0.84)",
     justifyContent: "flex-end",
   },
   periodModal: {
-    backgroundColor: "#09090B",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 20,
-    maxHeight: "82%",
+    backgroundColor: "#101014",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 18,
+    maxHeight: "84%",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
+    borderTopColor: "rgba(212,166,74,0.34)",
   },
   periodModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingBottom: 14,
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
   },
-  periodModalTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
+  periodModalTitle: {
+    color: "#F5F0E6",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+  },
   periodModalTabs: {
     flexDirection: "row",
-    marginTop: 20,
-    backgroundColor: "#18181B",
-    borderRadius: 16,
+    marginTop: 4,
+    backgroundColor: "#18171D",
+    borderRadius: 12,
     padding: 4,
+    borderWidth: 1,
+    borderColor: "#2A2830",
   },
   periodModalTab: {
     flex: 1,
-    height: 42,
-    borderRadius: 12,
+    height: 40,
+    borderRadius: 9,
     justifyContent: "center",
     alignItems: "center",
   },
-  periodModalTabActive: { backgroundColor: "#22C55E" },
-  periodModalTabText: { color: "#A1A1AA", fontSize: 13, fontWeight: "800" },
-  periodModalTabTextActive: { color: "#FFFFFF" },
+  periodModalTabActive: {
+    backgroundColor: "#D4A64A",
+  },
+  periodModalTabText: {
+    color: "#9B969B",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  periodModalTabTextActive: {
+    color: "#080808",
+  },
   currentPeriodButton: {
     height: 46,
-    borderRadius: 14,
-    backgroundColor: "#22C55E",
-    marginTop: 16,
+    borderRadius: 12,
+    backgroundColor: "#D4A64A",
+    marginTop: 14,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
   },
   currentPeriodButtonText: {
-    color: "#FFFFFF",
+    color: "#080808",
     fontSize: 14,
     fontWeight: "900",
   },
-  calendarWrapper: { marginTop: 18, borderRadius: 18, overflow: "hidden" },
+  calendarWrapper: {
+    marginTop: 16,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#2A2830",
+    backgroundColor: "#18171D",
+  },
   periodList: { paddingTop: 18, paddingBottom: 24 },
   periodListItem: {
     minHeight: 58,
@@ -4875,7 +5005,7 @@ const styles = StyleSheet.create({
   },
   pieCard: {
     backgroundColor: "#18181B",
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 20,
     borderWidth: 1,
     borderColor: "#27272A",
@@ -5012,7 +5142,7 @@ const styles = StyleSheet.create({
   },
   platformChartCard: {
     backgroundColor: "#18181B",
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 20,
     borderWidth: 1,
     borderColor: "#27272A",
@@ -5050,7 +5180,7 @@ const styles = StyleSheet.create({
   },
   barChartCard: {
     backgroundColor: "#18181B",
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 20,
     borderWidth: 1,
     borderColor: "#27272A",
@@ -5224,7 +5354,7 @@ const styles = StyleSheet.create({
   },
 
   modernEntriesListCard: {
-    borderRadius: 28,
+    borderRadius: 18,
     padding: 18,
     borderWidth: 1,
     marginBottom: 16,
@@ -5338,7 +5468,7 @@ const styles = StyleSheet.create({
 
   periodEntriesEmptyBox: {
     minHeight: 150,
-    borderRadius: 22,
+    borderRadius: 16,
     backgroundColor: "#111827",
     borderWidth: 1,
     borderColor: "#1F2937",
@@ -5362,60 +5492,59 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 6,
   },
-
   entryEditOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.78)",
-    paddingHorizontal: 18,
+    backgroundColor: "rgba(0,0,0,0.84)",
+    paddingHorizontal: 16,
     justifyContent: "center",
   },
-
   entryEditModal: {
-    backgroundColor: "#111827",
-    borderRadius: 28,
+    backgroundColor: "#101014",
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
+    borderTopColor: "rgba(212,166,74,0.34)",
     maxHeight: "92%",
   },
-
   entryEditHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
     marginBottom: 14,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
   },
-
   entryEditEyebrow: {
-    color: "#22C55E",
-    fontSize: 11,
+    color: "#D4A64A",
+    fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
-
   entryEditTitle: {
-    color: "#FFFFFF",
-    fontSize: 23,
+    color: "#F5F0E6",
+    fontSize: 21,
     fontWeight: "900",
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.3,
   },
-
   entryEditDescription: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 19,
     marginBottom: 18,
   },
-
   entryEditLabel: {
-    color: "#FFFFFF",
-    fontSize: 13,
+    color: "#F5F0E6",
+    fontSize: 12,
     fontWeight: "900",
     marginBottom: 8,
     marginLeft: 4,
+    letterSpacing: 0.2,
   },
 
   entryPlatformHeader: {
@@ -5456,7 +5585,7 @@ const styles = StyleSheet.create({
 
   entryEmptyPlatformsBox: {
     minHeight: 132,
-    borderRadius: 22,
+    borderRadius: 16,
     backgroundColor: "#18181B",
     borderWidth: 1,
     borderColor: "#27272A",
@@ -5537,20 +5666,18 @@ const styles = StyleSheet.create({
   entryPlatformChipTextActive: {
     color: "#06130B",
   },
-
   entryEditInput: {
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: "#18181B",
+    height: 55,
+    borderRadius: 12,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
-    color: "#FFFFFF",
-    paddingHorizontal: 15,
+    borderColor: "#2A2830",
+    color: "#F5F0E6",
+    paddingHorizontal: 14,
     fontSize: 15,
     fontWeight: "700",
     marginBottom: 13,
   },
-
   entryEditInputError: {
     borderColor: "#EF4444",
     backgroundColor: "rgba(239,68,68,0.08)",
@@ -5570,11 +5697,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
-
   entryEditSaveButton: {
-    height: 58,
-    borderRadius: 19,
-    backgroundColor: "#22C55E",
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: "#D4A64A",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -5585,63 +5711,61 @@ const styles = StyleSheet.create({
   entryEditSaveButtonDisabled: {
     opacity: 0.65,
   },
-
   entryEditSaveButtonText: {
-    color: "#06130B",
+    color: "#080808",
     fontSize: 15,
     fontWeight: "900",
   },
-
   platformDrawerOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.78)",
+    backgroundColor: "rgba(0,0,0,0.84)",
     justifyContent: "flex-end",
   },
-
   platformDrawerContent: {
-    backgroundColor: "#111827",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    backgroundColor: "#101014",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
+    borderTopColor: "rgba(212,166,74,0.34)",
     maxHeight: "86%",
   },
-
   platformDrawerHandle: {
-    width: 48,
-    height: 5,
+    width: 46,
+    height: 4,
     borderRadius: 999,
-    backgroundColor: "#3F3F46",
+    backgroundColor: "#D4A64A",
+    opacity: 0.65,
     alignSelf: "center",
     marginBottom: 16,
   },
-
   platformDrawerHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: 14,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
     gap: 12,
   },
-
   platformDrawerEyebrow: {
-    color: "#22C55E",
-    fontSize: 11,
+    color: "#D4A64A",
+    fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
-
   platformDrawerTitle: {
-    color: "#FFFFFF",
-    fontSize: 23,
+    color: "#F5F0E6",
+    fontSize: 21,
     fontWeight: "900",
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.3,
   },
-
   platformDrawerDescription: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 19,
@@ -5652,23 +5776,21 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingBottom: 18,
   },
-
   platformDrawerItem: {
     minHeight: 62,
-    borderRadius: 20,
-    backgroundColor: "#18181B",
+    borderRadius: 13,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     padding: 12,
     gap: 12,
   },
-
   platformDrawerItemActive: {
-    borderColor: "rgba(34,197,94,0.55)",
-    backgroundColor: "rgba(34,197,94,0.10)",
+    borderColor: "rgba(212,166,74,0.55)",
+    backgroundColor: "rgba(212,166,74,0.10)",
   },
 
   platformDrawerLeft: {
@@ -5677,19 +5799,17 @@ const styles = StyleSheet.create({
     gap: 11,
     flex: 1,
   },
-
   platformDrawerLogo: {
     width: 36,
     height: 36,
-    borderRadius: 11,
+    borderRadius: 10,
     backgroundColor: "#FFFFFF",
   },
-
   platformDrawerLogoFallback: {
     width: 36,
     height: 36,
-    borderRadius: 11,
-    backgroundColor: "#27272A",
+    borderRadius: 10,
+    backgroundColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -5699,16 +5819,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
-
   platformDrawerName: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 14,
     fontWeight: "900",
     flex: 1,
   },
-
   platformDrawerNameActive: {
-    color: "#86EFAC",
+    color: "#D4A64A",
   },
 
   savePlatformsButton: {
@@ -5726,7 +5844,7 @@ const styles = StyleSheet.create({
   },
 
   modernExpensesListCard: {
-    borderRadius: 28,
+    borderRadius: 18,
     padding: 18,
     borderWidth: 1,
     marginBottom: 16,
@@ -5830,14 +5948,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   expenseEditModal: {
     width: "100%",
     maxHeight: "92%",
-    borderRadius: 28,
-    backgroundColor: "#111827",
+    borderRadius: 16,
+    backgroundColor: "#101014",
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
+    borderTopColor: "rgba(212,166,74,0.34)",
     padding: 18,
   },
 
@@ -5877,7 +5995,7 @@ const styles = StyleSheet.create({
 
   periodExpensesEmptyBox: {
     minHeight: 150,
-    borderRadius: 22,
+    borderRadius: 16,
     backgroundColor: "#111827",
     borderWidth: 1,
     borderColor: "#1F2937",
@@ -5922,7 +6040,7 @@ const styles = StyleSheet.create({
 
   challengesShortcutCard: {
     minHeight: 86,
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: "#18181B",
     borderWidth: 1,
     borderColor: "#27272A",
@@ -5957,14 +6075,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 17,
   },
-
   daySessionsCard: {
-    backgroundColor: "#18181B",
-    borderRadius: 24,
+    backgroundColor: "#18171D",
+    borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#27272A",
-    marginBottom: 14,
+    borderColor: "#2A2830",
+    borderLeftWidth: 1,
+    //borderLeftColor: "#D4A64A",
+    marginBottom: 16,
   },
 
   daySessionsHeader: {
@@ -6002,12 +6121,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
   },
-
   daySessionItem: {
-    backgroundColor: "#0B1220",
-    borderRadius: 22,
+    backgroundColor: "#101014",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: "#2A2830",
     padding: 14,
     marginBottom: 12,
   },
@@ -6106,10 +6224,9 @@ const styles = StyleSheet.create({
   sessionDetailsHeader: {
     marginBottom: 18,
   },
-
   deleteSessionButton: {
     minHeight: 52,
-    borderRadius: 18,
+    borderRadius: 12,
     backgroundColor: "rgba(239,68,68,0.12)",
     borderWidth: 1,
     borderColor: "rgba(248,113,113,0.28)",
@@ -6126,85 +6243,79 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
-
   sessionDetailsModal: {
-    backgroundColor: "#09090B",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 20,
+    backgroundColor: "#101014",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 18,
     height: "86%",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
+    borderTopColor: "rgba(212,166,74,0.34)",
   },
-
   sessionDetailsSummary: {
-    backgroundColor: "#031B12",
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#14532D",
-    borderRadius: 24,
+    borderColor: "rgba(212,166,74,0.28)",
+    borderLeftWidth: 4,
+    borderLeftColor: "#D4A64A",
+    borderRadius: 14,
     padding: 18,
     marginBottom: 18,
   },
-
   sessionDetailsTime: {
-    color: "#A7F3D0",
-    fontSize: 13,
+    color: "#D4A64A",
+    fontSize: 12,
     fontWeight: "900",
+    letterSpacing: 0.4,
   },
-
   sessionDetailsRevenue: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 30,
     fontWeight: "900",
     marginTop: 8,
   },
-
   sessionDetailsMuted: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
   },
-
   sessionDetailsSectionTitle: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 16,
     fontWeight: "900",
     marginBottom: 10,
     marginTop: 10,
   },
-
   sessionDetailRow: {
     minHeight: 54,
-    backgroundColor: "#18181B",
-    borderRadius: 16,
+    backgroundColor: "#18171D",
+    borderRadius: 13,
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     paddingHorizontal: 14,
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-
   sessionDetailName: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 14,
     fontWeight: "900",
   },
-
   sessionDetailValue: {
-    color: "#22C55E",
+    color: "#D4A64A",
     fontSize: 14,
     fontWeight: "900",
   },
-
   sessionRideCard: {
     minHeight: 68,
-    backgroundColor: "#18181B",
-    borderRadius: 16,
+    backgroundColor: "#18171D",
+    borderRadius: 13,
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     padding: 14,
     marginBottom: 10,
     flexDirection: "row",
@@ -6217,281 +6328,406 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
-
   modernContent: {
     paddingHorizontal: 18,
-    paddingTop: 52,
-    paddingBottom: 170,
+    paddingTop: 0,
+    paddingBottom: 178,
+    backgroundColor: "#050505",
   },
-
   modernHeader: {
-    marginBottom: 5,
-    flexDirection: 'row',
-    justifyContent: 'space-between'
-  },
-
-  modernUserRow: {
+    marginHorizontal: -18,
+    marginBottom: 0,
+    paddingTop: 48,
+    paddingBottom: 16,
+    paddingHorizontal: 18,
+    backgroundColor: "#070707",
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 14,
+    justifyContent: "space-between",
   },
-
+  modernUserRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    marginBottom: 0,
+  },
   modernAvatar: {
     width: 54,
     height: 54,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: "#22C55E",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.48)",
+    backgroundColor: "#111111",
   },
-
   modernAvatarFallback: {
     width: 54,
     height: 54,
-    borderRadius: 999,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#141318",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "rgba(212,166,74,0.38)",
     alignItems: "center",
     justifyContent: "center",
   },
-
   modernGreeting: {
-    fontSize: 12,
-    fontWeight: "800",
-  },
-
-  modernTitle: {
-    fontSize: 20,
+    color: "#D4A64A",
+    fontSize: 9,
     fontWeight: "900",
-    marginTop: 2,
+    letterSpacing: 1.7,
+    textTransform: "uppercase",
   },
-
+  modernTitle: {
+    color: "#F5F0E6",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 4,
+    letterSpacing: 0.1,
+  },
   modernHeaderActions: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 8,
+    gap: 7,
+    marginLeft: 10,
   },
-
   modernHeaderIconButton: {
+    width: 43,
+    height: 43,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#2A2830",
+    backgroundColor: "#16151A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modernHeaderMenuButton: {
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderColor: "rgba(212,166,74,0.30)",
+  },
+  headerMenuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.64)",
+    paddingTop: 88,
+    paddingHorizontal: 18,
+    alignItems: "flex-end",
+  },
+  headerMenuCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 22,
+    backgroundColor: "#101014",
+    borderWidth: 1,
+    borderColor: "#2A2830",
+    padding: 14,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.35,
+    shadowRadius: 22,
+    elevation: 18,
+  },
+  headerMenuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
+  },
+  headerMenuEyebrow: {
+    color: "#D4A64A",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+  },
+  headerMenuTitle: {
+    color: "#F5F0E6",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+  headerMenuCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: "#18171D",
+    borderWidth: 1,
+    borderColor: "#2A2830",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerMenuItem: {
+    minHeight: 68,
+    borderRadius: 17,
+    backgroundColor: "#18171D",
+    borderWidth: 1,
+    borderColor: "#2A2830",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+  },
+  headerMenuItemIcon: {
     width: 44,
     height: 44,
-    borderRadius: 16,
+    borderRadius: 15,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerMenuItemIconGold: {
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderColor: "rgba(212,166,74,0.28)",
+  },
+  headerMenuItemIconBlue: {
+    backgroundColor: "rgba(96,165,250,0.12)",
+    borderColor: "rgba(96,165,250,0.28)",
+  },
+  headerMenuItemTextBox: {
+    flex: 1,
+  },
+  headerMenuItemTitle: {
+    color: "#F5F0E6",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  headerMenuItemSubtitle: {
+    color: "#9B969B",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  stickyPeriodHeader: {
+    marginHorizontal: -18,
+    paddingHorizontal: 18,
+    paddingTop: 9,
+    paddingBottom: 10,
+    backgroundColor: "#050505",
+    borderBottomWidth: 1,
+    borderBottomColor: "#17140F",
+    zIndex: 50,
+    elevation: 50,
   },
 
   modernPeriodTabs: {
     flexDirection: "row",
-    borderRadius: 20,
-    padding: 5,
-    marginBottom: 12,
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 8,
     borderWidth: 1,
+    backgroundColor: "#101014",
+    borderColor: "#2A2830",
   },
-
   modernPeriodTab: {
     flex: 1,
-    height: 42,
-    borderRadius: 15,
+    height: 39,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-
   modernPeriodTabActive: {
-    backgroundColor: "#22C55E",
+    backgroundColor: "#D4A64A",
   },
-
   modernPeriodTabText: {
-    color: "#A1A1AA",
-    fontSize: 13,
+    color: "#9B969B",
+    fontSize: 12,
     fontWeight: "900",
+    letterSpacing: 0.3,
   },
-
   modernPeriodTabTextActive: {
-    color: "#FFFFFF",
+    color: "#080808",
   },
-
   modernPeriodSelector: {
-    minHeight: 76,
-    borderRadius: 26,
+    minHeight: 68,
+    borderRadius: 16,
     borderWidth: 1,
+    borderColor: "#2A2830",
+    backgroundColor: "#18171D",
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 14,
-    paddingHorizontal: 10,
+    marginBottom: 0,
+    paddingHorizontal: 8,
   },
-
   modernPeriodArrow: {
-    width: 44,
-    height: 56,
+    width: 40,
+    height: 50,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(212,166,74,0.08)",
   },
-
   modernPeriodCenter: {
     flex: 1,
     alignItems: "center",
+    paddingHorizontal: 8,
   },
-
   modernPeriodTitle: {
+    color: "#F5F0E6",
     fontSize: 17,
     fontWeight: "900",
     textAlign: "center",
     textTransform: "capitalize",
   },
-
   modernPeriodSubtitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    marginTop: 4,
+    color: "#9B969B",
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 5,
   },
-
   modernHeroCard: {
-    borderRadius: 34,
-    padding: 10,
-    marginBottom: 14,
-    backgroundColor: "#052E16",
+    borderRadius: 20,
+    padding: 15,
+    marginBottom: 18,
+    marginTop: 10,
+    backgroundColor: "rgba(34,197,94,0.12)",
     borderWidth: 1,
-    borderColor: "#166534",
+    borderColor: "rgba(34,197,94,0.32)",
+    borderLeftWidth: 1,
   },
-
   modernHeroTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 10,
   },
-
   modernHeroBadge: {
-    height: 34,
-    borderRadius: 999,
-    backgroundColor: "rgba(34,197,94,0.22)",
-    paddingHorizontal: 12,
+    minHeight: 35,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,166,74,0.13)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.24)",
+    paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 7,
   },
-
   modernHeroBadgeText: {
-    color: "#BBF7D0",
-    fontSize: 12,
+    color: "#D4A64A",
+    fontSize: 11,
     fontWeight: "900",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
   },
-
   modernVariationPill: {
     height: 34,
-    borderRadius: 999,
+    borderRadius: 12,
     paddingHorizontal: 11,
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
   },
-
   modernVariationPositive: {
-    backgroundColor: "#22C55E",
+    backgroundColor: "rgba(34,197,94,0.20)",
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.32)",
   },
-
   modernVariationNegative: {
-    backgroundColor: "#EF4444",
+    backgroundColor: "rgba(239,68,68,0.20)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.34)",
   },
-
   modernVariationText: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 12,
     fontWeight: "900",
   },
-
   modernHeroValue: {
-    color: "#FFFFFF",
-    fontSize: 39,
+    color: "#F5F0E6",
+    fontSize: 42,
     fontWeight: "900",
-    marginTop: 16,
-    letterSpacing: -1,
+    marginTop: 22,
+    letterSpacing: -1.6,
+    lineHeight: 48,
   },
-
   modernHeroSub: {
-    color: "#A7F3D0",
-    fontSize: 13,
+    color: "#B8B2B8",
+    fontSize: 14,
     fontWeight: "800",
-    marginTop: 6,
+    marginTop: 8,
+    lineHeight: 20,
   },
-
   modernHeroMiniGrid: {
     flexDirection: "row",
-    gap: 5,
-    marginTop: 18,
+    gap: 9,
+    marginTop: 22,
   },
-
   modernHeroMiniCard: {
     flex: 1,
-    minHeight: 105,
-    borderRadius: 24,
+    minHeight: 112,
+    borderRadius: 16,
     padding: 14,
-    backgroundColor: "rgba(2,6,23,0.42)",
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "#2A2830",
   },
-
   modernMiniIconBlue: {
     width: 34,
     height: 34,
-    borderRadius: 12,
-    backgroundColor: "rgba(59,130,246,0.20)",
+    borderRadius: 10,
+    backgroundColor: "rgba(212,166,74,0.13)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
-
   modernMiniIconRed: {
     width: 34,
     height: 34,
-    borderRadius: 12,
-    backgroundColor: "rgba(239,68,68,0.18)",
+    borderRadius: 10,
+    backgroundColor: "rgba(239,68,68,0.13)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.24)",
     alignItems: "center",
     justifyContent: "center",
   },
-
   modernHeroMiniLabel: {
-    color: "#A1A1AA",
-    fontSize: 13,
+    color: "#9B969B",
+    fontSize: 11,
     fontWeight: "900",
-    marginTop: 10,
+    marginTop: 9,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
-
   modernHeroMiniValue: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 20,
     fontWeight: "900",
-    marginTop: 4,
+    marginTop: 6,
   },
-
   modernHeroMiniValueRed: {
     color: "#FCA5A5",
     fontSize: 20,
     fontWeight: "900",
-    marginTop: 4,
+    marginTop: 6,
   },
-
   modernHeroMiniCaption: {
-    color: "#A1A1AA",
+    color: "#8F8A91",
     fontSize: 10,
     fontWeight: "800",
-    marginTop: 4,
+    marginTop: 5,
   },
-
   modernStatsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 16,
   },
-
   modernStatCard: {
     width: "48.5%",
-    minHeight: 94,
-    borderRadius: 24,
+    minHeight: 102,
+    borderRadius: 16,
     borderWidth: 1,
+    borderColor: "#2A2830",
+    backgroundColor: "#18171D",
     padding: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: "rgba(212,166,74,0.62)",
   },
 
   modernStatIconBlue: {
@@ -6526,18 +6762,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   modernStatLabel: {
-    fontSize: 12,
+    color: "#9B969B",
+    fontSize: 11,
     fontWeight: "900",
-    marginTop: 12,
+    marginTop: 11,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
-
   modernStatValue: {
-    fontSize: 19,
+    color: "#F5F0E6",
+    fontSize: 20,
     fontWeight: "900",
-    marginTop: 4,
-    textAlign: 'center',
+    marginTop: 6,
+    textAlign: "center",
   },
 
   modernSectionHeader: {
@@ -6546,10 +6784,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 16,
   },
-
   modernSectionTitle: {
-    fontSize: 18,
+    color: "#F5F0E6",
+    fontSize: 22,
     fontWeight: "900",
+    letterSpacing: -0.4,
   },
 
   modernSectionSubtitle: {
@@ -6559,7 +6798,7 @@ const styles = StyleSheet.create({
   },
 
   modernSessionsCard: {
-    borderRadius: 28,
+    borderRadius: 18,
     padding: 16,
     borderWidth: 1,
     marginBottom: 14,
@@ -6586,7 +6825,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0B1220",
     borderWidth: 1,
     borderColor: "#1E293B",
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 14,
     marginBottom: 12,
   },
@@ -6642,47 +6881,16 @@ const styles = StyleSheet.create({
   },
 
   modernChartCard: {
-    borderRadius: 28,
+    borderRadius: 18,
     padding: 18,
     borderWidth: 1,
     marginBottom: 14,
   },
 
-  modernChallengeHub: {
-    minHeight: 90,
-    borderRadius: 28,
-    backgroundColor: "#18181B",
-    borderWidth: 1,
-    borderColor: "#27272A",
-    padding: 16,
-    marginBottom: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  modernChallengeIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: "#2A2205",
-    borderWidth: 1,
-    borderColor: "#713F12",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modernChallengeTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
-  modernChallengeText: {
-    color: "#A1A1AA",
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 17,
-    marginTop: 4,
-  },
 
   modernRevisionCard: {
     minHeight: 84,
-    borderRadius: 26,
+    borderRadius: 18,
     backgroundColor: "#2A1605",
     borderWidth: 1,
     borderColor: "#F59E0B",
@@ -6766,24 +6974,24 @@ const styles = StyleSheet.create({
   modernFloatingGoalSubtitleDark: {
     color: "#374151",
   },
-
   goalMiniCard: {
-    minHeight: 64,
-    borderRadius: 22,
+    minHeight: 68,
+    borderRadius: 16,
     paddingHorizontal: 13,
-    paddingVertical: 11,
-    marginBottom: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     borderWidth: 1,
-    borderStyle: 'dashed',
+    borderStyle: "solid",
+    backgroundColor: "#18171D",
+    borderColor: "#2A2830",
     opacity: 0.98,
   },
-
   goalMiniCardEmpty: {
-    backgroundColor: "#CCCCCC",
-    borderColor: "#CBD5E1",
+    backgroundColor: "#D4A64A",
+    borderColor: "#D4A64A",
   },
 
   goalMiniCardFuture: {
@@ -6941,7 +7149,7 @@ const styles = StyleSheet.create({
 
   goalInlineCard: {
     minHeight: 82,
-    borderRadius: 26,
+    borderRadius: 18,
     padding: 14,
     marginBottom: 14,
     flexDirection: "row",
@@ -7034,19 +7242,19 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
   },
-
   goalModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.75)",
+    backgroundColor: "rgba(0,0,0,0.84)",
     justifyContent: "flex-end",
   },
   goalModalContent: {
-    backgroundColor: "#09090B",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 20,
+    backgroundColor: "#101014",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 18,
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
+    borderTopColor: "rgba(212,166,74,0.34)",
     maxHeight: "82%",
   },
   goalModalHeader: {
@@ -7054,8 +7262,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 14,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
   },
-  goalModalTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
+  goalModalTitle: {
+    color: "#F5F0E6",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+  },
 
   daySessionRevenueBox: {
     alignItems: "flex-end",
@@ -7092,13 +7308,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
   },
-
   sessionDetailRowModern: {
     minHeight: 78,
-    backgroundColor: "#18181B",
-    borderRadius: 18,
+    backgroundColor: "#18171D",
+    borderRadius: 13,
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     padding: 12,
     marginBottom: 10,
     flexDirection: "row",
@@ -7113,19 +7328,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-
   sessionDetailPlatformLogo: {
     width: 40,
     height: 40,
-    borderRadius: 13,
+    borderRadius: 10,
     backgroundColor: "#FFFFFF",
   },
-
   sessionDetailPlatformLogoFallback: {
     width: 40,
     height: 40,
-    borderRadius: 13,
-    backgroundColor: "#27272A",
+    borderRadius: 10,
+    backgroundColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -7135,9 +7348,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
   },
-
   sessionDetailCaption: {
-    color: "#71717A",
+    color: "#8F8A91",
     fontSize: 11,
     fontWeight: "800",
     marginTop: 3,
@@ -7153,89 +7365,86 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
   },
-
   sessionDetailActionButton: {
     width: 32,
     height: 32,
-    borderRadius: 12,
-    backgroundColor: "rgba(59,130,246,0.12)",
+    borderRadius: 10,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
-
   sessionDetailActionButtonDanger: {
     width: 32,
     height: 32,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: "rgba(239,68,68,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
-
   sessionEarningEditModal: {
-    backgroundColor: "#111827",
-    borderRadius: 28,
+    backgroundColor: "#101014",
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
+    borderTopColor: "rgba(212,166,74,0.34)",
   },
-
   sessionEarningEditPlatformBox: {
     minHeight: 64,
-    borderRadius: 18,
-    backgroundColor: "#18181B",
+    borderRadius: 13,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     padding: 12,
     marginBottom: 16,
   },
-  
   editSessionButton: {
     minHeight: 46,
-    borderRadius: 16,
-    backgroundColor: "rgba(59,130,246,0.12)",
+    borderRadius: 12,
+    backgroundColor: "rgba(212,166,74,0.12)",
     borderWidth: 1,
-    borderColor: "rgba(96,165,250,0.28)",
+    borderColor: "rgba(212,166,74,0.28)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     marginTop: 14,
   },
-
   editSessionButtonText: {
-    color: "#BFDBFE",
+    color: "#D4A64A",
     fontSize: 13,
     fontWeight: "900",
   },
-
   sessionEditModal: {
-    backgroundColor: "#111827",
-    borderRadius: 28,
+    backgroundColor: "#101014",
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
+    borderTopColor: "rgba(212,166,74,0.34)",
   },
-
   sessionEditInfoCard: {
     minHeight: 54,
-    borderRadius: 18,
-    backgroundColor: "rgba(59,130,246,0.10)",
+    borderRadius: 13,
+    backgroundColor: "rgba(212,166,74,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(96,165,250,0.22)",
+    borderColor: "rgba(212,166,74,0.22)",
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     padding: 12,
     marginBottom: 14,
   },
-
   sessionEditInfoText: {
     flex: 1,
-    color: "#BFDBFE",
+    color: "#E8C46D",
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "700",
@@ -7250,3 +7459,4 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+

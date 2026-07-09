@@ -106,19 +106,21 @@ export default function ProfileSettingsScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      stickyHeaderIndices={[0]}
     >
       <View style={styles.header}>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>Sistema</Text>
-          <Text style={styles.headerTitle}>Configurações</Text>
+        <View style={styles.headerTitleRow}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.headerEyebrow}>Sistema</Text>
+            <Text style={styles.headerTitle}>Configurações</Text>
+          </View>
         </View>
       </View>
 
@@ -145,7 +147,7 @@ export default function ProfileSettingsScreen() {
               <Ionicons
                 name={tab.icon}
                 size={18}
-                color={active ? "#06130B" : "#A1A1AA"}
+                color={active ? "#080808" : "#9B969B"}
               />
               <Text style={[styles.tabText, active && styles.tabTextActive]}>
                 {tab.label}
@@ -159,7 +161,7 @@ export default function ProfileSettingsScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.planHeader}>
             <View style={styles.planIcon}>
-              <Ionicons name="sparkles-outline" size={26} color="#22C55E" />
+              <Ionicons name="sparkles-outline" size={26} color="#D4A64A" />
             </View>
 
             <View style={{ flex: 1 }}>
@@ -274,7 +276,7 @@ export default function ProfileSettingsScreen() {
           </Text>
 
           <View style={styles.versionBox}>
-            <Ionicons name="phone-portrait-outline" size={24} color="#22C55E" />
+            <Ionicons name="phone-portrait-outline" size={24} color="#D4A64A" />
             <View>
               <Text style={styles.versionLabel}>Versão do aplicativo</Text>
               <Text style={styles.versionValue}>1.0.0</Text>
@@ -326,8 +328,8 @@ function PrivacySwitch({
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: "#3F3F46", true: "#14532D" }}
-        thumbColor={value ? "#22C55E" : "#A1A1AA"}
+        trackColor={{ false: "#3F3F46", true: "rgba(212,166,74,0.45)" }}
+        thumbColor={value ? "#D4A64A" : "#9B969B"}
       />
     </View>
   );
@@ -353,86 +355,137 @@ function ActionItem({
       onPress={onPress}
     >
       <View style={styles.actionIcon}>
-        <Ionicons name={icon} size={20} color="#22C55E" />
+        <Ionicons name={icon} size={20} color="#D4A64A" />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.actionTitle}>{title}</Text>
         <Text style={styles.actionDescription}>{description}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={19} color="#71717A" />
+      <Ionicons name="chevron-forward" size={19} color="#8F8A91" />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#09090B" },
-  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 140 },
+  container: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 48,
+    paddingBottom: 50,
+    backgroundColor: "#050505",
+  },
   header: {
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: "#070707",
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
+    zIndex: 20,
+    elevation: 20,
+  },
+  headerTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 18,
+    marginTop: 6,
   },
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
   headerEyebrow: {
-    color: "#22C55E",
-    fontSize: 12,
+    color: "#D4A64A",
+    fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
-  headerTitle: { color: "#FFFFFF", fontSize: 26, fontWeight: "900" },
+  headerTitle: {
+    color: "#F5F0E6",
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
   introCard: {
-    backgroundColor: "#111827",
-    borderRadius: 28,
+    backgroundColor: "#101014",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     padding: 18,
     marginBottom: 14,
+    shadowColor: "#D4A64A",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.07,
+    shadowRadius: 22,
+    elevation: 8,
   },
-  introTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "900" },
+  introTitle: {
+    color: "#F5F0E6",
+    fontSize: 18,
+    fontWeight: "900",
+  },
   introText: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 19,
     marginTop: 6,
   },
-  tabsContent: { gap: 10, paddingBottom: 16 },
+  tabsContent: {
+    gap: 10,
+    paddingBottom: 16,
+  },
   tabButton: {
     height: 42,
     borderRadius: 999,
-    backgroundColor: "#18181B",
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 7,
   },
-  tabButtonActive: { backgroundColor: "#22C55E", borderColor: "#22C55E" },
-  tabText: { color: "#A1A1AA", fontSize: 12, fontWeight: "900" },
-  tabTextActive: { color: "#06130B" },
+  tabButtonActive: {
+    backgroundColor: "#D4A64A",
+    borderColor: "#D4A64A",
+  },
+  tabText: {
+    color: "#9B969B",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  tabTextActive: {
+    color: "#080808",
+  },
   sectionCard: {
-    backgroundColor: "#111827",
-    borderRadius: 28,
+    backgroundColor: "#101014",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     padding: 16,
   },
-  sectionTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "900" },
+  sectionTitle: {
+    color: "#F5F0E6",
+    fontSize: 18,
+    fontWeight: "900",
+  },
   sectionText: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 19,
@@ -448,23 +501,34 @@ const styles = StyleSheet.create({
   planIcon: {
     width: 48,
     height: 48,
-    borderRadius: 17,
-    backgroundColor: "rgba(34,197,94,0.12)",
+    borderRadius: 13,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.24)",
     alignItems: "center",
     justifyContent: "center",
   },
   planBox: {
-    backgroundColor: "#052E16",
-    borderRadius: 22,
+    backgroundColor: "rgba(212,166,74,0.10)",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#166534",
+    borderColor: "rgba(212,166,74,0.26)",
     padding: 15,
     marginBottom: 10,
   },
-  planLabel: { color: "#BBF7D0", fontSize: 12, fontWeight: "900" },
-  planName: { color: "#FFFFFF", fontSize: 24, fontWeight: "900", marginTop: 5 },
+  planLabel: {
+    color: "#D4A64A",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  planName: {
+    color: "#F5F0E6",
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 5,
+  },
   planDescription: {
-    color: "#BBF7D0",
+    color: "#B8A77C",
     fontSize: 12,
     fontWeight: "700",
     lineHeight: 18,
@@ -476,20 +540,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1F2937",
+    borderBottomColor: "#2A2830",
   },
-  actionItemLast: { borderBottomWidth: 0 },
+  actionItemLast: {
+    borderBottomWidth: 0,
+  },
   actionIcon: {
     width: 42,
     height: 42,
-    borderRadius: 15,
-    backgroundColor: "rgba(34,197,94,0.10)",
+    borderRadius: 12,
+    backgroundColor: "rgba(212,166,74,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.20)",
     alignItems: "center",
     justifyContent: "center",
   },
-  actionTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  actionTitle: {
+    color: "#F5F0E6",
+    fontSize: 14,
+    fontWeight: "900",
+  },
   actionDescription: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
@@ -501,23 +573,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1F2937",
+    borderBottomColor: "#2A2830",
   },
   versionBox: {
     minHeight: 72,
-    backgroundColor: "#18181B",
-    borderRadius: 20,
+    backgroundColor: "#18171D",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     marginBottom: 10,
   },
-  versionLabel: { color: "#A1A1AA", fontSize: 12, fontWeight: "800" },
+  versionLabel: {
+    color: "#9B969B",
+    fontSize: 12,
+    fontWeight: "800",
+  },
   versionValue: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 18,
     fontWeight: "900",
     marginTop: 3,

@@ -70,7 +70,7 @@ function getUserStatusInfo(user: AdminUser) {
 
   return {
     label: 'Sem status',
-    color: '#A1A1AA',
+    color: '#9B969B',
     backgroundColor: 'rgba(161,161,170,0.10)',
     borderColor: 'rgba(161,161,170,0.20)',
   };
@@ -82,7 +82,7 @@ function getUserDueDateInfo(user: AdminUser) {
   if (!dueDateValue) {
     return {
       label: 'Sem vencimento',
-      color: '#A1A1AA',
+      color: '#9B969B',
       icon: 'calendar-outline' as const,
     };
   }
@@ -92,7 +92,7 @@ function getUserDueDateInfo(user: AdminUser) {
   if (Number.isNaN(dueDate.getTime())) {
     return {
       label: 'Vencimento inválido',
-      color: '#A1A1AA',
+      color: '#9B969B',
       icon: 'calendar-outline' as const,
     };
   }
@@ -249,7 +249,7 @@ export default function AdminHomeScreen() {
   if (checkingAccess || !isAdmin) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#22C55E" />
+        <ActivityIndicator color="#D4A64A" />
         <Text style={styles.loadingText}>Verificando acesso...</Text>
       </View>
     );
@@ -262,7 +262,7 @@ export default function AdminHomeScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
-          tintColor="#22C55E"
+          tintColor="#D4A64A"
           refreshing={refreshing}
           onRefresh={() => loadAdminData(true)}
         />
@@ -274,7 +274,7 @@ export default function AdminHomeScreen() {
           style={styles.headerIconButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
         </TouchableOpacity>
 
         <View style={styles.headerInfo}>
@@ -287,7 +287,7 @@ export default function AdminHomeScreen() {
           style={styles.configButton}
           onPress={() => router.push('/(private)/admin/configuracoes' as never)}
         >
-          <Ionicons name="settings-outline" size={22} color="#22C55E" />
+          <Ionicons name="settings-outline" size={22} color="#D4A64A" />
         </TouchableOpacity>
       </View>
 
@@ -316,7 +316,7 @@ export default function AdminHomeScreen() {
               <Ionicons
                 name={item.icon}
                 size={17}
-                color={selected ? '#06130B' : '#A1A1AA'}
+                color={selected ? '#080808' : '#9B969B'}
               />
               <Text style={[styles.statusTabText, selected && styles.statusTabTextActive]}>
                 {item.label}
@@ -340,7 +340,7 @@ export default function AdminHomeScreen() {
               <Ionicons
                 name={item.icon}
                 size={18}
-                color={selected ? '#06130B' : '#A1A1AA'}
+                color={selected ? '#080808' : '#9B969B'}
               />
               <Text style={[styles.viewTabText, selected && styles.viewTabTextActive]}>
                 {item.label}
@@ -353,17 +353,17 @@ export default function AdminHomeScreen() {
       {viewMode === 'cities' ? (
         <>
           <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={20} color="#71717A" />
+            <Ionicons name="search-outline" size={20} color="#8F8A91" />
             <TextInput
               value={citySearch}
               onChangeText={setCitySearch}
               placeholder="Procurar cidade"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               style={styles.searchInput}
             />
             {!!citySearch && (
               <TouchableOpacity onPress={() => setCitySearch('')}>
-                <Ionicons name="close-circle" size={20} color="#71717A" />
+                <Ionicons name="close-circle" size={20} color="#8F8A91" />
               </TouchableOpacity>
             )}
           </View>
@@ -394,7 +394,7 @@ export default function AdminHomeScreen() {
                 </View>
 
                 <View style={styles.cityIconBox}>
-                  <Ionicons name="location-outline" size={24} color="#22C55E" />
+                  <Ionicons name="location-outline" size={24} color="#D4A64A" />
                 </View>
 
                 <View style={styles.cityInfo}>
@@ -407,7 +407,7 @@ export default function AdminHomeScreen() {
                   <Text style={styles.cityCountLabel}>usuários</Text>
                 </View>
 
-                <Ionicons name="chevron-forward" size={20} color="#71717A" />
+                <Ionicons name="chevron-forward" size={20} color="#8F8A91" />
               </TouchableOpacity>
             ))
           )}
@@ -415,17 +415,17 @@ export default function AdminHomeScreen() {
       ) : (
         <>
           <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={20} color="#71717A" />
+            <Ionicons name="search-outline" size={20} color="#8F8A91" />
             <TextInput
               value={userSearch}
               onChangeText={setUserSearch}
               placeholder="Procurar usuário"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               style={styles.searchInput}
             />
             {!!userSearch && (
               <TouchableOpacity onPress={() => setUserSearch('')}>
-                <Ionicons name="close-circle" size={20} color="#71717A" />
+                <Ionicons name="close-circle" size={20} color="#8F8A91" />
               </TouchableOpacity>
             )}
           </View>
@@ -491,7 +491,7 @@ function UserCard({ user }: { user: AdminUser }) {
         <Image source={{ uri: user.avatar_url }} style={styles.userAvatar} />
       ) : (
         <View style={styles.userAvatarFallback}>
-          <Ionicons name="person" size={22} color="#FFFFFF" />
+          <Ionicons name="person" size={22} color="#F5F0E6" />
         </View>
       )}
 
@@ -552,7 +552,7 @@ function UserCard({ user }: { user: AdminUser }) {
 function LoadingCard() {
   return (
     <View style={styles.feedbackCard}>
-      <ActivityIndicator color="#22C55E" />
+      <ActivityIndicator color="#D4A64A" />
       <Text style={styles.feedbackText}>Carregando dados...</Text>
     </View>
   );
@@ -569,7 +569,7 @@ function EmptyCard({
 }) {
   return (
     <View style={styles.feedbackCard}>
-      <Ionicons name={icon} size={30} color="#71717A" />
+      <Ionicons name={icon} size={30} color="#8F8A91" />
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.feedbackText}>{text}</Text>
     </View>
@@ -577,57 +577,84 @@ function EmptyCard({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#09090B' },
-  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 140 },
+  container: { flex: 1, backgroundColor: '#050505' },
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 50,
+    paddingBottom: 150,
+  },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
   },
-  loadingText: { color: '#A1A1AA', fontSize: 13, fontWeight: '800' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+  loadingText: { color: '#9B969B', fontSize: 13, fontWeight: '800' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: -18,
+    marginTop: -50,
+    marginBottom: 18,
+    paddingTop: 50,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: '#070707',
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
+  },
   headerIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
   configButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: '#102A1A',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: '#14532D',
+    borderColor: 'rgba(212,166,74,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerInfo: { flex: 1 },
   headerEyebrow: {
-    color: '#22C55E',
-    fontSize: 12,
+    color: '#D4A64A',
+    fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.7,
+    letterSpacing: 1.5,
   },
-  headerTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', marginTop: 2 },
+  headerTitle: {
+    color: '#F5F0E6',
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 2,
+    letterSpacing: -0.4,
+  },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   summaryCard: {
     width: '48%',
-    minHeight: 46,
-    backgroundColor: '#111827',
+    minHeight: 88,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 22,
+    borderColor: '#2A2830',
+    borderRadius: 18,
     padding: 14,
-    flexDirection: 'row',
     justifyContent: 'space-between',
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 8,
   },
   summaryIcon: {
     width: 36,
@@ -636,28 +663,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  summaryLabel: { color: '#A1A1AA', fontSize: 12, fontWeight: '800' },
-  summaryValue: { color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginTop: 4 },
+  summaryLabel: { color: '#9B969B', fontSize: 12, fontWeight: '800' },
+  summaryValue: { color: '#F5F0E6', fontSize: 22, fontWeight: '900', marginTop: 4 },
   statusTabs: { gap: 8, paddingBottom: 12 },
   statusTab: {
     minHeight: 42,
     borderRadius: 999,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 13,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
   },
-  statusTabActive: { backgroundColor: '#22C55E', borderColor: '#22C55E' },
-  statusTabText: { color: '#A1A1AA', fontSize: 12, fontWeight: '900' },
-  statusTabTextActive: { color: '#06130B' },
+  statusTabActive: {
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
+  },
+  statusTabText: { color: '#9B969B', fontSize: 12, fontWeight: '900' },
+  statusTabTextActive: { color: '#080808' },
   viewTabsContainer: {
     height: 54,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     borderRadius: 20,
     padding: 5,
     flexDirection: 'row',
@@ -672,31 +702,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 7,
   },
-  viewTabActive: { backgroundColor: '#22C55E' },
-  viewTabText: { color: '#A1A1AA', fontSize: 13, fontWeight: '900' },
-  viewTabTextActive: { color: '#06130B' },
+  viewTabActive: {
+    backgroundColor: '#D4A64A',
+  },
+  viewTabText: { color: '#9B969B', fontSize: 13, fontWeight: '900' },
+  viewTabTextActive: { color: '#080808' },
   searchBox: {
     height: 56,
-    borderRadius: 19,
-    backgroundColor: '#111827',
+    borderRadius: 15,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
     marginBottom: 16,
   },
-  searchInput: { flex: 1, height: '100%', color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  searchInput: { flex: 1, height: '100%', color: '#F5F0E6', fontSize: 14, fontWeight: '700' },
   sectionHeader: { marginBottom: 12 },
-  sectionTitle: { color: '#FFFFFF', fontSize: 19, fontWeight: '900' },
-  sectionSubtitle: { color: '#71717A', fontSize: 12, fontWeight: '700', marginTop: 4 },
+  sectionTitle: { color: '#F5F0E6', fontSize: 19, fontWeight: '900' },
+  sectionSubtitle: { color: '#8F8A91', fontSize: 12, fontWeight: '700', marginTop: 4 },
   cityCard: {
     minHeight: 82,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 24,
+    borderColor: '#2A2830',
+    borderRadius: 18,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -707,32 +739,34 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cityRankText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
+  cityRankText: { color: '#F5F0E6', fontSize: 12, fontWeight: '900' },
   cityIconBox: {
     width: 46,
     height: 46,
-    borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cityInfo: { flex: 1 },
-  cityName: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
-  cityUf: { color: '#A1A1AA', fontSize: 12, fontWeight: '800', marginTop: 3 },
+  cityName: { color: '#F5F0E6', fontSize: 15, fontWeight: '900' },
+  cityUf: { color: '#9B969B', fontSize: 12, fontWeight: '800', marginTop: 3 },
   cityCountBox: { alignItems: 'flex-end' },
-  cityCountValue: { color: '#22C55E', fontSize: 20, fontWeight: '900' },
-  cityCountLabel: { color: '#71717A', fontSize: 10, fontWeight: '800' },
+  cityCountValue: { color: '#D4A64A', fontSize: 20, fontWeight: '900' },
+  cityCountLabel: { color: '#8F8A91', fontSize: 10, fontWeight: '800' },
   userCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 24,
+    borderColor: '#2A2830',
+    borderRadius: 18,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -743,14 +777,16 @@ const styles = StyleSheet.create({
   userAvatarFallback: {
     width: 48,
     height: 48,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   userInfo: { flex: 1 },
   userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  userName: { color: '#FFFFFF', fontSize: 14, fontWeight: '900', flex: 1 },
+  userName: { color: '#F5F0E6', fontSize: 14, fontWeight: '900', flex: 1 },
   adminMiniBadge: {
     width: 24,
     height: 24,
@@ -774,7 +810,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
   },
-  userMeta: { color: '#A1A1AA', fontSize: 12, fontWeight: '700', marginTop: 3 },
+  userMeta: { color: '#9B969B', fontSize: 12, fontWeight: '700', marginTop: 3 },
   userDatesRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -782,8 +818,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: 4,
   },
-  userCreatedAt: { color: '#71717A', fontSize: 11, fontWeight: '700' },
-  userDateSeparator: { color: '#3F3F46', fontSize: 11, fontWeight: '900' },
+  userCreatedAt: { color: '#8F8A91', fontSize: 11, fontWeight: '700' },
+  userDateSeparator: { color: '#2A2830', fontSize: 11, fontWeight: '900' },
   userDueDateRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -799,16 +835,16 @@ const styles = StyleSheet.create({
   },
   userStatusText: { fontSize: 10, fontWeight: '900' },
   feedbackCard: {
-    minHeight: 160,
-    backgroundColor: '#111827',
+    minHeight: 170,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 24,
+    borderColor: '#2A2830',
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
     gap: 10,
   },
-  emptyTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '900', textAlign: 'center' },
-  feedbackText: { color: '#A1A1AA', fontSize: 13, fontWeight: '700', textAlign: 'center', lineHeight: 18 },
+  emptyTitle: { color: '#F5F0E6', fontSize: 15, fontWeight: '900', textAlign: 'center' },
+  feedbackText: { color: '#9B969B', fontSize: 13, fontWeight: '700', textAlign: 'center', lineHeight: 18 },
 });

@@ -97,7 +97,7 @@ export default function PublicProfileScreen() {
   if (loading) {
     return (
       <View style={styles.loadingPage}>
-        <ActivityIndicator color="#22C55E" />
+        <ActivityIndicator color="#D4A64A" />
       </View>
     );
   }
@@ -108,7 +108,7 @@ export default function PublicProfileScreen() {
         <Ionicons
           name="person-circle-outline"
           size={52}
-          color="#71717A"
+          color="#8F8A91"
         />
 
         <Text style={styles.notFoundTitle}>
@@ -138,7 +138,7 @@ export default function PublicProfileScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={handleRefresh}
-          tintColor="#22C55E"
+          tintColor="#D4A64A"
         />
       }
     >
@@ -150,7 +150,7 @@ export default function PublicProfileScreen() {
           <Ionicons
             name="arrow-back"
             size={24}
-            color="#FFFFFF"
+            color="#F5F0E6"
           />
         </TouchableOpacity>
 
@@ -170,7 +170,7 @@ export default function PublicProfileScreen() {
             <Ionicons
               name="person"
               size={44}
-              color="#FFFFFF"
+              color="#F5F0E6"
             />
           </View>
         )}
@@ -197,7 +197,7 @@ export default function PublicProfileScreen() {
               <Ionicons
                 name="location-outline"
                 size={15}
-                color="#A1A1AA"
+                color="#9B969B"
               />
 
               <Text style={styles.metaBadgeText}>
@@ -211,7 +211,7 @@ export default function PublicProfileScreen() {
               <Ionicons
                 name="car-outline"
                 size={15}
-                color="#A1A1AA"
+                color="#9B969B"
               />
 
               <Text style={styles.metaBadgeText}>
@@ -285,7 +285,7 @@ export default function PublicProfileScreen() {
           <Ionicons
             name="podium-outline"
             size={42}
-            color="#71717A"
+            color="#8F8A91"
           />
 
           <Text style={styles.emptyTitle}>
@@ -345,7 +345,7 @@ function Metric({
       <Ionicons
         name={icon}
         size={22}
-        color="#22C55E"
+        color="#D4A64A"
       />
 
       <Text style={styles.metricValue}>
@@ -362,117 +362,124 @@ function Metric({
 const styles = StyleSheet.create({
   loadingPage: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
-
   notFoundTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
     marginTop: 14,
   },
-
   backHomeButton: {
     height: 44,
-    borderRadius: 14,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 18,
   },
-
   backHomeButtonText: {
-    color: '#FFFFFF',
+    color: '#080808',
     fontSize: 14,
     fontWeight: '900',
   },
-
   container: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
-
   content: {
-    padding: 18,
-    paddingTop: 54,
-    paddingBottom: 130,
+    paddingHorizontal: 18,
+    paddingTop: 48,
+    paddingBottom: 150,
+    backgroundColor: '#050505',
   },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    marginBottom: 22,
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: '#070707',
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
   },
-
   backButton: {
     width: 42,
     height: 42,
-    borderRadius: 14,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   headerTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 24,
     fontWeight: '900',
+    letterSpacing: -0.4,
   },
-
   profileCard: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     padding: 22,
     marginBottom: 14,
+    shadowColor: '#D4A64A',
+    shadowOffset: {
+      width: 0,
+      height: 14,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 10,
   },
-
   avatar: {
     width: 98,
     height: 98,
-    borderRadius: 999,
+    borderRadius: 18,
     marginBottom: 14,
+    borderWidth: 2,
+    borderColor: '#D4A64A',
   },
-
   avatarFallback: {
     width: 98,
     height: 98,
-    borderRadius: 999,
-    backgroundColor: '#27272A',
+    borderRadius: 18,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#3F3F46',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
-
   name: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 21,
     fontWeight: '900',
     textAlign: 'center',
+    letterSpacing: -0.2,
   },
-
   username: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '900',
     marginTop: 4,
   },
-
   bio: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
     lineHeight: 19,
     marginTop: 10,
@@ -485,30 +492,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 14,
   },
-
   metaBadge: {
     minHeight: 30,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 10,
   },
-
   metaBadgeText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
   },
-
   levelCard: {
-    backgroundColor: '#052E16',
-    borderRadius: 24,
+    backgroundColor: '#18171D',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#166534',
+    borderColor: '#2A2830',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D4A64A',
     padding: 16,
     marginBottom: 14,
   },
@@ -518,47 +524,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-
   levelLabel: {
-    color: '#BBF7D0',
-    fontSize: 12,
-    fontWeight: '800',
+    color: '#D4A64A',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
   },
-
   levelValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 30,
     fontWeight: '900',
     marginTop: 2,
   },
-
   xpBox: {
     minHeight: 34,
     borderRadius: 999,
-    backgroundColor: '#064E3B',
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.22)',
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   xpText: {
-    color: '#BBF7D0',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
-
   progressTrack: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#064E3B',
+    backgroundColor: '#2A2830',
     overflow: 'hidden',
     marginTop: 14,
   },
-
   progressFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
 
   metricsRow: {
@@ -566,86 +570,80 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 18,
   },
-
   metricCard: {
     flex: 1,
-    minHeight: 90,
-    borderRadius: 20,
-    backgroundColor: '#111827',
+    minHeight: 94,
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
   },
-
   metricValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 19,
     fontWeight: '900',
     marginTop: 7,
+    textAlign: 'center',
   },
-
   metricLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
     marginTop: 4,
+    textAlign: 'center',
   },
-
   sectionTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
     marginBottom: 12,
+    letterSpacing: -0.2,
   },
-
   emptyBox: {
     minHeight: 220,
-    borderRadius: 24,
-    backgroundColor: '#111827',
+    borderRadius: 18,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
-
   emptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 12,
   },
-
   emptyText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
     lineHeight: 19,
     marginTop: 8,
   },
-
   challengeCard: {
     minHeight: 80,
-    borderRadius: 22,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 12,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   medalBox: {
     width: 46,
     height: 46,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -658,15 +656,13 @@ const styles = StyleSheet.create({
   challengeInfo: {
     flex: 1,
   },
-
   challengeTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
-
   challengeSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '700',
     marginTop: 4,
@@ -676,15 +672,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginLeft: 8,
   },
-
   challengeAmount: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 13,
     fontWeight: '900',
   },
-
   challengePosition: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 10,
     fontWeight: '800',
     marginTop: 4,

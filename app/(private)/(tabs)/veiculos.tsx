@@ -19,8 +19,6 @@ import { router } from 'expo-router';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors } from '../../../src/constants/colors';
-
 import { supabase } from '../../../src/database/supabase';
 
 import { createVehicle } from '../../../src/features/vehicles/services/createVehicle';
@@ -319,7 +317,7 @@ export default function VehiclesScreen() {
             style={styles.addButton}
             onPress={openCreateVehicleModal}
           >
-            <Ionicons name="add" size={26} color="#FFFFFF" />
+            <Ionicons name="add" size={26} color="#F5F0E6" />
           </TouchableOpacity>
         </View>
 
@@ -377,7 +375,7 @@ export default function VehiclesScreen() {
                       openEditVehicleModal(vehicle);
                     }}
                   >
-                    <Ionicons name="create-outline" size={18} color="#60A5FA" />
+                    <Ionicons name="create-outline" size={18} color="#D4A64A" />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -470,7 +468,7 @@ export default function VehiclesScreen() {
                                     <Ionicons
                                     name="car-outline"
                                     size={25}
-                                    color="#FFFFFF"
+                                    color="#F5F0E6"
                                     />
                                 </View>
 
@@ -491,7 +489,7 @@ export default function VehiclesScreen() {
                             style={styles.modalCloseButton}
                             onPress={closeVehicleModal}
                             >
-                            <Ionicons name="close" size={25} color="#FFFFFF" />
+                            <Ionicons name="close" size={25} color="#F5F0E6" />
                             </TouchableOpacity>
                         </View>
 
@@ -512,7 +510,7 @@ export default function VehiclesScreen() {
                                 <Ionicons
                                     name={item.icon as any}
                                     size={24}
-                                    color="#FFFFFF"
+                                    color="#F5F0E6"
                                 />
 
                                 <Text style={styles.typeText}>{item.label}</Text>
@@ -524,7 +522,7 @@ export default function VehiclesScreen() {
                         </View>
 
                         <View style={styles.inputBox}>
-                            <Ionicons name="pricetag-outline" size={22} color="#22C55E" />
+                            <Ionicons name="pricetag-outline" size={22} color="#D4A64A" />
 
                             <View style={{ flex: 1 }}>
                             <Text style={styles.inputLabel}>Marca</Text>
@@ -540,7 +538,7 @@ export default function VehiclesScreen() {
                         </View>
 
                         <View style={styles.inputBox}>
-                            <Ionicons name="car-outline" size={22} color="#22C55E" />
+                            <Ionicons name="car-outline" size={22} color="#D4A64A" />
 
                             <View style={{ flex: 1 }}>
                             <Text style={styles.inputLabel}>Modelo</Text>
@@ -560,7 +558,7 @@ export default function VehiclesScreen() {
                             <Ionicons
                                 name="calendar-outline"
                                 size={22}
-                                color="#22C55E"
+                                color="#D4A64A"
                             />
 
                             <View style={{ flex: 1 }}>
@@ -582,7 +580,7 @@ export default function VehiclesScreen() {
                             <Ionicons
                                 name="barcode-outline"
                                 size={22}
-                                color="#22C55E"
+                                color="#D4A64A"
                             />
 
                             <View style={{ flex: 1 }}>
@@ -606,7 +604,7 @@ export default function VehiclesScreen() {
                             <Ionicons
                                 name="speedometer-outline"
                                 size={22}
-                                color="#22C55E"
+                                color="#D4A64A"
                             />
 
                             <View style={{ flex: 1 }}>
@@ -635,7 +633,7 @@ export default function VehiclesScreen() {
                             <Ionicons
                                 name="construct-outline"
                                 size={22}
-                                color="#22C55E"
+                                color="#D4A64A"
                             />
 
                             <View style={{ flex: 1 }}>
@@ -668,13 +666,13 @@ export default function VehiclesScreen() {
                             disabled={savingVehicle}
                         >
                             {savingVehicle ? (
-                            <ActivityIndicator color="#FFFFFF" />
+                            <ActivityIndicator color="#080808" />
                             ) : (
                             <>
                                 <Ionicons
                                 name="checkmark-circle-outline"
                                 size={22}
-                                color="#FFFFFF"
+                                color="#F5F0E6"
                                 />
 
                                 <Text style={styles.saveButtonText}>
@@ -685,7 +683,7 @@ export default function VehiclesScreen() {
                         </TouchableOpacity>
 
                         <View style={styles.secureRow}>
-                            <Ionicons name="lock-closed-outline" size={18} color="#71717A" />
+                            <Ionicons name="lock-closed-outline" size={18} color="#8F8A91" />
 
                             <Text style={styles.secureText}>
                             Suas informações estão seguras
@@ -703,56 +701,65 @@ export default function VehiclesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#050505',
   },
-
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 140,
+    paddingHorizontal: 18,
+    paddingTop: 48,
+    paddingBottom: 150,
+    backgroundColor: '#050505',
   },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 28,
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: '#070707',
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
   },
-
   title: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
+    color: '#F5F0E6',
+    fontSize: 27,
+    fontWeight: '900',
+    letterSpacing: -0.6,
   },
-
   subtitle: {
-    color: '#71717A',
-    marginTop: 6,
+    color: '#9B969B',
+    marginTop: 5,
+    fontSize: 13,
+    fontWeight: '700',
   },
-
   addButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: '#22C55E',
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   vehicleCard: {
-    backgroundColor: '#0D1117',
-    borderRadius: 22,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 16,
     marginBottom: 14,
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.06,
+    shadowRadius: 22,
+    elevation: 8,
   },
-
   vehicleTop: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   vehicleImage: {
     width: 82,
     height: 58,
@@ -765,18 +772,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-
   vehicleTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '900',
     textTransform: 'uppercase',
   },
-
   vehiclePlate: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     marginTop: 4,
   },
 
@@ -786,48 +791,42 @@ const styles = StyleSheet.create({
     gap: 8,
     marginLeft: 10,
   },
-
   vehicleActionButton: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderRadius: 11,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   vehicleActionButtonDanger: {
     width: 38,
     height: 38,
-    borderRadius: 14,
+    borderRadius: 11,
     backgroundColor: 'rgba(239,68,68,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(239,68,68,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-
   defaultBadge: {
-    backgroundColor: 'rgba(34,197,94,0.18)',
-    borderColor: 'rgba(34,197,94,0.35)',
+    backgroundColor: 'rgba(212,166,74,0.14)',
+    borderColor: 'rgba(212,166,74,0.34)',
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-
   defaultBadgeText: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '900',
   },
-
   divider: {
     height: 1,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#2A2830',
     marginVertical: 14,
   },
 
@@ -835,17 +834,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-
   infoLabel: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
-    fontWeight: '700',
-  },
-
-  infoValue: {
-    color: '#FFFFFF',
-    fontSize: 16,
     fontWeight: '800',
+  },
+  infoValue: {
+    color: '#F5F0E6',
+    fontSize: 16,
+    fontWeight: '900',
     marginTop: 6,
   },
 
@@ -855,50 +852,43 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 14,
   },
-
   revisionBadge: {
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-
   revisionBadgeText: {
     fontSize: 11,
+    fontWeight: '900',
+  },
+  revisionHint: {
+    color: '#8F8A91',
+    fontSize: 12,
     fontWeight: '800',
   },
-
-  revisionHint: {
-    color: '#71717A',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: 'rgba(0,0,0,0.82)',
   },
-
   modalScroll: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 28,
   },
-
   modalContent: {
-    backgroundColor: '#07111F',
-    borderRadius: 34,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     padding: 22,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
   },
-
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 26,
+    marginBottom: 24,
   },
 
   modalHeaderLeft: {
@@ -906,34 +896,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-
   modalIcon: {
     width: 46,
     height: 46,
-    borderRadius: 999,
-    backgroundColor: '#22C55E',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
   },
-
   modalTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 20,
     fontWeight: '900',
   },
-
   modalSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
+    fontWeight: '700',
     marginTop: 3,
   },
-
   modalCloseButton: {
     width: 38,
     height: 38,
-    borderRadius: 999,
-    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
+    borderWidth: 1,
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 10,
@@ -944,31 +935,27 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 24,
   },
-
   typeButton: {
     flex: 1,
     height: 64,
-    borderRadius: 22,
-    backgroundColor: '#151E2B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
   },
-
   typeButtonActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
-
   typeText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '900',
     marginTop: 0,
   },
-
   typeArrow: {
     position: 'absolute',
     bottom: -11,
@@ -979,15 +966,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 12,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: '#22C55E',
+    borderTopColor: '#D4A64A',
   },
-
   inputBox: {
     minHeight: 72,
-    borderRadius: 22,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#2A2830',
     paddingHorizontal: 10,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -995,18 +981,16 @@ const styles = StyleSheet.create({
     gap: 14,
     marginBottom: 14,
   },
-
   inputLabel: {
-    color: 'rgba(255,255,255,0.9)',
+    color: '#9B969B',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
     marginBottom: 5,
   },
-
   input: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     padding: 0,
     margin: 0,
   },
@@ -1015,11 +999,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-
   saveButton: {
     height: 50,
-    borderRadius: 22,
-    backgroundColor: '#22C55E',
+    borderRadius: 14,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1030,10 +1013,8 @@ const styles = StyleSheet.create({
   saveButtonDisabled: {
     opacity: 0.65,
   },
-
-
   saveButtonText: {
-    color: '#FFFFFF',
+    color: '#080808',
     fontSize: 18,
     fontWeight: '900',
   },
@@ -1045,9 +1026,8 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 22,
   },
-
   secureText: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
   },

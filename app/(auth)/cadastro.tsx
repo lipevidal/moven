@@ -420,7 +420,7 @@ export default function RegisterScreen() {
           {/* Campo de nome do usuário. */}
           <Text style={styles.label}>Nome completo</Text>
           <View style={[styles.inputContainer, errors.name && styles.inputContainerError]}>
-            <Ionicons name="person-outline" size={20} color="#A1A1AA" />
+            <Ionicons name="person-outline" size={20} color="#9B969B" />
             <TextInput
               value={name}
               onChangeText={(text) => {
@@ -457,7 +457,7 @@ export default function RegisterScreen() {
             />
 
             {usernameLoading ? (
-              <ActivityIndicator color="#22C55E" />
+              <ActivityIndicator color="#D4A64A" />
             ) : usernameAvailable !== null ? (
               <Ionicons
                 name={usernameAvailable ? 'checkmark-circle' : 'close-circle'}
@@ -489,7 +489,7 @@ export default function RegisterScreen() {
             onPress={() => setMunicipalityModalVisible(true)}
           >
             <View style={styles.selectIcon}>
-              <Ionicons name="location-outline" size={23} color="#22C55E" />
+              <Ionicons name="location-outline" size={23} color="#D4A64A" />
             </View>
 
             <View style={{ flex: 1 }}>
@@ -501,7 +501,7 @@ export default function RegisterScreen() {
               </Text>
             </View>
 
-            <Ionicons name="chevron-forward" size={21} color="#FFFFFF" />
+            <Ionicons name="chevron-forward" size={21} color="#F5F0E6" />
           </TouchableOpacity>
           {errors.municipality ? (
             <Text style={styles.errorText}>{errors.municipality}</Text>
@@ -510,7 +510,7 @@ export default function RegisterScreen() {
           {/* Campo de e-mail usado no login. */}
           <Text style={styles.label}>E-mail</Text>
           <View style={[styles.inputContainer, errors.email && styles.inputContainerError]}>
-            <Ionicons name="mail-outline" size={20} color="#A1A1AA" />
+            <Ionicons name="mail-outline" size={20} color="#9B969B" />
             <TextInput
               value={email}
               onChangeText={(text) => {
@@ -535,7 +535,7 @@ export default function RegisterScreen() {
           */}
           <Text style={styles.label}>Senha</Text>
           <View style={[styles.inputContainer, errors.password && styles.inputContainerError]}>
-            <Ionicons name="lock-closed-outline" size={20} color="#A1A1AA" />
+            <Ionicons name="lock-closed-outline" size={20} color="#9B969B" />
             <TextInput
               value={password}
               onChangeText={(text) => {
@@ -562,7 +562,7 @@ export default function RegisterScreen() {
               <Ionicons
                 name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 size={22}
-                color="#A1A1AA"
+                color="#9B969B"
               />
             </TouchableOpacity>
           </View>
@@ -571,7 +571,7 @@ export default function RegisterScreen() {
           {/* Confirmação para impedir cadastro com senha digitada incorretamente. */}
           <Text style={styles.label}>Confirmar senha</Text>
           <View style={[styles.inputContainer, errors.confirmPassword && styles.inputContainerError]}>
-            <Ionicons name="shield-checkmark-outline" size={20} color="#A1A1AA" />
+            <Ionicons name="shield-checkmark-outline" size={20} color="#9B969B" />
             <TextInput
               value={confirmPassword}
               onChangeText={(text) => {
@@ -597,7 +597,7 @@ export default function RegisterScreen() {
               <Ionicons
                 name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
                 size={22}
-                color="#A1A1AA"
+                color="#9B969B"
               />
             </TouchableOpacity>
           </View>
@@ -612,10 +612,10 @@ export default function RegisterScreen() {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#06130B" />
+              <ActivityIndicator color="#080808" />
             ) : (
               <>
-                <Ionicons name="checkmark-circle-outline" size={22} color="#06130B" />
+                <Ionicons name="checkmark-circle-outline" size={22} color="#080808" />
                 <Text style={styles.buttonText}>Criar conta</Text>
               </>
             )}
@@ -640,7 +640,7 @@ export default function RegisterScreen() {
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleRow}>
                 <View style={styles.modalIconBox}>
-                  <Ionicons name="location-outline" size={23} color="#22C55E" />
+                  <Ionicons name="location-outline" size={23} color="#D4A64A" />
                 </View>
 
                 <View>
@@ -654,13 +654,13 @@ export default function RegisterScreen() {
                 style={styles.modalCloseButton}
                 onPress={() => setMunicipalityModalVisible(false)}
               >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={24} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
             {/* A busca continua pesquisando cidade e região no service, mas a tela só exibe cidade/UF. */}
             <View style={styles.searchBox}>
-              <Ionicons name="search-outline" size={20} color="#A1A1AA" />
+              <Ionicons name="search-outline" size={20} color="#9B969B" />
               <TextInput
                 value={municipalitySearch}
                 onChangeText={handleSearchMunicipalities}
@@ -673,7 +673,7 @@ export default function RegisterScreen() {
 
             {municipalityLoading ? (
               <View style={styles.loadingBox}>
-                <ActivityIndicator color="#22C55E" />
+                <ActivityIndicator color="#D4A64A" />
                 <Text style={styles.loadingText}>Buscando cidades...</Text>
               </View>
             ) : (
@@ -685,7 +685,7 @@ export default function RegisterScreen() {
               >
                 {municipalitySearch.trim().length < 2 ? (
                   <View style={styles.emptyBox}>
-                    <Ionicons name="search-outline" size={34} color="#52525B" />
+                    <Ionicons name="search-outline" size={34} color="#8F8A91" />
                     <Text style={styles.emptyTitle}>Busque sua cidade</Text>
                     <Text style={styles.emptyText}>
                       Digite pelo menos 2 letras para encontrar sua cidade base.
@@ -693,7 +693,7 @@ export default function RegisterScreen() {
                   </View>
                 ) : municipalities.length === 0 ? (
                   <View style={styles.emptyBox}>
-                    <Ionicons name="alert-circle-outline" size={34} color="#52525B" />
+                    <Ionicons name="alert-circle-outline" size={34} color="#8F8A91" />
                     <Text style={styles.emptyTitle}>Nenhuma cidade encontrada</Text>
                     <Text style={styles.emptyText}>
                       Tente buscar pelo nome da cidade ou pela sigla do estado.
@@ -718,7 +718,7 @@ export default function RegisterScreen() {
                         }}
                       >
                         <View style={styles.municipalityIconSmall}>
-                          <Ionicons name="business-outline" size={19} color="#22C55E" />
+                          <Ionicons name="business-outline" size={19} color="#D4A64A" />
                         </View>
 
                         <View style={{ flex: 1 }}>
@@ -728,9 +728,9 @@ export default function RegisterScreen() {
                         </View>
 
                         {selected ? (
-                          <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
+                          <Ionicons name="checkmark-circle" size={24} color="#D4A64A" />
                         ) : (
-                          <Ionicons name="chevron-forward" size={19} color="#71717A" />
+                          <Ionicons name="chevron-forward" size={19} color="#8F8A91" />
                         )}
                       </TouchableOpacity>
                     );
@@ -748,146 +748,134 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
-
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 28,
     paddingBottom: 60,
+    backgroundColor: '#050505',
   },
-
   scrollContentKeyboard: {
     paddingTop: 16,
     paddingBottom: 240,
   },
-
   heroCard: {
-    backgroundColor: '#0D1117',
-    borderRadius: 30,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     marginBottom: 16,
     overflow: 'hidden',
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 10,
   },
-
   logoShell: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   logo: {
     width: 100,
     height: 56,
   },
-
   logoKeyboard: {
     width: 105,
     height: 56,
   },
-
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
   },
-
   titleIcon: {
     width: 48,
     height: 48,
-    borderRadius: 17,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
+    borderColor: 'rgba(212,166,74,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   eyebrow: {
-    color: '#22C55E',
-    fontSize: 12,
+    color: '#D4A64A',
+    fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.4,
   },
-
   title: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 25,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.4,
   },
-
   subtitle: {
     alignItems: 'center',
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     lineHeight: 20,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 14,
     textAlign: 'center',
   },
-
   formCard: {
-    backgroundColor: '#111827',
-    borderRadius: 30,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
   },
-
   label: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
     marginTop: 12,
     marginBottom: 8,
     marginLeft: 4,
   },
-
   inputContainer: {
     minHeight: 58,
-    backgroundColor: '#18181B',
-    borderRadius: 19,
+    backgroundColor: '#18171D',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingLeft: 16,
     paddingRight: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-
   inputContainerError: {
     borderColor: '#EF4444',
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
-
   input: {
     flex: 1,
     height: 56,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '700',
     paddingVertical: 0,
   },
-
   atSign: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 17,
     fontWeight: '900',
   },
-
   helperText: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 7,
     marginLeft: 4,
   },
-
   errorText: {
     color: '#F87171',
     fontSize: 12,
@@ -895,227 +883,203 @@ const styles = StyleSheet.create({
     marginTop: 7,
     marginLeft: 4,
   },
-
   successText: {
     color: '#22C55E',
   },
-
   selectCard: {
     minHeight: 68,
-    backgroundColor: '#18181B',
-    borderRadius: 20,
+    backgroundColor: '#18171D',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-
   selectIcon: {
     width: 42,
     height: 42,
-    borderRadius: 15,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   selectLabel: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '800',
     marginBottom: 3,
   },
-
   selectText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
-
   passwordIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 15,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   button: {
     height: 60,
-    backgroundColor: '#22C55E',
-    borderRadius: 20,
+    backgroundColor: '#D4A64A',
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 24,
     flexDirection: 'row',
     gap: 8,
   },
-
   buttonDisabled: {
     opacity: 0.65,
   },
-
   buttonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 16,
     fontWeight: '900',
   },
-
   link: {
-    color: '#22C55E',
+    color: '#D4A64A',
     textAlign: 'center',
     marginTop: 22,
     fontWeight: '900',
     fontSize: 14,
   },
-
   municipalityModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: 'rgba(0,0,0,0.82)',
     justifyContent: 'flex-end',
   },
-
   municipalityModalContent: {
     height: '82%',
-    backgroundColor: '#09090B',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    backgroundColor: '#101014',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 20,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
   },
-
   modalHandle: {
     width: 48,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#2A2830',
     alignSelf: 'center',
     marginBottom: 18,
   },
-
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-
   modalTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     flex: 1,
   },
-
   modalIconBox: {
     width: 46,
     height: 46,
-    borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
+    borderColor: 'rgba(212,166,74,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   modalEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.2,
   },
-
   modalTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 21,
     fontWeight: '900',
     marginTop: 2,
   },
-
   modalCloseButton: {
     width: 42,
     height: 42,
-    borderRadius: 15,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
+    borderWidth: 1,
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   searchBox: {
     height: 56,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginBottom: 14,
   },
-
   municipalitySearchInput: {
     flex: 1,
     height: '100%',
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '700',
     paddingVertical: 0,
   },
-
   loadingBox: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   loadingText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '800',
     marginTop: 10,
   },
-
   municipalityListContent: {
     paddingBottom: 20,
   },
-
   emptyBox: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 46,
     paddingHorizontal: 20,
   },
-
   emptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 12,
   },
-
   emptyText: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 19,
   },
-
   municipalityItem: {
     minHeight: 62,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     paddingVertical: 11,
     marginBottom: 10,
@@ -1123,23 +1087,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-
   municipalityItemSelected: {
-    borderColor: '#22C55E',
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderColor: '#D4A64A',
+    backgroundColor: 'rgba(212,166,74,0.10)',
   },
-
   municipalityIconSmall: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderRadius: 11,
+    backgroundColor: 'rgba(212,166,74,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.20)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   municipalityName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },

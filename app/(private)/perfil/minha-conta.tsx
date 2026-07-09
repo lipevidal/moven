@@ -539,7 +539,7 @@ export default function MyAccountScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#22C55E" />
+        <ActivityIndicator color="#D4A64A" />
         <Text style={styles.loadingText}>Carregando sua conta...</Text>
       </View>
     );
@@ -555,19 +555,22 @@ export default function MyAccountScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[0]}
       >
         <View style={styles.header}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerEyebrow}>Perfil</Text>
-            <Text style={styles.headerTitle}>Minha conta</Text>
+          <View style={styles.headerTitleRow}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
+            </TouchableOpacity>
+            <View>
+              <Text style={styles.headerEyebrow}>Perfil</Text>
+              <Text style={styles.headerTitle}>Minha conta</Text>
+            </View>
           </View>
         </View>
 
@@ -576,7 +579,7 @@ export default function MyAccountScreen() {
             <Image source={{ uri: avatarUrl }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarFallback}>
-              <Ionicons name="person" size={42} color="#FFFFFF" />
+              <Ionicons name="person" size={42} color="#F5F0E6" />
             </View>
           )}
 
@@ -593,7 +596,7 @@ export default function MyAccountScreen() {
                 onPress={pickAvatar}
                 disabled={saving}
               >
-                <Ionicons name="camera-outline" size={17} color="#06130B" />
+                <Ionicons name="camera-outline" size={17} color="#080808" />
                 <Text style={styles.avatarButtonText}>Alterar</Text>
               </TouchableOpacity>
 
@@ -623,7 +626,7 @@ export default function MyAccountScreen() {
                 clearFieldError("name");
               }}
               placeholder="Seu nome"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               style={styles.input}
             />
           </InputRow>
@@ -637,7 +640,7 @@ export default function MyAccountScreen() {
                 clearFieldError("username");
               }}
               placeholder="username"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               autoCapitalize="none"
               autoCorrect={false}
               style={styles.input}
@@ -653,7 +656,7 @@ export default function MyAccountScreen() {
                 clearFieldError("email");
               }}
               placeholder="seuemail@exemplo.com"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -667,7 +670,7 @@ export default function MyAccountScreen() {
             style={[styles.cityButton, errors.city && styles.inputError]}
             onPress={() => setCitySearchVisible((current) => !current)}
           >
-            <Ionicons name="location-outline" size={20} color="#22C55E" />
+            <Ionicons name="location-outline" size={20} color="#D4A64A" />
 
             <Text style={styles.cityButtonText} numberOfLines={1}>
               {selectedMunicipality?.name
@@ -682,7 +685,7 @@ export default function MyAccountScreen() {
             <Ionicons
               name={citySearchVisible ? "chevron-up" : "chevron-down"}
               size={19}
-              color="#FFFFFF"
+              color="#F5F0E6"
             />
           </TouchableOpacity>
 
@@ -696,7 +699,7 @@ export default function MyAccountScreen() {
                 value={municipalitySearch}
                 onChangeText={handleSearchMunicipalities}
                 placeholder="Buscar cidade"
-                placeholderTextColor="#71717A"
+                placeholderTextColor="#8F8A91"
                 style={styles.citySearchInput}
               />
 
@@ -719,7 +722,7 @@ export default function MyAccountScreen() {
                   <Ionicons
                     name="checkmark-circle-outline"
                     size={20}
-                    color="#22C55E"
+                    color="#D4A64A"
                   />
                 </TouchableOpacity>
               ))}
@@ -743,7 +746,7 @@ export default function MyAccountScreen() {
                 clearFieldError("password");
               }}
               placeholder="Nova senha"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
@@ -758,7 +761,7 @@ export default function MyAccountScreen() {
               <Ionicons
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={22}
-                color="#A1A1AA"
+                color="#9B969B"
               />
             </TouchableOpacity>
           </InputRow>
@@ -775,7 +778,7 @@ export default function MyAccountScreen() {
                 clearFieldError("confirmPassword");
               }}
               placeholder="Confirme a nova senha"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
@@ -793,10 +796,10 @@ export default function MyAccountScreen() {
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator color="#06130B" />
+            <ActivityIndicator color="#080808" />
           ) : (
             <>
-              <Ionicons name="save-outline" size={22} color="#06130B" />
+              <Ionicons name="save-outline" size={22} color="#080808" />
               <Text style={styles.saveButtonText}>Salvar alterações</Text>
             </>
           )}
@@ -822,7 +825,7 @@ function InputRow({
   return (
     <>
       <View style={[styles.inputRow, error && styles.inputError]}>
-        <Ionicons name={icon} size={20} color="#A1A1AA" />
+        <Ionicons name={icon} size={20} color="#9B969B" />
         {children}
       </View>
 
@@ -832,87 +835,114 @@ function InputRow({
 }
 
 const styles = StyleSheet.create({
-  keyboardView: { flex: 1, backgroundColor: "#09090B" },
-  container: { flex: 1, backgroundColor: "#09090B" },
-  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 140 },
-
+  keyboardView: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
+  container: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 48,
+    paddingBottom: 50,
+    backgroundColor: "#050505",
+  },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#09090B",
+    backgroundColor: "#050505",
     alignItems: "center",
     justifyContent: "center",
   },
 
   loadingText: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 14,
     fontWeight: "800",
     marginTop: 12,
   },
-
   header: {
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: "#070707",
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
+    zIndex: 20,
+    elevation: 20,
+  },
+  headerTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 18,
+    marginTop: 6,
   },
-
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
-
   headerEyebrow: {
-    color: "#22C55E",
-    fontSize: 12,
+    color: "#D4A64A",
+    fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
-
-  headerTitle: { color: "#FFFFFF", fontSize: 26, fontWeight: "900" },
-
+  headerTitle: {
+    color: "#F5F0E6",
+    fontSize: 26,
+    fontWeight: "900",
+    marginTop: 3,
+    letterSpacing: -0.5,
+  },
   avatarCard: {
-    backgroundColor: "#111827",
-    borderRadius: 28,
+    backgroundColor: "#101014",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
     marginBottom: 16,
+    shadowColor: "#D4A64A",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.07,
+    shadowRadius: 22,
+    elevation: 8,
   },
-
   avatar: {
     width: 86,
     height: 86,
-    borderRadius: 999,
-    borderWidth: 3,
-    borderColor: "#22C55E",
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "#D4A64A",
   },
-
   avatarFallback: {
     width: 86,
     height: 86,
-    borderRadius: 999,
-    backgroundColor: "#18181B",
+    borderRadius: 18,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
 
-  avatarTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
+  avatarTitle: { color: "#F5F0E6", fontSize: 16, fontWeight: "900" },
 
   avatarText: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     lineHeight: 17,
@@ -920,19 +950,21 @@ const styles = StyleSheet.create({
   },
 
   avatarActions: { flexDirection: "row", gap: 8, marginTop: 12 },
-
   avatarButton: {
     height: 38,
-    borderRadius: 14,
-    backgroundColor: "#22C55E",
+    borderRadius: 12,
+    backgroundColor: "#D4A64A",
     paddingHorizontal: 13,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 6,
   },
-
-  avatarButtonText: { color: "#06130B", fontSize: 13, fontWeight: "900" },
+  avatarButtonText: {
+    color: "#080808",
+    fontSize: 13,
+    fontWeight: "900",
+  },
 
   avatarRemoveButton: {
     width: 40,
@@ -944,25 +976,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   formCard: {
-    backgroundColor: "#111827",
-    borderRadius: 28,
+    backgroundColor: "#101014",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     padding: 16,
     marginBottom: 16,
   },
 
   sectionTitle: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 18,
     fontWeight: "900",
     marginBottom: 6,
   },
 
   sectionDescription: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     lineHeight: 17,
@@ -970,20 +1001,19 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 13,
     fontWeight: "900",
     marginTop: 12,
     marginBottom: 8,
     marginLeft: 4,
   },
-
   inputRow: {
     minHeight: 58,
-    backgroundColor: "#18181B",
-    borderRadius: 19,
+    backgroundColor: "#18171D",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     paddingLeft: 15,
     paddingRight: 12,
     flexDirection: "row",
@@ -995,11 +1025,10 @@ const styles = StyleSheet.create({
     borderColor: "#EF4444",
     backgroundColor: "rgba(239,68,68,0.08)",
   },
-
   input: {
     flex: 1,
     height: 56,
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 15,
     fontWeight: "700",
     paddingVertical: 0,
@@ -1013,13 +1042,12 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     lineHeight: 17,
   },
-
   cityButton: {
     minHeight: 58,
-    backgroundColor: "#18181B",
-    borderRadius: 19,
+    backgroundColor: "#18171D",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     paddingHorizontal: 15,
     flexDirection: "row",
     alignItems: "center",
@@ -1028,35 +1056,36 @@ const styles = StyleSheet.create({
 
   cityButtonText: {
     flex: 1,
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 15,
     fontWeight: "800",
   },
-
   citySearchBox: {
-    backgroundColor: "#0D1117",
-    borderRadius: 20,
+    backgroundColor: "#101014",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     padding: 12,
     marginTop: 10,
   },
-
   citySearchInput: {
     height: 48,
-    backgroundColor: "#18181B",
-    borderRadius: 15,
+    backgroundColor: "#18171D",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2A2830",
     paddingHorizontal: 14,
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 14,
     fontWeight: "700",
     marginBottom: 10,
   },
-
   cityResultItem: {
     minHeight: 50,
-    borderRadius: 15,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#18171D",
+    borderWidth: 1,
+    borderColor: "#2A2830",
     paddingHorizontal: 12,
     marginBottom: 8,
     flexDirection: "row",
@@ -1065,15 +1094,14 @@ const styles = StyleSheet.create({
 
   cityResultText: {
     flex: 1,
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 14,
     fontWeight: "800",
   },
-
   saveButton: {
     height: 60,
-    borderRadius: 20,
-    backgroundColor: "#22C55E",
+    borderRadius: 14,
+    backgroundColor: "#D4A64A",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -1081,6 +1109,9 @@ const styles = StyleSheet.create({
   },
 
   saveButtonDisabled: { opacity: 0.65 },
-
-  saveButtonText: { color: "#06130B", fontSize: 16, fontWeight: "900" },
+  saveButtonText: {
+    color: "#080808",
+    fontSize: 16,
+    fontWeight: "900",
+  },
 });

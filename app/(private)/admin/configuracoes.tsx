@@ -118,7 +118,7 @@ export default function AdminSettingsScreen() {
   if (checkingAccess || loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#22C55E" />
+        <ActivityIndicator color="#D4A64A" />
         <Text style={styles.loadingText}>Carregando configurações...</Text>
       </View>
     );
@@ -140,7 +140,7 @@ export default function AdminSettingsScreen() {
             style={styles.headerIconButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+            <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
           </TouchableOpacity>
 
           <View style={styles.headerInfo}>
@@ -149,13 +149,13 @@ export default function AdminSettingsScreen() {
           </View>
 
           <View style={styles.headerConfigIcon}>
-            <Ionicons name="settings-outline" size={22} color="#22C55E" />
+            <Ionicons name="settings-outline" size={22} color="#D4A64A" />
           </View>
         </View>
 
         <View style={styles.infoCard}>
           <View style={styles.infoIconBox}>
-            <Ionicons name="shield-checkmark-outline" size={26} color="#22C55E" />
+            <Ionicons name="shield-checkmark-outline" size={26} color="#D4A64A" />
           </View>
 
           <View style={{ flex: 1 }}>
@@ -174,7 +174,7 @@ export default function AdminSettingsScreen() {
               value={monthlyPrice}
               onChangeText={(text) => setMonthlyPrice(maskCurrency(text))}
               placeholder="0,00"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               keyboardType="numeric"
               style={styles.input}
             />
@@ -182,12 +182,12 @@ export default function AdminSettingsScreen() {
 
           <Text style={styles.fieldLabel}>Tempo de carência</Text>
           <View style={styles.inputBox}>
-            <Ionicons name="timer-outline" size={22} color="#22C55E" />
+            <Ionicons name="timer-outline" size={22} color="#D4A64A" />
             <TextInput
               value={gracePeriodDays}
               onChangeText={(text) => setGracePeriodDays(text.replace(/\D/g, '').slice(0, 3))}
               placeholder="Ex: 7"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               keyboardType="numeric"
               style={styles.input}
             />
@@ -196,12 +196,12 @@ export default function AdminSettingsScreen() {
 
           <Text style={styles.fieldLabel}>WhatsApp do suporte</Text>
           <View style={styles.inputBox}>
-            <Ionicons name="logo-whatsapp" size={22} color="#22C55E" />
+            <Ionicons name="logo-whatsapp" size={22} color="#D4A64A" />
             <TextInput
               value={supportWhatsapp}
               onChangeText={setSupportWhatsapp}
               placeholder="Ex: 5531999999999"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               keyboardType="phone-pad"
               style={styles.input}
             />
@@ -214,10 +214,10 @@ export default function AdminSettingsScreen() {
             onPress={handleSave}
           >
             {saving ? (
-              <ActivityIndicator color="#06130B" />
+              <ActivityIndicator color="#080808" />
             ) : (
               <>
-                <Ionicons name="save-outline" size={22} color="#06130B" />
+                <Ionicons name="save-outline" size={22} color="#080808" />
                 <Text style={styles.saveButtonText}>Salvar configurações</Text>
               </>
             )}
@@ -229,105 +229,216 @@ export default function AdminSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#09090B' },
-  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 140 },
+  container: {
+    flex: 1,
+    backgroundColor: '#050505',
+  },
+
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 50,
+    paddingBottom: 150,
+  },
+
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
   },
-  loadingText: { color: '#A1A1AA', fontSize: 13, fontWeight: '800' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+
+  loadingText: {
+    color: '#9B969B',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: -18,
+    marginTop: -50,
+    marginBottom: 18,
+    paddingTop: 50,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: '#070707',
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
+  },
+
   headerIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   headerConfigIcon: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: '#102A1A',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: '#14532D',
+    borderColor: 'rgba(212,166,74,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerInfo: { flex: 1 },
+
+  headerInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
   headerEyebrow: {
-    color: '#22C55E',
-    fontSize: 12,
+    color: '#D4A64A',
+    fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.7,
+    letterSpacing: 1.5,
   },
-  headerTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', marginTop: 2 },
+
+  headerTitle: {
+    color: '#F5F0E6',
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 2,
+    letterSpacing: -0.4,
+  },
+
   infoCard: {
-    backgroundColor: '#111827',
-    borderRadius: 26,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 16,
     flexDirection: 'row',
     gap: 13,
     marginBottom: 16,
+    shadowColor: '#D4A64A',
+    shadowOffset: {
+      width: 0,
+      height: 12,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 8,
   },
+
   infoIconBox: {
     width: 52,
     height: 52,
-    borderRadius: 18,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  infoTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
-  infoText: { color: '#A1A1AA', fontSize: 13, fontWeight: '700', lineHeight: 19, marginTop: 5 },
-  formCard: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#1F2937',
-    padding: 18,
+
+  infoTitle: {
+    color: '#F5F0E6',
+    fontSize: 16,
+    fontWeight: '900',
   },
-  fieldLabel: {
-    color: '#FFFFFF',
+
+  infoText: {
+    color: '#9B969B',
     fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+    marginTop: 5,
+  },
+
+  formCard: {
+    backgroundColor: '#101014',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    padding: 18,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+
+  fieldLabel: {
+    color: '#F5F0E6',
+    fontSize: 12,
     fontWeight: '900',
     marginBottom: 8,
     marginLeft: 4,
+    letterSpacing: 0.2,
   },
+
   inputBox: {
     height: 58,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginBottom: 16,
   },
-  currencyPrefix: { color: '#22C55E', fontSize: 17, fontWeight: '900' },
-  input: { flex: 1, color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  inputSuffix: { color: '#A1A1AA', fontSize: 13, fontWeight: '800' },
+
+  currencyPrefix: {
+    color: '#D4A64A',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  input: {
+    flex: 1,
+    color: '#F5F0E6',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
+  inputSuffix: {
+    color: '#9B969B',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
   saveButton: {
-    height: 56,
-    borderRadius: 19,
-    backgroundColor: '#22C55E',
+    height: 58,
+    borderRadius: 14,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 9,
-    marginTop: 6,
+    marginTop: 8,
+    shadowColor: '#D4A64A',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.20,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  saveButtonDisabled: { opacity: 0.65 },
-  saveButtonText: { color: '#06130B', fontSize: 15, fontWeight: '900' },
+
+  saveButtonDisabled: {
+    opacity: 0.65,
+  },
+
+  saveButtonText: {
+    color: '#080808',
+    fontSize: 15,
+    fontWeight: '900',
+  },
 });

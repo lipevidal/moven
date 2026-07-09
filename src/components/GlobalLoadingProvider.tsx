@@ -1,11 +1,12 @@
 import {
   createContext,
-  ReactNode,
   useContext,
   useEffect,
   useMemo,
   useState,
 } from 'react';
+import type { ReactNode } from 'react';
+
 import {
   ActivityIndicator,
   Image,
@@ -87,11 +88,16 @@ function GlobalLoadingOverlay() {
           />
         </View>
 
-        <Text style={styles.title}>MovenApp</Text>
+        <Text style={styles.eyebrow}>MovenApp</Text>
+        <Text style={styles.title}>Carregando</Text>
 
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color="#22C55E" />
-          <Text style={styles.loadingText}>Carregando...</Text>
+          <ActivityIndicator size="small" color="#D4A64A" />
+          <Text style={styles.loadingText}>Preparando seus dados...</Text>
+        </View>
+
+        <View style={styles.progressTrack}>
+          <View style={styles.progressFill} />
         </View>
       </View>
     </View>
@@ -103,51 +109,66 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 999999,
     elevation: 999999,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 22,
   },
 
   card: {
-    width: '82%',
-    borderRadius: 32,
-    backgroundColor: '#111827',
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 18,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    paddingVertical: 34,
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.38)',
+    borderLeftWidth: 1,
+    //borderLeftColor: '#D4A64A',
+    paddingVertical: 30,
     paddingHorizontal: 22,
     alignItems: 'center',
-    shadowColor: '#000000',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
-      height: 14,
+      height: 18,
     },
-    shadowOpacity: 0.34,
-    shadowRadius: 24,
+    shadowOpacity: 0.10,
+    shadowRadius: 26,
     elevation: 18,
   },
 
   logoBox: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
-    backgroundColor: '#18181B',
+    width: 94,
+    height: 94,
+    borderRadius: 18,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 18,
   },
 
   logo: {
-    width: 74,
-    height: 74,
+    width: 72,
+    height: 72,
+  },
+
+  eyebrow: {
+    color: '#D4A64A',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.8,
+    marginBottom: 6,
   },
 
   title: {
-    color: '#FFFFFF',
-    fontSize: 25,
+    color: '#F5F0E6',
+    fontSize: 24,
     fontWeight: '900',
+    letterSpacing: -0.4,
     marginBottom: 14,
   },
 
@@ -155,11 +176,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
+    marginBottom: 18,
   },
 
   loadingText: {
-    color: '#A1A1AA',
-    fontSize: 14,
+    color: '#9B969B',
+    fontSize: 13,
     fontWeight: '800',
+  },
+
+  progressTrack: {
+    width: '100%',
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: '#2A2830',
+    overflow: 'hidden',
+  },
+
+  progressFill: {
+    width: '42%',
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#D4A64A',
   },
 });

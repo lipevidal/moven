@@ -214,7 +214,7 @@ export function ActiveSessionFloatingTimer() {
           <Ionicons
             name={paused ? 'pause-circle-outline' : 'timer-outline'}
             size={23}
-            color="#FFFFFF"
+            color={paused ? '#080808' : '#F5F0E6'}
           />
         </View>
 
@@ -222,7 +222,10 @@ export function ActiveSessionFloatingTimer() {
           <View style={styles.statusRow}>
             <View style={[styles.statusDot, paused && styles.statusDotPaused]} />
 
-            <Text style={styles.status} numberOfLines={1}>
+            <Text
+              style={[styles.status, paused && styles.statusPaused]}
+              numberOfLines={1}
+            >
               {paused ? 'Jornada pausada' : 'Jornada ativa'}
             </Text>
           </View>
@@ -232,11 +235,9 @@ export function ActiveSessionFloatingTimer() {
           </Text>
         </View>
 
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color="rgba(255,255,255,0.75)"
-        />
+        <View style={styles.chevronBox}>
+          <Ionicons name="chevron-forward" size={18} color="#D4A64A" />
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -252,11 +253,11 @@ const styles = StyleSheet.create({
   floatingButton: {
     position: 'absolute',
     right: 0,
-    bottom: 96,
+    bottom: 116,
     minHeight: 68,
     minWidth: 210,
-    borderTopLeftRadius: 26,
-    borderBottomLeftRadius: 26,
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
     paddingLeft: 12,
     paddingRight: 10,
     paddingVertical: 10,
@@ -264,37 +265,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     borderWidth: 1,
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
+    backgroundColor: '#101014',
+    borderColor: '#2A2830',
+    shadowColor: '#D4A64A',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
     shadowOffset: {
       width: 0,
       height: 8,
     },
+    elevation: 18,
   },
 
   floatingButtonActive: {
-    backgroundColor: '#052E16',
-    borderColor: '#166534',
+    borderColor: 'rgba(34,197,94,0.36)',
     shadowColor: '#22C55E',
   },
 
   floatingButtonPaused: {
-    backgroundColor: '#2A1605',
-    borderColor: '#B45309',
-    shadowColor: '#F59E0B',
+    borderColor: 'rgba(250,204,21,0.42)',
+    shadowColor: '#FACC15',
   },
 
   iconBox: {
     width: 42,
     height: 42,
-    borderRadius: 16,
-    backgroundColor: '#16A34A',
+    borderRadius: 12,
+    backgroundColor: 'rgba(34,197,94,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.34)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   iconBoxPaused: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   infoBox: {
@@ -315,20 +321,37 @@ const styles = StyleSheet.create({
   },
 
   statusDotPaused: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#FACC15',
   },
 
   status: {
-    color: '#DCFCE7',
+    color: '#86EFAC',
     fontSize: 11,
     fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+
+  statusPaused: {
+    color: '#FACC15',
   },
 
   timer: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 19,
     fontWeight: '900',
     marginTop: 3,
     letterSpacing: 0.4,
+  },
+
+  chevronBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: 'rgba(212,166,74,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

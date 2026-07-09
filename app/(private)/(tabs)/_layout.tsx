@@ -1,4 +1,29 @@
+/**
+ * Arquivo: app/(private)/(tabs)/_layout.tsx
+ *
+ * Este arquivo controla a navegação principal por abas do app.
+ *
+ * Ele também concentra várias funcionalidades globais que precisam aparecer
+ * por cima das telas, como:
+ *
+ * - Botão central de ações rápidas;
+ * - Modal de ganho avulso;
+ * - Modal para iniciar corrida;
+ * - Modal para editar/finalizar corrida ativa;
+ * - Modal para gerenciar plataformas;
+ * - Modal para definir parâmetros de desempenho;
+ * - Cards flutuantes de corrida em andamento ou aguardando;
+ * - Realtime do Supabase para atualizar jornada, ganhos e corridas;
+ * - Comunicação global via DeviceEventEmitter com dashboard e jornada ativa.
+ *
+ * A ideia deste arquivo é funcionar como uma "camada global" das tabs.
+ * Por isso, além da navegação, ele também gerencia elementos que precisam
+ * aparecer independentemente da tela aberta.
+ */
+
+// Hooks principais do React usados para estado, efeitos e callbacks memorizados.
 import { useCallback, useEffect, useState } from 'react';
+// Componentes nativos do React Native usados na interface da tab, modais e cards.
 import {
   View,
   TouchableOpacity,
@@ -15,10 +40,15 @@ import {
   Pressable,
   DeviceEventEmitter,
 } from 'react-native';
+// Tabs cria a navegação inferior; router faz navegação programática;
+// useFocusEffect executa carregamentos sempre que a tela/aba volta ao foco.
 import { Tabs, router, useFocusEffect } from 'expo-router';
+// Biblioteca de ícones usada em botões, tabs, cards e modais.
 import { Ionicons } from '@expo/vector-icons';
 
+// Cliente Supabase usado para autenticação, consultas e realtime.
 import { supabase } from '../../../src/database/supabase';
+// Serviços relacionados às plataformas do usuário.
 import { getPlatforms } from '../../../src/features/platforms/services/getPlatforms';
 import { getUserPlatforms } from '../../../src/features/platforms/services/getUserPlatforms';
 import { toggleUserPlatform } from '../../../src/features/platforms/services/toggleUserPlatform';
@@ -28,6 +58,10 @@ import { finishRide } from '../../../src/features/rides/services/finishRide';
 import { startWaitingRide } from '../../../src/features/rides/services/startWaitingRide';
 import { updateRide } from '../../../src/features/rides/services/updateRide';
 
+/**
+ * Define os possíveis erros de validação do formulário de ganho avulso.
+ * Cada campo é opcional porque só recebe mensagem quando houver erro.
+ */
 type StandaloneGainErrors = {
   platform?: string;
   description?: string;
@@ -35,6 +69,14 @@ type StandaloneGainErrors = {
   amount?: string;
 };
 
+/**
+ * Representa os parâmetros de desempenho salvos no banco.
+ *
+ * bad_gain_per_hour: valor abaixo do qual o ganho por hora é ruim.
+ * good_gain_per_hour: valor a partir do qual o ganho por hora é bom.
+ * bad_gain_per_km: valor abaixo do qual o ganho por KM é ruim.
+ * good_gain_per_km: valor a partir do qual o ganho por KM é bom.
+ */
 type PerformanceTargets = {
   bad_gain_per_hour: number;
   good_gain_per_hour: number;
@@ -42,6 +84,10 @@ type PerformanceTargets = {
   good_gain_per_km: number;
 };
 
+/**
+ * Versão usada no formulário antes de salvar no banco.
+ * Usa nomes em camelCase porque fica mais confortável no front-end.
+ */
 type PerformanceTargetDraft = {
   badGainPerHour: number;
   goodGainPerHour: number;
@@ -49,6 +95,7 @@ type PerformanceTargetDraft = {
   goodGainPerKm: number;
 };
 
+// Valores padrão exibidos quando o usuário ainda não configurou seus parâmetros.
 const DEFAULT_PERFORMANCE_TARGETS: PerformanceTargetDraft = {
   badGainPerHour: 30,
   goodGainPerHour: 50,
@@ -56,11 +103,16 @@ const DEFAULT_PERFORMANCE_TARGETS: PerformanceTargetDraft = {
   goodGainPerKm: 2.5,
 };
 
+// Opções disponíveis nos seletores de parâmetros de desempenho.
 const BAD_GAIN_PER_HOUR_OPTIONS = [20, 25, 30, 35, 40, 45, 50];
 const GOOD_GAIN_PER_HOUR_OPTIONS = [40, 45, 50, 55, 60, 70, 80, 100];
 const BAD_GAIN_PER_KM_OPTIONS = [0.8, 1, 1.2, 1.5, 1.8, 2];
 const GOOD_GAIN_PER_KM_OPTIONS = [1.5, 1.8, 2, 2.2, 2.5, 3, 3.5, 4];
 
+/**
+ * Formata uma data no padrão brasileiro dd/mm/aaaa.
+ * Usado para preencher o campo de data do ganho avulso.
+ */
 function formatDateInput(date: Date) {
   return date.toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -69,6 +121,10 @@ function formatDateInput(date: Date) {
   });
 }
 
+/**
+ * Aplica máscara de data enquanto o usuário digita.
+ * Exemplo: 01072026 vira 01/07/2026.
+ */
 function maskDateInput(value: string) {
   const numbers = value.replace(/\D/g, '').slice(0, 8);
 
@@ -81,6 +137,10 @@ function maskDateInput(value: string) {
   return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4)}`;
 }
 
+/**
+ * Converte uma string dd/mm/aaaa em Date.
+ * Também valida se a data realmente existe.
+ */
 function parseDateInput(value: string) {
   const [day, month, year] = value.split('/').map(Number);
 
@@ -96,6 +156,10 @@ function parseDateInput(value: string) {
   return valid ? date : null;
 }
 
+/**
+ * Aplica máscara monetária.
+ * O usuário digita números e a função converte para formato 0,00.
+ */
 function maskCurrency(value: string) {
   const numbers = value.replace(/\D/g, '').slice(0, 12);
 
@@ -107,6 +171,10 @@ function maskCurrency(value: string) {
   });
 }
 
+/**
+ * Converte texto monetário brasileiro para número.
+ * Exemplo: "1.250,50" vira 1250.50.
+ */
 function parseCurrency(value: string) {
   const normalized = value.replace(/\./g, '').replace(',', '.');
   const amount = Number(normalized);
@@ -114,20 +182,33 @@ function parseCurrency(value: string) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+/**
+ * Mantém apenas números no campo de KM e formata com separador pt-BR.
+ */
 function formatKm(value: string) {
   const numbers = value.replace(/\D/g, '').slice(0, 6);
 
   return numbers ? Number(numbers).toLocaleString('pt-BR') : '';
 }
 
+/**
+ * Remove pontuação e retorna apenas o valor numérico.
+ * Usado principalmente para KM.
+ */
 function onlyNumbers(value: string) {
   return Number(value.replace(/\./g, '')) || 0;
 }
 
+/**
+ * Permite que o campo de dinheiro aceite apenas números, ponto e vírgula.
+ */
 function cleanMoneyInput(value: string) {
   return value.replace(/[^0-9.,]/g, '');
 }
 
+/**
+ * Formata número em moeda brasileira, sem colocar "R$" automaticamente.
+ */
 function formatCurrency(value: number) {
   return Number(value ?? 0).toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
@@ -136,6 +217,10 @@ function formatCurrency(value: number) {
 }
 
 
+/**
+ * Formata valores dos parâmetros de desempenho.
+ * Se for inteiro, mostra sem casas decimais. Se tiver centavos, mostra com 2.
+ */
 function formatTargetMoney(value: number) {
   return Number(value ?? 0).toLocaleString('pt-BR', {
     minimumFractionDigits: value % 1 === 0 ? 0 : 2,
@@ -143,6 +228,10 @@ function formatTargetMoney(value: number) {
   });
 }
 
+/**
+ * Converte os dados vindos do Supabase para o formato PerformanceTargets.
+ * Retorna null quando os dados estão incompletos ou inválidos.
+ */
 function mapPerformanceTargetsFromDatabase(data: any): PerformanceTargets | null {
   if (!data) return null;
 
@@ -156,6 +245,10 @@ function mapPerformanceTargetsFromDatabase(data: any): PerformanceTargets | null
   return isPerformanceTargetsComplete(targets) ? targets : null;
 }
 
+/**
+ * Verifica se os parâmetros de desempenho estão preenchidos e coerentes.
+ * O valor "bom" precisa ser maior que o valor "ruim".
+ */
 function isPerformanceTargetsComplete(targets?: PerformanceTargets | null) {
   if (!targets) return false;
 
@@ -169,6 +262,10 @@ function isPerformanceTargetsComplete(targets?: PerformanceTargets | null) {
   );
 }
 
+/**
+ * Monta o rascunho usado pelo modal de parâmetros.
+ * Se não houver dados salvos, usa os valores padrão.
+ */
 function getPerformanceTargetDraft(
   targets?: PerformanceTargets | null,
 ): PerformanceTargetDraft {
@@ -182,6 +279,10 @@ function getPerformanceTargetDraft(
   };
 }
 
+/**
+ * Converte segundos para o formato HH:mm:ss.
+ * Usado nos cards de corrida ativa.
+ */
 function formatTimer(seconds: number) {
   const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
@@ -190,6 +291,10 @@ function formatTimer(seconds: number) {
   return `${h}:${m}:${s}`;
 }
 
+/**
+ * Calcula há quantos segundos uma corrida começou.
+ * Recebe o started_at vindo do banco.
+ */
 function calculateSecondsFromDate(date?: string | null) {
   if (!date) return 0;
 
@@ -201,16 +306,36 @@ function calculateSecondsFromDate(date?: string | null) {
   return seconds > 0 ? seconds : 0;
 }
 
+/**
+ * Converte uma data local para ISO sem deslocar o dia por causa do timezone.
+ * Isso evita salvar uma data escolhida pelo usuário no dia anterior/seguinte.
+ */
 function toLocalISOString(date: Date) {
   const offsetMs = date.getTimezoneOffset() * 60000;
 
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, -1);
 }
 
+/**
+ * Componente principal das tabs.
+ *
+ * Além de renderizar a navegação inferior, ele gerencia:
+ * - Estado da jornada ativa;
+ * - Corridas em andamento ou aguardando;
+ * - Formulários globais de ganho, corrida e parâmetros;
+ * - Plataforma selecionadas pelo usuário;
+ * - Botão central de ações rápidas;
+ * - Cards flutuantes de corrida;
+ * - Realtime com Supabase.
+ */
 export default function TabsLayout() {
+  // Indica se o usuário possui uma jornada ativa ou pausada.
   const [hasActiveSession, setHasActiveSession] = useState(false);
+  // Guarda os dados da jornada ativa/pausada encontrada no banco.
   const [activeSession, setActiveSession] = useState<any>(null);
+  // Lista de corridas vinculadas à jornada ativa atual.
   const [activeSessionRides, setActiveSessionRides] = useState<any[]>([]);
+  // Controla se o card flutuante da corrida ativa está expandido.
   const [globalRideCardExpanded, setGlobalRideCardExpanded] = useState(false);
   const [finishGlobalRideModalVisible, setFinishGlobalRideModalVisible] =
     useState(false);
@@ -236,15 +361,19 @@ export default function TabsLayout() {
   const [savingGlobalRideEdit, setSavingGlobalRideEdit] = useState(false);
   const [savingGlobalRideFinish, setSavingGlobalRideFinish] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
+  // Controla a abertura do menu de ações rápidas do botão central '+'.
   const [quickActionsVisible, setQuickActionsVisible] = useState(false);
 
+  // Modal de ganho avulso, usado para ganhos sem vínculo com jornada.
   const [standaloneGainModalVisible, setStandaloneGainModalVisible] =
     useState(false);
+  // Modal usado para iniciar/adicionar uma corrida dentro da jornada atual.
   const [rideModalVisible, setRideModalVisible] = useState(false);
   const [ridePlatform, setRidePlatform] = useState('');
   const [rideAmount, setRideAmount] = useState('');
   const [rideStartKm, setRideStartKm] = useState('');
   const [savingRide, setSavingRide] = useState(false);
+  // Drawer inferior para gerenciar quais plataformas o usuário usa.
   const [platformDrawerVisible, setPlatformDrawerVisible] = useState(false);
   const [
     returnToStandaloneGainAfterPlatforms,
@@ -253,10 +382,13 @@ export default function TabsLayout() {
   const [returnToRideModalAfterPlatforms, setReturnToRideModalAfterPlatforms] =
     useState(false);
 
+  // Todas as plataformas cadastradas no sistema.
   const [platformsList, setPlatformsList] = useState<any[]>([]);
+  // Plataformas selecionadas pelo usuário.
   const [userPlatforms, setUserPlatforms] = useState<any[]>([]);
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
 
+  // Campos do formulário de ganho avulso.
   const [gainPlatform, setGainPlatform] = useState('');
   const [gainDescription, setGainDescription] = useState('');
   const [gainDate, setGainDate] = useState(formatDateInput(new Date()));
@@ -265,6 +397,7 @@ export default function TabsLayout() {
   const [savingGain, setSavingGain] = useState(false);
 
 
+  // Parâmetros de desempenho salvos para o usuário.
   const [performanceTargets, setPerformanceTargets] =
     useState<PerformanceTargets | null>(null);
   const [performanceTargetsModalVisible, setPerformanceTargetsModalVisible] =
@@ -276,6 +409,12 @@ export default function TabsLayout() {
   const [openJourneyAfterPerformanceTargets, setOpenJourneyAfterPerformanceTargets] =
     useState(false);
 
+  /**
+   * Sempre que o layout das tabs ganha foco, recarrega:
+   * - jornada ativa;
+   * - plataformas;
+   * - parâmetros de desempenho.
+   */
   useFocusEffect(
     useCallback(() => {
       loadActiveSession();
@@ -284,6 +423,10 @@ export default function TabsLayout() {
     }, []),
   );
 
+  /**
+   * Avisa outros componentes quando o menu de ações rápidas está aberto.
+   * Isso permite, por exemplo, esconder/ajustar elementos flutuantes em outras telas.
+   */
   useEffect(() => {
     DeviceEventEmitter.emit(
       'movenapp:quick-actions-visible',
@@ -295,6 +438,11 @@ export default function TabsLayout() {
     };
   }, [quickActionsVisible]);
 
+  /**
+   * Atualiza um contador a cada segundo.
+   * Mesmo que nowTick não apareça diretamente em todos os cálculos,
+   * ele força re-renderizações periódicas para manter timers vivos.
+   */
   useEffect(() => {
     const interval = setInterval(() => {
       setNowTick(Date.now());
@@ -303,6 +451,11 @@ export default function TabsLayout() {
     return () => clearInterval(interval);
   }, []);
 
+  /**
+   * Escuta eventos internos do app para recarregar a jornada ativa.
+   * Outros arquivos podem emitir esses eventos quando criam/alteram ganhos,
+   * despesas, corridas ou jornadas.
+   */
   useEffect(() => {
     const refreshActiveSession = () => {
       loadActiveSession();
@@ -324,6 +477,11 @@ export default function TabsLayout() {
     };
   }, []);
 
+  /**
+   * Realtime da tabela work_sessions.
+   * Sempre que a jornada do usuário muda no Supabase, este layout recarrega
+   * a jornada ativa automaticamente.
+   */
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
@@ -360,6 +518,11 @@ export default function TabsLayout() {
     };
   }, []);
 
+  /**
+   * Realtime da tabela rides para a jornada ativa.
+   * Atualiza cards e dashboard quando uma corrida é criada, editada,
+   * iniciada, finalizada ou excluída.
+   */
   useEffect(() => {
     if (!activeSession?.id) return;
 
@@ -385,6 +548,10 @@ export default function TabsLayout() {
     };
   }, [activeSession?.id]);
 
+  /**
+   * Realtime da tabela earnings para a jornada ativa.
+   * Quando ganhos vinculados à jornada mudam, a jornada e o dashboard são atualizados.
+   */
   useEffect(() => {
     if (!activeSession?.id) return;
 
@@ -411,6 +578,10 @@ export default function TabsLayout() {
     };
   }, [activeSession?.id]);
 
+  /**
+   * Busca no Supabase a jornada ativa ou pausada do usuário logado.
+   * Também carrega as corridas vinculadas a essa jornada.
+   */
   async function loadActiveSession() {
     const {
       data: { user },
@@ -462,6 +633,9 @@ export default function TabsLayout() {
     setActiveSessionRides(ridesData ?? []);
   }
 
+  /**
+   * Carrega todas as plataformas do sistema e as plataformas selecionadas pelo usuário.
+   */
   async function loadPlatforms() {
     try {
       const [allPlatforms, selectedPlatforms] = await Promise.all([
@@ -479,22 +653,29 @@ export default function TabsLayout() {
     }
   }
 
+  /**
+   * Renderiza os ícones das tabs.
+   * Quando a tab está ativa, o ícone fica dourado e levemente maior.
+   */
   function renderTabIcon(
     iconName: keyof typeof Ionicons.glyphMap,
     focused: boolean,
     color: string,
   ) {
     return (
-      <View style={[styles.iconBox, focused && styles.iconBoxActive]}>
+      <View style={styles.iconBox}>
         <Ionicons
           name={iconName}
-          size={22}
-          color={focused ? '#06130B' : color}
+          size={focused ? 25 : 22}
+          color={focused ? '#D4A64A' : color}
         />
       </View>
     );
   }
 
+  /**
+   * Limpa todos os campos e erros do formulário de ganho avulso.
+   */
   function resetStandaloneGainForm() {
     setGainPlatform('');
     setGainDescription('');
@@ -503,6 +684,9 @@ export default function TabsLayout() {
     setGainErrors({});
   }
 
+  /**
+   * Abre o modal de ganho avulso e recarrega plataformas antes de exibir.
+   */
   async function openStandaloneGainModal() {
     setQuickActionsVisible(false);
     resetStandaloneGainForm();
@@ -510,6 +694,9 @@ export default function TabsLayout() {
     setStandaloneGainModalVisible(true);
   }
 
+  /**
+   * Navega para a aba de despesas já pedindo para abrir o formulário de nova despesa.
+   */
   function openExpenseForm() {
     setQuickActionsVisible(false);
 
@@ -523,6 +710,9 @@ export default function TabsLayout() {
   }
 
 
+  /**
+   * Busca os parâmetros de desempenho do usuário no Supabase.
+   */
   async function loadPerformanceTargets() {
     const {
       data: { user },
@@ -559,6 +749,10 @@ export default function TabsLayout() {
     return targets;
   }
 
+  /**
+   * Abre o modal de parâmetros.
+   * Também pode ser usado antes de iniciar jornada, obrigando o usuário a configurar metas.
+   */
   function openPerformanceTargetsModal({
     openJourneyAfterSave = false,
   }: { openJourneyAfterSave?: boolean } = {}) {
@@ -570,12 +764,18 @@ export default function TabsLayout() {
     setPerformanceTargetsModalVisible(true);
   }
 
+  /**
+   * Fecha o modal de parâmetros e limpa estados auxiliares.
+   */
   function closePerformanceTargetsModal() {
     setPerformanceTargetsModalVisible(false);
     setOpenJourneyAfterPerformanceTargets(false);
     setSavingPerformanceTargets(false);
   }
 
+  /**
+   * Valida e salva os parâmetros de desempenho do usuário no Supabase.
+   */
   async function handleSavePerformanceTargets() {
     if (performanceTargetDraft.badGainPerHour >= performanceTargetDraft.goodGainPerHour) {
       Alert.alert(
@@ -654,6 +854,10 @@ export default function TabsLayout() {
     }
   }
 
+  /**
+   * Abre a tela de nova jornada.
+   * Antes disso, valida se já existe jornada ativa e se os parâmetros estão configurados.
+   */
   async function openNewJourney() {
     setQuickActionsVisible(false);
 
@@ -676,6 +880,10 @@ export default function TabsLayout() {
     router.push('/(private)/(tabs)/nova-jornada' as never);
   }
 
+  /**
+   * Abre o modal de corrida a partir das ações rápidas.
+   * Só permite registrar corrida quando existe jornada ativa e não pausada.
+   */
   async function openRideFromQuickActions() {
     setQuickActionsVisible(false);
 
@@ -713,6 +921,9 @@ export default function TabsLayout() {
     setRideModalVisible(true);
   }
 
+  /**
+   * Fecha e limpa o modal de corrida.
+   */
   function closeRideModal() {
     setRideModalVisible(false);
     setRidePlatform('');
@@ -730,6 +941,12 @@ export default function TabsLayout() {
     }, 350);
   }
 
+  /**
+   * Cria uma nova corrida na jornada atual.
+   *
+   * Se já existe uma corrida ativa, a nova entra como "waiting".
+   * Se não existe corrida ativa, a nova já começa como "active".
+   */
   async function handleSaveRideFromTabs() {
     try {
       if (!activeSession?.id) {
@@ -819,6 +1036,9 @@ export default function TabsLayout() {
     }
   }
 
+  /**
+   * Abre o modal de ações para uma corrida aguardando início.
+   */
   function openWaitingRideActionsModal(waitingRide: any) {
     setSelectedWaitingRide(waitingRide);
     setWaitingRideActionsModalVisible(true);
@@ -848,6 +1068,9 @@ export default function TabsLayout() {
     setSavingWaitingRideEdit(false);
   }
 
+  /**
+   * Salva alterações em uma corrida que ainda está aguardando início.
+   */
   async function handleUpdateWaitingRide() {
     try {
       if (!selectedWaitingRide?.id) return;
@@ -890,6 +1113,9 @@ export default function TabsLayout() {
     }
   }
 
+  /**
+   * Exclui uma corrida que está aguardando início, após confirmação.
+   */
   async function handleDeleteWaitingRide() {
     if (!selectedWaitingRide?.id) return;
 
@@ -944,6 +1170,10 @@ export default function TabsLayout() {
     setSavingStartWaitingRide(false);
   }
 
+  /**
+   * Transforma uma corrida aguardando em corrida ativa.
+   * Antes de iniciar, valida se não existe outra corrida em andamento.
+   */
   async function handleStartWaitingRideFromGlobalCard() {
     try {
       if (!selectedWaitingRide?.id) return;
@@ -1010,6 +1240,9 @@ export default function TabsLayout() {
     setSavingGlobalRideEdit(false);
   }
 
+  /**
+   * Edita dados da corrida ativa, como plataforma, valor e KM inicial.
+   */
   async function handleUpdateGlobalActiveRide() {
     try {
       if (!globalActiveRide?.id) return;
@@ -1077,6 +1310,9 @@ export default function TabsLayout() {
     setSavingGlobalRideFinish(false);
   }
 
+  /**
+   * Exclui a corrida ativa após confirmação do usuário.
+   */
   async function handleDeleteGlobalActiveRide() {
     if (!globalActiveRide?.id) return;
 
@@ -1110,6 +1346,11 @@ export default function TabsLayout() {
     );
   }
 
+  /**
+   * Finaliza a corrida ativa.
+   * Envia para o serviço finishRide os dados necessários para calcular
+   * distância, tempo, ganho por hora e ganho por KM.
+   */
   async function handleFinishGlobalActiveRide() {
     try {
       if (!globalActiveRide || !activeSession?.id) return;
@@ -1168,6 +1409,10 @@ export default function TabsLayout() {
     }));
   }
 
+  /**
+   * Valida campos do ganho avulso antes de salvar.
+   * Retorna true quando não há erros.
+   */
   function validateStandaloneGainForm() {
     const errors: StandaloneGainErrors = {};
     const parsedDate = parseDateInput(gainDate);
@@ -1205,6 +1450,10 @@ export default function TabsLayout() {
     return Object.keys(errors).length === 0;
   }
 
+  /**
+   * Salva um ganho avulso no Supabase.
+   * Ganho avulso não tem session_id, ou seja, não pertence a uma jornada.
+   */
   async function handleSaveStandaloneGain() {
     try {
       const valid = validateStandaloneGainForm();
@@ -1298,6 +1547,9 @@ export default function TabsLayout() {
     }, 350);
   }
 
+  /**
+   * Marca ou desmarca uma plataforma no drawer de plataformas.
+   */
   function togglePlatformSelection(platformId: string) {
     setSelectedPlatformIds((current) => {
       if (current.includes(platformId)) {
@@ -1308,6 +1560,9 @@ export default function TabsLayout() {
     });
   }
 
+  /**
+   * Salva no Supabase quais plataformas o usuário deseja usar no app.
+   */
   async function handleSaveUserPlatforms() {
     try {
       for (const platform of platformsList) {
@@ -1324,26 +1579,32 @@ export default function TabsLayout() {
     }
   }
 
+  // Plataforma selecionada no formulário de ganho avulso, usada para exibir preview.
   const selectedPlatformData = userPlatforms.find(
     (item: any) => item.platform?.name === gainPlatform,
   )?.platform;
 
+  // Indica se já existe uma corrida ativa na jornada atual.
   const hasActiveRideInCurrentSession = activeSessionRides.some(
     (ride) => ride.status === 'active',
   );
 
+  // Corrida ativa exibida no card flutuante global.
   const globalActiveRide = activeSessionRides.find(
     (ride) => ride.status === 'active',
   );
 
+  // Corridas aguardando início exibidas abaixo do card flutuante.
   const globalWaitingRides = activeSessionRides.filter(
     (ride) => ride.status === 'waiting',
   );
 
+  // Tempo decorrido da corrida ativa em segundos.
   const globalActiveRideElapsedSeconds = calculateSecondsFromDate(
     globalActiveRide?.started_at,
   );
 
+  // Cálculo em tempo real do ganho por hora da corrida ativa.
   const globalActiveRideGainPerHour =
     globalActiveRideElapsedSeconds > 0
       ? Number(globalActiveRide?.amount ?? 0) /
@@ -1358,6 +1619,7 @@ export default function TabsLayout() {
     (platform: any) => platform.name === selectedWaitingRide?.platform,
   );
 
+  // Define quando os cards flutuantes de corrida devem aparecer.
   const hasVisibleGlobalRideCards =
     (!!globalActiveRide || globalWaitingRides.length > 0) &&
     !globalRideCardExpanded &&
@@ -1371,6 +1633,7 @@ export default function TabsLayout() {
 
   const shouldShowGlobalRideMiniCard = hasVisibleGlobalRideCards;
 
+  // Calcula altura ocupada pelos cards flutuantes para posicionar outros elementos.
   const globalRideCardsStackHeight = (() => {
     if (!hasVisibleGlobalRideCards) return 0;
 
@@ -1386,6 +1649,7 @@ export default function TabsLayout() {
     return activeRideCardHeight + waitingRideCardsHeight + cardsGap;
   })();
 
+  // Offset usado para empurrar o cronômetro flutuante acima dos cards de corrida.
   const activeSessionFloatingTimerBottomOffset =
     globalRideCardsStackHeight > 0 ? globalRideCardsStackHeight + 12 : 0;
 
@@ -1394,6 +1658,10 @@ export default function TabsLayout() {
       ? globalRideCardsStackHeight + 190
       : 0;
 
+  /**
+   * Envia para o cronômetro flutuante o espaço que ele precisa respeitar
+   * quando há cards de corrida aparecendo na parte inferior da tela.
+   */
   useEffect(() => {
     DeviceEventEmitter.emit(
       'movenapp:active-session-floating-timer-offset',
@@ -1409,7 +1677,9 @@ export default function TabsLayout() {
   }, [activeSessionFloatingTimerBottomOffset]);
 
   return (
+    // Container raiz que envolve as tabs e todos os overlays globais.
     <View style={styles.root}>
+      {/* Navegação inferior principal do app. */}
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -1417,25 +1687,27 @@ export default function TabsLayout() {
 
           tabBarStyle: {
             position: 'absolute',
-            left: 10,
-            right: 10,
-            bottom: 0,
-            height: 74,
-            backgroundColor: '#0B0B0F',
-            borderTopWidth: 0,
-            borderWidth: 1,
-            borderColor: '#18181B',
+            left: 0,
+            right: 0,
+            bottom: -14,
+            height: 90,
+            backgroundColor: '#070707',
+            borderTopWidth: 1,
+            borderTopColor: '#2A2830',
+            borderLeftWidth: 0,
+            borderRightWidth: 0,
+            borderBottomWidth: 0,
             borderRadius: 0,
-            paddingTop: 10,
-            paddingBottom: 10,
-            paddingHorizontal: 6,
-            shadowColor: '#000000',
+            paddingTop: 9,
+            paddingBottom: Platform.OS === 'ios' ? 28 : 20,
+            paddingHorizontal: 12,
+            shadowColor: '#D4A64A',
             shadowOffset: {
               width: 0,
-              height: 12,
+              height: -8,
             },
-            shadowOpacity: 0.35,
-            shadowRadius: 20,
+            shadowOpacity: 0.08,
+            shadowRadius: 18,
             elevation: 18,
           },
 
@@ -1445,10 +1717,11 @@ export default function TabsLayout() {
             justifyContent: 'center',
           },
 
-          tabBarActiveTintColor: '#22C55E',
-          tabBarInactiveTintColor: '#71717A',
+          tabBarActiveTintColor: '#D4A64A',
+          tabBarInactiveTintColor: '#8F8A91',
         }}
       >
+        {/* Aba principal com resumo financeiro e desempenho. */}
         <Tabs.Screen
           name="dashboard"
           options={{
@@ -1483,6 +1756,7 @@ export default function TabsLayout() {
           }}
         />
 
+        {/* Aba especial do botão central "+", usada para abrir ações rápidas. */}
         <Tabs.Screen
           name="nova-jornada"
           options={{
@@ -1500,9 +1774,10 @@ export default function TabsLayout() {
                 }}
               >
                 <Ionicons
-                  name={quickActionsVisible ? 'close' : 'add'}
-                  size={31}
-                  color="#06130B"
+                  name={quickActionsVisible ? 'close-sharp' : 'add-sharp'}
+                  size={35}
+                  color="#080808"
+                  style={styles.centerButtonIcon}
                 />
               </TouchableOpacity>
             ),
@@ -1510,11 +1785,11 @@ export default function TabsLayout() {
         />
 
         <Tabs.Screen
-          name="recordes"
+          name="motoristas-cidade"
           options={{
-            title: 'Meus recordes',
+            title: 'Motoristas',
             tabBarIcon: ({ color, focused }) =>
-              renderTabIcon('podium-outline', focused, color),
+              renderTabIcon('people-outline', focused, color),
           }}
         />
 
@@ -1544,6 +1819,7 @@ export default function TabsLayout() {
         />
       </Tabs>
 
+      {/* Menu radial/central de ações rápidas aberto pelo botão "+". */}
       {quickActionsVisible ? (
         <>
           <Pressable
@@ -1607,6 +1883,7 @@ export default function TabsLayout() {
         </>
       ) : null}
 
+      {/* Cards flutuantes de corrida ativa ou corridas aguardando início. */}
       {shouldShowGlobalRideMiniCard ? (
         <View style={styles.globalRideMiniStack} pointerEvents="box-none">
           <View pointerEvents="none" style={styles.globalRideMiniBackdrop} />
@@ -1624,7 +1901,7 @@ export default function TabsLayout() {
                     style={styles.globalRideMiniLogo}
                   />
                 ) : (
-                  <Ionicons name="navigate-outline" size={22} color="#06130B" />
+                  <Ionicons name="navigate-outline" size={22} color="#080808" />
                 )}
               </View>
 
@@ -1695,13 +1972,14 @@ export default function TabsLayout() {
                   R$ {formatCurrency(Number(waitingRide.amount ?? 0))}
                 </Text>
 
-                <Ionicons name="chevron-forward" size={18} color="#A1A1AA" />
+                <Ionicons name="chevron-forward" size={18} color="#9B969B" />
               </TouchableOpacity>
             );
           })}
         </View>
       ) : null}
 
+      {/* Card expandido com detalhes e ações da corrida ativa. */}
       {globalRideCardExpanded && globalActiveRide ? (
         <Pressable
           style={styles.globalRideExpandedOverlay}
@@ -1720,7 +1998,7 @@ export default function TabsLayout() {
                       style={styles.globalRideExpandedLogo}
                     />
                   ) : (
-                    <Ionicons name="navigate-outline" size={24} color="#06130B" />
+                    <Ionicons name="navigate-outline" size={24} color="#080808" />
                   )}
                 </View>
 
@@ -1739,7 +2017,7 @@ export default function TabsLayout() {
                 style={styles.globalRideMinimizeButton}
                 onPress={() => setGlobalRideCardExpanded(false)}
               >
-                <Ionicons name="chevron-down" size={23} color="#FFFFFF" />
+                <Ionicons name="chevron-down" size={23} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -1806,7 +2084,7 @@ export default function TabsLayout() {
                 style={styles.globalRideFinishButton}
                 onPress={openGlobalRideFinishModal}
               >
-                <Ionicons name="flag-outline" size={20} color="#06130B" />
+                <Ionicons name="flag-outline" size={20} color="#080808" />
                 <Text style={styles.globalRideFinishButtonText}>Concluir</Text>
               </TouchableOpacity>
             </View>
@@ -1814,6 +2092,7 @@ export default function TabsLayout() {
         </Pressable>
       ) : null}
 
+      {/* Modal para lançar ganho avulso, sem vínculo com jornada. */}
       <Modal visible={standaloneGainModalVisible} transparent animationType="fade">
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -1837,7 +2116,7 @@ export default function TabsLayout() {
                     resetStandaloneGainForm();
                   }}
                 >
-                  <Ionicons name="close" size={27} color="#FFFFFF" />
+                  <Ionicons name="close" size={27} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -1853,7 +2132,7 @@ export default function TabsLayout() {
                   style={styles.managePlatformsButton}
                   onPress={openPlatformDrawerFromStandaloneGain}
                 >
-                  <Ionicons name="apps-outline" size={16} color="#FFFFFF" />
+                  <Ionicons name="apps-outline" size={16} color="#F5F0E6" />
                   <Text style={styles.managePlatformsButtonText}>Gerenciar</Text>
                 </TouchableOpacity>
               </View>
@@ -1868,7 +2147,7 @@ export default function TabsLayout() {
                   style={styles.emptyPlatformsBox}
                   onPress={openPlatformDrawerFromStandaloneGain}
                 >
-                  <Ionicons name="apps-outline" size={30} color="#71717A" />
+                  <Ionicons name="apps-outline" size={30} color="#8F8A91" />
                   <Text style={styles.emptyPlatformsTitle}>
                     Nenhuma plataforma selecionada
                   </Text>
@@ -1938,7 +2217,7 @@ export default function TabsLayout() {
                       style={styles.selectedPlatformLogo}
                     />
                   ) : (
-                    <Ionicons name="checkmark-circle" size={22} color="#22C55E" />
+                    <Ionicons name="checkmark-circle" size={22} color="#D4A64A" />
                   )}
 
                   <Text style={styles.selectedPlatformPreviewText}>
@@ -1955,7 +2234,7 @@ export default function TabsLayout() {
                   clearGainError('description');
                 }}
                 placeholder="Ex: Promoção, bônus, recompensa..."
-                placeholderTextColor="#71717A"
+                placeholderTextColor="#8F8A91"
                 style={[
                   styles.input,
                   gainErrors.description && styles.inputError,
@@ -1975,7 +2254,7 @@ export default function TabsLayout() {
                       clearGainError('date');
                     }}
                     placeholder="dd/mm/aaaa"
-                    placeholderTextColor="#71717A"
+                    placeholderTextColor="#8F8A91"
                     keyboardType="numeric"
                     maxLength={10}
                     style={[styles.input, gainErrors.date && styles.inputError]}
@@ -1994,7 +2273,7 @@ export default function TabsLayout() {
                       clearGainError('amount');
                     }}
                     placeholder="0,00"
-                    placeholderTextColor="#71717A"
+                    placeholderTextColor="#8F8A91"
                     keyboardType="numeric"
                     style={[styles.input, gainErrors.amount && styles.inputError]}
                   />
@@ -2014,13 +2293,13 @@ export default function TabsLayout() {
                 onPress={handleSaveStandaloneGain}
               >
                 {savingGain ? (
-                  <ActivityIndicator color="#06130B" />
+                  <ActivityIndicator color="#080808" />
                 ) : (
                   <>
                     <Ionicons
                       name="checkmark-circle-outline"
                       size={22}
-                      color="#06130B"
+                      color="#080808"
                     />
                     <Text style={styles.saveGainButtonText}>Salvar ganho</Text>
                   </>
@@ -2031,6 +2310,7 @@ export default function TabsLayout() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Modal para iniciar uma corrida ou adicionar corrida na fila. */}
       <Modal visible={rideModalVisible} transparent animationType="fade">
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -2058,7 +2338,7 @@ export default function TabsLayout() {
                           : 'navigate-outline'
                       }
                       size={25}
-                      color="#06130B"
+                      color="#080808"
                     />
                   </View>
 
@@ -2079,7 +2359,7 @@ export default function TabsLayout() {
                   style={styles.rideCreateCloseButton}
                   onPress={closeRideModal}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -2101,7 +2381,7 @@ export default function TabsLayout() {
               <View style={styles.rideSectionHeader}>
                 <View style={styles.rideSectionHeaderLeft}>
                   <View style={styles.rideSectionIcon}>
-                    <Ionicons name="apps-outline" size={18} color="#22C55E" />
+                    <Ionicons name="apps-outline" size={18} color="#D4A64A" />
                   </View>
 
                   <View>
@@ -2117,7 +2397,7 @@ export default function TabsLayout() {
                   style={styles.rideManagePlatformsButton}
                   onPress={openPlatformDrawerFromRideModal}
                 >
-                  <Ionicons name="settings-outline" size={15} color="#FFFFFF" />
+                  <Ionicons name="settings-outline" size={15} color="#F5F0E6" />
                   <Text style={styles.rideManagePlatformsButtonText}>
                     Gerenciar
                   </Text>
@@ -2130,7 +2410,7 @@ export default function TabsLayout() {
                   style={styles.emptyPlatformsBox}
                   onPress={openPlatformDrawerFromRideModal}
                 >
-                  <Ionicons name="apps-outline" size={30} color="#71717A" />
+                  <Ionicons name="apps-outline" size={30} color="#8F8A91" />
                   <Text style={styles.emptyPlatformsTitle}>
                     Nenhuma plataforma selecionada
                   </Text>
@@ -2184,7 +2464,7 @@ export default function TabsLayout() {
                           <Ionicons
                             name="checkmark-circle"
                             size={20}
-                            color="#06130B"
+                            color="#080808"
                           />
                         ) : (
                           <Ionicons
@@ -2202,7 +2482,7 @@ export default function TabsLayout() {
               <View style={styles.rideInputsRow}>
                 <View style={styles.rideInputCard}>
                   <View style={styles.rideInputIconGreen}>
-                    <Ionicons name="cash-outline" size={19} color="#22C55E" />
+                    <Ionicons name="cash-outline" size={19} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -2211,7 +2491,7 @@ export default function TabsLayout() {
                       value={rideAmount}
                       onChangeText={(text) => setRideAmount(cleanMoneyInput(text))}
                       placeholder="0,00"
-                      placeholderTextColor="#71717A"
+                      placeholderTextColor="#8F8A91"
                       keyboardType="numeric"
                       style={styles.rideInput}
                     />
@@ -2230,7 +2510,7 @@ export default function TabsLayout() {
                         value={rideStartKm}
                         onChangeText={(text) => setRideStartKm(formatKm(text))}
                         placeholder="0"
-                        placeholderTextColor="#71717A"
+                        placeholderTextColor="#8F8A91"
                         keyboardType="numeric"
                         style={styles.rideInput}
                       />
@@ -2249,7 +2529,7 @@ export default function TabsLayout() {
                 onPress={handleSaveRideFromTabs}
               >
                 {savingRide ? (
-                  <ActivityIndicator color="#06130B" />
+                  <ActivityIndicator color="#080808" />
                 ) : (
                   <>
                     <Ionicons
@@ -2259,7 +2539,7 @@ export default function TabsLayout() {
                           : 'play-circle-outline'
                       }
                       size={22}
-                      color="#06130B"
+                      color="#080808"
                     />
                     <Text style={styles.saveRideButtonText}>
                       {hasActiveRideInCurrentSession
@@ -2311,7 +2591,7 @@ export default function TabsLayout() {
                 style={styles.globalRideMinimizeButton}
                 onPress={closeWaitingRideActionsModal}
               >
-                <Ionicons name="close" size={22} color="#FFFFFF" />
+                <Ionicons name="close" size={22} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2349,7 +2629,7 @@ export default function TabsLayout() {
                   style={styles.globalRideFinishButton}
                   onPress={openStartWaitingRideFromGlobalCard}
                 >
-                  <Ionicons name="play-circle-outline" size={20} color="#06130B" />
+                  <Ionicons name="play-circle-outline" size={20} color="#080808" />
                   <Text style={styles.globalRideFinishButtonText}>Iniciar</Text>
                 </TouchableOpacity>
               ) : null}
@@ -2372,7 +2652,7 @@ export default function TabsLayout() {
               <View style={styles.globalRideEditModalHeader}>
                 <View style={styles.globalRideEditModalHeaderLeft}>
                   <View style={styles.globalRideEditModalIcon}>
-                    <Ionicons name="create-outline" size={23} color="#FFFFFF" />
+                    <Ionicons name="create-outline" size={23} color="#F5F0E6" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -2382,7 +2662,7 @@ export default function TabsLayout() {
                 </View>
 
                 <TouchableOpacity onPress={closeEditWaitingRideModal}>
-                  <Ionicons name="close" size={27} color="#FFFFFF" />
+                  <Ionicons name="close" size={27} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -2393,7 +2673,7 @@ export default function TabsLayout() {
               <View style={styles.rideSectionHeader}>
                 <View style={styles.rideSectionHeaderLeft}>
                   <View style={styles.rideSectionIcon}>
-                    <Ionicons name="apps-outline" size={18} color="#22C55E" />
+                    <Ionicons name="apps-outline" size={18} color="#D4A64A" />
                   </View>
 
                   <View>
@@ -2447,7 +2727,7 @@ export default function TabsLayout() {
                       </Text>
 
                       {selected ? (
-                        <Ionicons name="checkmark-circle" size={20} color="#06130B" />
+                        <Ionicons name="checkmark-circle" size={20} color="#080808" />
                       ) : (
                         <Ionicons name="ellipse-outline" size={19} color="#52525B" />
                       )}
@@ -2459,7 +2739,7 @@ export default function TabsLayout() {
               <View style={styles.rideInputsRow}>
                 <View style={styles.rideInputCard}>
                   <View style={styles.rideInputIconGreen}>
-                    <Ionicons name="cash-outline" size={19} color="#22C55E" />
+                    <Ionicons name="cash-outline" size={19} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -2468,7 +2748,7 @@ export default function TabsLayout() {
                       value={waitingEditAmount}
                       onChangeText={(text) => setWaitingEditAmount(cleanMoneyInput(text))}
                       placeholder="0,00"
-                      placeholderTextColor="#71717A"
+                      placeholderTextColor="#8F8A91"
                       keyboardType="numeric"
                       style={styles.rideInput}
                     />
@@ -2486,10 +2766,10 @@ export default function TabsLayout() {
                 onPress={handleUpdateWaitingRide}
               >
                 {savingWaitingRideEdit ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="#F5F0E6" />
                 ) : (
                   <>
-                    <Ionicons name="save-outline" size={21} color="#FFFFFF" />
+                    <Ionicons name="save-outline" size={21} color="#F5F0E6" />
                     <Text style={styles.globalRideEditModalButtonText}>
                       Salvar alterações
                     </Text>
@@ -2514,7 +2794,7 @@ export default function TabsLayout() {
               </View>
 
               <TouchableOpacity onPress={closeStartWaitingRideModal}>
-                <Ionicons name="close" size={27} color="#FFFFFF" />
+                <Ionicons name="close" size={27} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2533,7 +2813,7 @@ export default function TabsLayout() {
                   value={waitingStartKm}
                   onChangeText={(text) => setWaitingStartKm(formatKm(text))}
                   placeholder="0"
-                  placeholderTextColor="#71717A"
+                  placeholderTextColor="#8F8A91"
                   keyboardType="numeric"
                   style={styles.rideInput}
                 />
@@ -2550,10 +2830,10 @@ export default function TabsLayout() {
               onPress={handleStartWaitingRideFromGlobalCard}
             >
               {savingStartWaitingRide ? (
-                <ActivityIndicator color="#06130B" />
+                <ActivityIndicator color="#080808" />
               ) : (
                 <>
-                  <Ionicons name="play-circle-outline" size={22} color="#06130B" />
+                  <Ionicons name="play-circle-outline" size={22} color="#080808" />
                   <Text style={styles.globalStartWaitingRideButtonText}>
                     Iniciar corrida
                   </Text>
@@ -2578,7 +2858,7 @@ export default function TabsLayout() {
               <View style={styles.globalRideEditModalHeader}>
                 <View style={styles.globalRideEditModalHeaderLeft}>
                   <View style={styles.globalRideEditModalIcon}>
-                    <Ionicons name="create-outline" size={23} color="#FFFFFF" />
+                    <Ionicons name="create-outline" size={23} color="#F5F0E6" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -2588,7 +2868,7 @@ export default function TabsLayout() {
                 </View>
 
                 <TouchableOpacity onPress={closeGlobalRideEditModal}>
-                  <Ionicons name="close" size={27} color="#FFFFFF" />
+                  <Ionicons name="close" size={27} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -2599,7 +2879,7 @@ export default function TabsLayout() {
               <View style={styles.rideSectionHeader}>
                 <View style={styles.rideSectionHeaderLeft}>
                   <View style={styles.rideSectionIcon}>
-                    <Ionicons name="apps-outline" size={18} color="#22C55E" />
+                    <Ionicons name="apps-outline" size={18} color="#D4A64A" />
                   </View>
 
                   <View>
@@ -2653,7 +2933,7 @@ export default function TabsLayout() {
                       </Text>
 
                       {selected ? (
-                        <Ionicons name="checkmark-circle" size={20} color="#06130B" />
+                        <Ionicons name="checkmark-circle" size={20} color="#080808" />
                       ) : (
                         <Ionicons name="ellipse-outline" size={19} color="#52525B" />
                       )}
@@ -2665,7 +2945,7 @@ export default function TabsLayout() {
               <View style={styles.rideInputsRow}>
                 <View style={styles.rideInputCard}>
                   <View style={styles.rideInputIconGreen}>
-                    <Ionicons name="cash-outline" size={19} color="#22C55E" />
+                    <Ionicons name="cash-outline" size={19} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -2674,7 +2954,7 @@ export default function TabsLayout() {
                       value={globalEditRideAmount}
                       onChangeText={(text) => setGlobalEditRideAmount(cleanMoneyInput(text))}
                       placeholder="0,00"
-                      placeholderTextColor="#71717A"
+                      placeholderTextColor="#8F8A91"
                       keyboardType="numeric"
                       style={styles.rideInput}
                     />
@@ -2692,7 +2972,7 @@ export default function TabsLayout() {
                       value={globalEditRideStartKm}
                       onChangeText={(text) => setGlobalEditRideStartKm(formatKm(text))}
                       placeholder="0"
-                      placeholderTextColor="#71717A"
+                      placeholderTextColor="#8F8A91"
                       keyboardType="numeric"
                       style={styles.rideInput}
                     />
@@ -2710,10 +2990,10 @@ export default function TabsLayout() {
                 onPress={handleUpdateGlobalActiveRide}
               >
                 {savingGlobalRideEdit ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="#F5F0E6" />
                 ) : (
                   <>
-                    <Ionicons name="save-outline" size={21} color="#FFFFFF" />
+                    <Ionicons name="save-outline" size={21} color="#F5F0E6" />
                     <Text style={styles.globalRideEditModalButtonText}>
                       Salvar alterações
                     </Text>
@@ -2738,7 +3018,7 @@ export default function TabsLayout() {
               </View>
 
               <TouchableOpacity onPress={closeGlobalRideFinishModal}>
-                <Ionicons name="close" size={27} color="#FFFFFF" />
+                <Ionicons name="close" size={27} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2753,7 +3033,7 @@ export default function TabsLayout() {
                   value={globalRideAmount}
                   onChangeText={(text) => setGlobalRideAmount(maskCurrency(text))}
                   placeholder="0,00"
-                  placeholderTextColor="#71717A"
+                  placeholderTextColor="#8F8A91"
                   keyboardType="numeric"
                   style={styles.input}
                 />
@@ -2765,7 +3045,7 @@ export default function TabsLayout() {
                   value={globalRideEndKm}
                   onChangeText={(text) => setGlobalRideEndKm(formatKm(text))}
                   placeholder="0"
-                  placeholderTextColor="#71717A"
+                  placeholderTextColor="#8F8A91"
                   keyboardType="numeric"
                   style={styles.input}
                 />
@@ -2782,10 +3062,10 @@ export default function TabsLayout() {
               onPress={handleFinishGlobalActiveRide}
             >
               {savingGlobalRideFinish ? (
-                <ActivityIndicator color="#06130B" />
+                <ActivityIndicator color="#080808" />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={22} color="#06130B" />
+                  <Ionicons name="checkmark-circle-outline" size={22} color="#080808" />
                   <Text style={styles.globalRideFinishModalButtonText}>
                     Concluir corrida
                   </Text>
@@ -2809,7 +3089,7 @@ export default function TabsLayout() {
           <View style={styles.performanceTargetsContent}>
             <View style={styles.performanceTargetsHeader}>
               <View style={styles.performanceTargetsHeaderIcon}>
-                <Ionicons name="speedometer-outline" size={25} color="#06130B" />
+                <Ionicons name="speedometer-outline" size={25} color="#080808" />
               </View>
 
               <View style={{ flex: 1 }}>
@@ -2826,7 +3106,7 @@ export default function TabsLayout() {
                 style={styles.performanceTargetsCloseButton}
                 onPress={closePerformanceTargetsModal}
               >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={24} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2950,10 +3230,10 @@ export default function TabsLayout() {
               onPress={handleSavePerformanceTargets}
             >
               {savingPerformanceTargets ? (
-                <ActivityIndicator color="#06130B" />
+                <ActivityIndicator color="#080808" />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={22} color="#06130B" />
+                  <Ionicons name="checkmark-circle-outline" size={22} color="#080808" />
                   <Text style={styles.performanceTargetsSaveButtonText}>
                     Salvar parâmetros
                   </Text>
@@ -2964,6 +3244,7 @@ export default function TabsLayout() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Drawer inferior para escolher/gerenciar plataformas do usuário. */}
       <Modal visible={platformDrawerVisible} transparent animationType="slide">
         <View style={styles.platformDrawerOverlay}>
           <View style={styles.platformDrawerContent}>
@@ -2976,7 +3257,7 @@ export default function TabsLayout() {
               </View>
 
               <TouchableOpacity onPress={closePlatformDrawerAndReturn}>
-                <Ionicons name="close" size={27} color="#FFFFFF" />
+                <Ionicons name="close" size={27} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -3028,7 +3309,7 @@ export default function TabsLayout() {
                     <Ionicons
                       name={selected ? 'checkmark-circle' : 'ellipse-outline'}
                       size={24}
-                      color={selected ? '#22C55E' : '#71717A'}
+                      color={selected ? '#D4A64A' : '#8F8A91'}
                     />
                   </TouchableOpacity>
                 );
@@ -3049,6 +3330,10 @@ export default function TabsLayout() {
   );
 }
 
+/**
+ * Botão individual do menu de ações rápidas.
+ * Recebe ícone, texto, posição e ação de clique.
+ */
 function QuickActionButton({
   icon,
   label,
@@ -3069,7 +3354,7 @@ function QuickActionButton({
       onPress={onPress}
     >
       <View style={[styles.quickActionIconBox, iconBoxStyle]}>
-        <Ionicons name={icon} size={24} color="#FFFFFF" />
+        <Ionicons name={icon} size={24} color="#F5F0E6" />
       </View>
 
       <Text style={styles.quickActionLabel}>{label}</Text>
@@ -3078,6 +3363,10 @@ function QuickActionButton({
 }
 
 
+/**
+ * Componente reutilizável para selecionar valores dos parâmetros de desempenho.
+ * Mostra título, descrição, valor atual, barra de progresso e opções horizontais.
+ */
 function PerformanceRangeSelector({
   title,
   description,
@@ -3159,69 +3448,91 @@ function PerformanceRangeSelector({
   );
 }
 
+/**
+ * Estilos de toda a camada de tabs, overlays, modais, botões e cards flutuantes.
+ *
+ * O padrão visual do app usa:
+ * - fundo escuro;
+ * - cards em tons de preto/cinza;
+ * - dourado como cor principal;
+ * - verde para ações positivas;
+ * - vermelho para exclusão/erro;
+ * - azul/roxo para estados auxiliares.
+ */
 const styles = StyleSheet.create({
+  // Container raiz da tela de tabs.
   root: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
+    overflow: 'visible',
   },
-
+  // Caixa invisível que centraliza os ícones das abas.
   iconBox: {
-    width: 39,
-    height: 39,
-    borderRadius: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
-
   iconBoxActive: {
-    backgroundColor: '#22C55E',
-    shadowColor: '#22C55E',
+    backgroundColor: 'transparent',
+    shadowColor: 'transparent',
     shadowOffset: {
       width: 0,
-      height: 6,
+      height: 0,
     },
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
-
+  // Botão central de ações rápidas. Ele fica sobre a tab bar.
   centerButton: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -33,
-    top: -27,
+    marginLeft: -31,
+    top: -30,
 
-    width: 66,
-    height: 66,
-    borderRadius: 999,
+    width: 62,
+    height: 62,
+    borderRadius: 16,
 
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     borderWidth: 5,
-    borderColor: '#09090B',
+    borderColor: '#050505',
 
     alignItems: 'center',
     justifyContent: 'center',
 
-    shadowColor: '#22C55E',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 10,
     },
-    shadowOpacity: 0.42,
+    shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 14,
-  },
-
-  centerButtonOpen: {
     transform: [{ rotate: '45deg' }],
   },
-
+  // Estado visual do botão central quando o menu de ações está aberto.
+  centerButtonOpen: {
+    backgroundColor: '#52525B',
+    borderColor: '#050505',
+    shadowColor: '#52525B',
+    transform: [{ rotate: '45deg' }],
+  },
+  // Gira o ícone ao contrário para ele ficar reto dentro do botão em losango.
+  centerButtonIcon: {
+    transform: [{ rotate: '-45deg' }],
+  },
+  // Fundo escuro que aparece atrás das ações rápidas.
   quickBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.90)',
+    backgroundColor: 'rgba(0,0,0,0.86)',
     zIndex: 60,
   },
 
+  // Área que posiciona os botões de ação rápida em volta do botão central.
   quickActionsWrapper: {
     position: 'absolute',
     left: 0,
@@ -3257,52 +3568,47 @@ const styles = StyleSheet.create({
   quickActionRide: {
     transform: [{ translateX: 118 }, { translateY: 24 }],
   },
-
   quickActionIconBox: {
     width: 58,
     height: 58,
-    borderRadius: 22,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    shadowColor: '#000000',
+    borderColor: 'rgba(212,166,74,0.18)',
+    shadowColor: '#D4A64A',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.12,
     shadowRadius: 14,
     elevation: 10,
   },
-
   quickActionIconGreen: {
-    backgroundColor: '#16A34A',
+    backgroundColor: '#D4A64A',
   },
-
   quickActionIconRed: {
     backgroundColor: '#EF4444',
   },
-
   quickActionIconBlue: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#D4A64A',
   },
-
   quickActionIconPurple: {
     backgroundColor: '#7C3AED',
   },
-
   quickActionLabel: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 11,
     fontWeight: '900',
     marginTop: 6,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     overflow: 'hidden',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: 10,
   },
 
+  // Pilha de cards flutuantes de corrida perto da parte inferior da tela.
   globalRideMiniStack: {
     position: 'absolute',
     left: 14,
@@ -3311,44 +3617,43 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 80,
   },
-
   globalRideMiniBackdrop: {
     position: 'absolute',
     left: -10,
     right: -10,
     top: -10,
     bottom: -10,
-    borderRadius: 32,
-    backgroundColor: 'rgba(3,7,18,0.94)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(5,5,5,0.94)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
+    borderColor: 'rgba(212,166,74,0.08)',
   },
-
   globalRideMiniCard: {
     minHeight: 70,
-    borderRadius: 24,
-    backgroundColor: '#111827',
+    borderRadius: 12,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.35)',
+    borderColor: 'rgba(212,166,74,0.35)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D4A64A',
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
-    shadowColor: '#000000',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 14,
     },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.10,
     shadowRadius: 20,
     elevation: 24,
   },
-
   globalRideMiniIcon: {
     width: 46,
     height: 46,
-    borderRadius: 17,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -3357,7 +3662,7 @@ const styles = StyleSheet.create({
   globalRideMiniLogo: {
     width: 46,
     height: 46,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   globalRideMiniCenter: {
@@ -3374,7 +3679,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
 
   globalRideMiniStatusText: {
@@ -3386,7 +3691,7 @@ const styles = StyleSheet.create({
   },
 
   globalRideMiniTimer: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 22,
     fontWeight: '900',
     marginTop: 2,
@@ -3397,7 +3702,7 @@ const styles = StyleSheet.create({
   },
 
   globalRideMiniAmount: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -3408,13 +3713,12 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: 3,
   },
-
   globalWaitingRideMiniCard: {
     minHeight: 58,
-    borderRadius: 22,
-    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.28)',
+    borderColor: 'rgba(212,166,74,0.24)',
     paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -3429,14 +3733,13 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 18,
   },
-
   globalWaitingRideMiniIcon: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderRadius: 11,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -3445,11 +3748,11 @@ const styles = StyleSheet.create({
   globalWaitingRideMiniLogo: {
     width: 38,
     height: 38,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   globalWaitingRidePlatform: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -3477,32 +3780,31 @@ const styles = StyleSheet.create({
   },
 
   globalWaitingRideAmount: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
-
   globalWaitingRideExpandedOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.68)',
+    backgroundColor: 'rgba(0,0,0,0.78)',
     justifyContent: 'flex-end',
     paddingHorizontal: 14,
-    paddingBottom: Platform.OS === 'ios' ? 94 : 90,
-    zIndex: 110,
+    paddingBottom: Platform.OS === 'ios' ? 104 : 100,
+    zIndex: 100,
   },
-
   globalWaitingRideExpandedCard: {
-    borderRadius: 30,
-    backgroundColor: '#111827',
+    borderRadius: 12,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     padding: 16,
-    shadowColor: '#000000',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 18,
     },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.09,
     shadowRadius: 24,
     elevation: 30,
   },
@@ -3521,14 +3823,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 11,
   },
-
   globalWaitingRideExpandedIcon: {
     width: 50,
     height: 50,
-    borderRadius: 18,
-    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.24)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -3537,7 +3838,7 @@ const styles = StyleSheet.create({
   globalWaitingRideExpandedLogo: {
     width: 50,
     height: 50,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   globalWaitingRideExpandedEyebrow: {
@@ -3549,14 +3850,14 @@ const styles = StyleSheet.create({
   },
 
   globalWaitingRideExpandedTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 2,
   },
 
   globalWaitingRideExpandedValueBox: {
-    borderRadius: 24,
+    borderRadius: 14,
     backgroundColor: 'rgba(96,165,250,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(96,165,250,0.24)',
@@ -3571,7 +3872,7 @@ const styles = StyleSheet.create({
   },
 
   globalWaitingRideExpandedValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 28,
     fontWeight: '900',
     marginTop: 4,
@@ -3581,28 +3882,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-
   globalRideExpandedOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.68)',
+    backgroundColor: 'rgba(0,0,0,0.78)',
     justifyContent: 'flex-end',
     paddingHorizontal: 14,
-    paddingBottom: Platform.OS === 'ios' ? 94 : 90,
+    paddingBottom: Platform.OS === 'ios' ? 104 : 100,
     zIndex: 100,
   },
-
   globalRideExpandedCard: {
-    borderRadius: 30,
-    backgroundColor: '#111827',
+    borderRadius: 12,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     padding: 16,
-    shadowColor: '#000000',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 18,
     },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.09,
     shadowRadius: 24,
     elevation: 30,
   },
@@ -3621,12 +3921,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 11,
   },
-
   globalRideExpandedIcon: {
     width: 50,
     height: 50,
-    borderRadius: 18,
-    backgroundColor: '#22C55E',
+    borderRadius: 13,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -3635,11 +3934,11 @@ const styles = StyleSheet.create({
   globalRideExpandedLogo: {
     width: 50,
     height: 50,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   globalRideExpandedEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -3647,28 +3946,26 @@ const styles = StyleSheet.create({
   },
 
   globalRideExpandedTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 2,
   },
-
   globalRideMinimizeButton: {
     width: 42,
     height: 42,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   globalRideExpandedTimerBox: {
-    borderRadius: 24,
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     padding: 16,
     marginBottom: 12,
   },
@@ -3680,7 +3977,7 @@ const styles = StyleSheet.create({
   },
 
   globalRideExpandedTimerValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 36,
     fontWeight: '900',
     marginTop: 3,
@@ -3692,27 +3989,26 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14,
   },
-
   globalRideExpandedStatBox: {
     width: '48%',
     minHeight: 74,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 12,
     justifyContent: 'center',
   },
 
   globalRideExpandedStatLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginBottom: 5,
   },
 
   globalRideExpandedStatValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -3733,11 +4029,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-
   globalRideDeleteButton: {
     flex: 1,
     height: 56,
-    borderRadius: 19,
+    borderRadius: 12,
     backgroundColor: 'rgba(239,68,68,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(239,68,68,0.25)',
@@ -3752,31 +4047,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
   },
-
   globalRideEditButton: {
     flex: 1,
     height: 56,
-    borderRadius: 19,
-    backgroundColor: 'rgba(59,130,246,0.14)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.28)',
+    borderColor: 'rgba(212,166,74,0.24)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-
   globalRideEditButtonText: {
-    color: '#BFDBFE',
-    fontSize: 14,
+    color: '#D4A64A',
+    fontSize: 13,
     fontWeight: '900',
   },
-
   globalRideFinishButton: {
     flex: 1.25,
     height: 56,
-    borderRadius: 19,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3784,23 +4076,23 @@ const styles = StyleSheet.create({
   },
 
   globalRideFinishButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 14,
     fontWeight: '900',
   },
-
   globalStartWaitingRideModalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 12,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
   },
 
   globalStartWaitingRideButton: {
     height: 58,
-    borderRadius: 19,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -3809,17 +4101,17 @@ const styles = StyleSheet.create({
   },
 
   globalStartWaitingRideButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 15,
     fontWeight: '900',
   },
-
   globalRideEditModalContent: {
-    backgroundColor: '#0B1220',
-    borderRadius: 30,
+    backgroundColor: '#101014',
+    borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     maxHeight: '92%',
   },
 
@@ -3841,7 +4133,7 @@ const styles = StyleSheet.create({
   globalRideEditModalIcon: {
     width: 50,
     height: 50,
-    borderRadius: 18,
+    borderRadius: 12,
     backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3849,7 +4141,7 @@ const styles = StyleSheet.create({
 
   globalRideEditModalButton: {
     height: 58,
-    borderRadius: 19,
+    borderRadius: 12,
     backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3859,23 +4151,23 @@ const styles = StyleSheet.create({
   },
 
   globalRideEditModalButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
-
   globalRideFinishModalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 12,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
   },
 
   globalRideFinishModalButton: {
     height: 58,
-    borderRadius: 19,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -3884,52 +4176,53 @@ const styles = StyleSheet.create({
   },
 
   globalRideFinishModalButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 15,
     fontWeight: '900',
   },
-
+  // Overlay usado pela maioria dos modais centralizados.
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    paddingHorizontal: 18,
+    backgroundColor: 'rgba(0,0,0,0.84)',
+    paddingHorizontal: 16,
     justifyContent: 'center',
   },
-
+  // Conteúdo visual do modal de ganho avulso.
   gainModalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 12,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     maxHeight: '92%',
   },
-
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 14,
     gap: 12,
+    marginBottom: 14,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
   },
-
   modalEyebrow: {
-    color: '#22C55E',
-    fontSize: 11,
+    color: '#D4A64A',
+    fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
-
   modalTitle: {
-    color: '#FFFFFF',
-    fontSize: 23,
+    color: '#F5F0E6',
+    fontSize: 21,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.3,
   },
-
   modalDescription: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 19,
@@ -3942,54 +4235,51 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-
   fieldLabel: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    color: '#F5F0E6',
+    fontSize: 12,
     fontWeight: '900',
     marginBottom: 8,
     marginLeft: 4,
+    letterSpacing: 0.2,
   },
-
   managePlatformsButton: {
     height: 34,
-    borderRadius: 999,
-    backgroundColor: '#18181B',
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: '#27272A',
-    paddingHorizontal: 11,
+    borderColor: 'rgba(212,166,74,0.24)',
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-
   managePlatformsButtonText: {
-    color: '#FFFFFF',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
-
   emptyPlatformsBox: {
-    minHeight: 140,
-    borderRadius: 22,
-    backgroundColor: '#18181B',
+    minHeight: 118,
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
-    marginBottom: 14,
+    marginBottom: 16,
   },
 
   emptyPlatformsTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
     marginTop: 10,
   },
 
   emptyPlatformsText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
@@ -4000,62 +4290,60 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingBottom: 14,
   },
-
   platformChip: {
-    width: 102,
-    minHeight: 82,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    minWidth: 92,
+    height: 86,
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
+    padding: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 9,
     gap: 7,
   },
-
   platformChipActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderColor: 'rgba(212,166,74,0.45)',
   },
 
   platformChipLogo: {
     width: 30,
     height: 30,
     borderRadius: 9,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   platformChipLogoFallback: {
     width: 30,
     height: 30,
     borderRadius: 9,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   platformChipLogoText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
 
   platformChipText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 11,
     fontWeight: '900',
     textAlign: 'center',
   },
 
   platformChipTextActive: {
-    color: '#06130B',
+    color: '#080808',
   },
 
   selectedPlatformPreview: {
     minHeight: 42,
-    borderRadius: 15,
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.22)',
     flexDirection: 'row',
@@ -4069,7 +4357,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 7,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   selectedPlatformPreviewText: {
@@ -4078,15 +4366,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
   },
-
   input: {
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    height: 55,
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    color: '#FFFFFF',
-    paddingHorizontal: 15,
+    borderColor: '#2A2830',
+    color: '#F5F0E6',
+    paddingHorizontal: 14,
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 13,
@@ -4111,11 +4398,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-
   saveGainButton: {
-    height: 58,
-    borderRadius: 19,
-    backgroundColor: '#22C55E',
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -4126,26 +4412,25 @@ const styles = StyleSheet.create({
   saveGainButtonDisabled: {
     opacity: 0.65,
   },
-
   saveGainButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 15,
     fontWeight: '900',
   },
-
   rideModalContent: {
-    backgroundColor: '#0B1220',
-    borderRadius: 30,
+    backgroundColor: '#101014',
+    borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     maxHeight: '92%',
-    shadowColor: '#000000',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 18,
     },
-    shadowOpacity: 0.34,
+    shadowOpacity: 0.09,
     shadowRadius: 24,
     elevation: 18,
   },
@@ -4168,91 +4453,83 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-
   rideCreateHeaderIcon: {
     width: 54,
     height: 54,
-    borderRadius: 20,
-    backgroundColor: '#22C55E',
+    borderRadius: 13,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#22C55E',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 8,
     },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.20,
     shadowRadius: 14,
     elevation: 8,
   },
-
   rideCreateHeaderIconQueue: {
-    backgroundColor: '#60A5FA',
-    shadowColor: '#60A5FA',
+    backgroundColor: '#D4A64A',
   },
-
   rideCreateEyebrow: {
-    color: '#22C55E',
-    fontSize: 11,
+    color: '#D4A64A',
+    fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.7,
+    letterSpacing: 1.5,
   },
-
   rideCreateTitle: {
-    color: '#FFFFFF',
-    fontSize: 24,
+    color: '#F5F0E6',
+    fontSize: 23,
     fontWeight: '900',
     marginTop: 2,
+    letterSpacing: -0.4,
   },
-
   rideCreateCloseButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   rideCreateDescription: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 20,
     marginBottom: 16,
   },
-
   rideInfoCard: {
-    minHeight: 50,
-    borderRadius: 18,
-    backgroundColor: 'rgba(96,165,250,0.10)',
+    minHeight: 56,
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 10,
     padding: 12,
     marginBottom: 16,
   },
-
   rideInfoIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    backgroundColor: 'rgba(96,165,250,0.13)',
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   rideInfoText: {
     flex: 1,
-    color: '#DBEAFE',
+    color: '#E8C46D',
     fontSize: 12,
-    fontWeight: '800',
-    lineHeight: 18,
+    lineHeight: 17,
+    fontWeight: '700',
   },
 
   rideSectionHeader: {
@@ -4269,46 +4546,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-
   rideSectionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.20)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   rideSectionTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   rideSectionSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '700',
     marginTop: 2,
   },
-
   rideManagePlatformsButton: {
-    height: 36,
-    borderRadius: 999,
-    backgroundColor: '#18181B',
+    minHeight: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: '#27272A',
-    paddingHorizontal: 11,
+    borderColor: 'rgba(212,166,74,0.24)',
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-
   rideManagePlatformsButtonText: {
-    color: '#FFFFFF',
-    fontSize: 11,
+    color: '#D4A64A',
+    fontSize: 12,
     fontWeight: '900',
   },
 
@@ -4318,96 +4592,91 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14,
   },
-
   ridePlatformCard: {
     width: '48%',
     minHeight: 62,
-    borderRadius: 20,
-    backgroundColor: '#111827',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
   },
-
   ridePlatformCardActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#86EFAC',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   ridePlatformLogo: {
     width: 34,
     height: 34,
     borderRadius: 11,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   ridePlatformLogoFallback: {
     width: 34,
     height: 34,
     borderRadius: 11,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   ridePlatformLogoText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   ridePlatformName: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
 
   ridePlatformNameActive: {
-    color: '#06130B',
+    color: '#080808',
   },
 
   rideInputsRow: {
     gap: 10,
     marginBottom: 6,
   },
-
   rideInputCard: {
-    minHeight: 64,
-    borderRadius: 20,
-    backgroundColor: '#111827',
+    flex: 1,
+    minHeight: 72,
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 10,
   },
-
   rideInputIconGreen: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   rideInputIconBlue: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    backgroundColor: 'rgba(96,165,250,0.10)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   rideInputLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginBottom: 2,
@@ -4415,58 +4684,56 @@ const styles = StyleSheet.create({
 
   rideInput: {
     minHeight: 32,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
     padding: 0,
   },
-
   saveRideButton: {
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: '#22C55E',
+    height: 58,
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
-    shadowColor: '#22C55E',
+    marginTop: 18,
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 10,
     },
-    shadowOpacity: 0.24,
+    shadowOpacity: 0.20,
     shadowRadius: 16,
     elevation: 10,
   },
-
   saveRideButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 15,
     fontWeight: '900',
   },
-
+  // Overlay do drawer de plataformas, que sobe de baixo para cima.
   platformDrawerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: 'rgba(0,0,0,0.84)',
     justifyContent: 'flex-end',
   },
-
   platformDrawerContent: {
-    backgroundColor: '#111827',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    backgroundColor: '#101014',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     maxHeight: '86%',
   },
-
   drawerHandle: {
-    width: 48,
-    height: 5,
+    width: 46,
+    height: 4,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#D4A64A',
+    opacity: 0.65,
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -4475,23 +4742,21 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingBottom: 18,
   },
-
   platformDrawerItem: {
     minHeight: 62,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
     gap: 12,
   },
-
   platformDrawerItemActive: {
-    borderColor: 'rgba(34,197,94,0.55)',
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderColor: 'rgba(212,166,74,0.55)',
+    backgroundColor: 'rgba(212,166,74,0.10)',
   },
 
   platformDrawerLeft: {
@@ -4505,26 +4770,26 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 11,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   platformDrawerLogoFallback: {
     width: 36,
     height: 36,
     borderRadius: 11,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   platformDrawerLogoText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   platformDrawerName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -4532,17 +4797,18 @@ const styles = StyleSheet.create({
   platformDrawerNameActive: {
     color: '#86EFAC',
   },
-
   savePlatformsButton: {
     height: 56,
-    borderRadius: 19,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
   },
-
   savePlatformsButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -4550,83 +4816,80 @@ const styles = StyleSheet.create({
   quickActionTargets: {
     transform: [{ translateY: -162 }],
   },
-
   quickActionIconCyan: {
-    backgroundColor: '#0891B2',
+    backgroundColor: '#D4A64A',
   },
-
   performanceTargetsOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: 'rgba(0,0,0,0.84)',
     justifyContent: 'flex-end',
   },
-
   performanceTargetsContent: {
     width: '100%',
     maxHeight: '92%',
-    backgroundColor: '#09090B',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    backgroundColor: '#101014',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     borderWidth: 1,
-    borderColor: '#18181B',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
     paddingTop: 12,
     paddingHorizontal: 18,
     paddingBottom: 18,
   },
-
   performanceTargetsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginTop: 4,
     marginBottom: 12,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
   },
-
   performanceTargetsHeaderIcon: {
     width: 48,
     height: 48,
-    borderRadius: 18,
-    backgroundColor: '#22C55E',
+    borderRadius: 13,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#22C55E',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
-      height: 10,
+      height: 8,
     },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
+    shadowOpacity: 0.20,
+    shadowRadius: 14,
     elevation: 8,
   },
-
   performanceTargetsEyebrow: {
-    color: '#22C55E',
-    fontSize: 12,
+    color: '#D4A64A',
+    fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
   },
-
   performanceTargetsTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 21,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 3,
   },
-
   performanceTargetsCloseButton: {
     width: 42,
     height: 42,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 'auto',
   },
 
   performanceTargetsDescription: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     lineHeight: 19,
     fontWeight: '700',
@@ -4636,12 +4899,11 @@ const styles = StyleSheet.create({
   performanceTargetsScrollContent: {
     paddingBottom: 18,
   },
-
   performanceTargetsPreviewCard: {
-    backgroundColor: '#0B1220',
-    borderRadius: 24,
+    backgroundColor: '#18171D',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#2A2830',
     padding: 14,
     marginBottom: 14,
   },
@@ -4675,13 +4937,13 @@ const styles = StyleSheet.create({
   },
 
   performanceTargetsPreviewLabel: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   performanceTargetsPreviewText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -4690,15 +4952,14 @@ const styles = StyleSheet.create({
 
   performanceTargetsPreviewDivider: {
     height: 1,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#2A2830',
     marginVertical: 12,
   },
-
   performanceRangeCard: {
-    backgroundColor: '#111827',
-    borderRadius: 24,
+    backgroundColor: '#18171D',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 14,
     marginBottom: 12,
   },
@@ -4712,29 +4973,27 @@ const styles = StyleSheet.create({
   },
 
   performanceRangeTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   performanceRangeDescription: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
     marginTop: 3,
   },
-
   performanceRangeValueBadge: {
-    minWidth: 82,
-    minHeight: 40,
-    borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.35)',
+    borderColor: 'rgba(212,166,74,0.24)',
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
   },
 
   performanceRangeValueText: {
@@ -4742,19 +5001,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
   },
-
   performanceRangeTrack: {
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
+    marginTop: 14,
     overflow: 'hidden',
-    marginBottom: 12,
   },
-
   performanceRangeTrackFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
 
   performanceRangeOptions: {
@@ -4762,55 +5019,51 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-
   performanceRangeOption: {
-    minWidth: 66,
-    minHeight: 40,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    minWidth: 54,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
-
   performanceRangeOptionActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#86EFAC',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   performanceRangeOptionText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '900',
   },
 
   performanceRangeOptionTextActive: {
-    color: '#06130B',
+    color: '#080808',
   },
-
   performanceTargetsSaveButton: {
-    height: 60,
-    borderRadius: 22,
-    backgroundColor: '#22C55E',
+    height: 58,
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 8,
     marginTop: 8,
-    shadowColor: '#22C55E',
+    shadowColor: '#D4A64A',
     shadowOffset: {
       width: 0,
       height: 10,
     },
-    shadowOpacity: 0.24,
+    shadowOpacity: 0.20,
     shadowRadius: 16,
     elevation: 10,
   },
-
   performanceTargetsSaveButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 15,
     fontWeight: '900',
   },

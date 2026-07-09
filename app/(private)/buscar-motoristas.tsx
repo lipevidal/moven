@@ -206,7 +206,7 @@ export default function SearchDriversScreen() {
                 />
               ) : (
                 <View style={styles.visitedProfileAvatarFallback}>
-                  <Ionicons name="person" size={19} color="#FFFFFF" />
+                  <Ionicons name="person" size={19} color="#F5F0E6" />
                 </View>
               )}
 
@@ -228,7 +228,7 @@ export default function SearchDriversScreen() {
                   removeVisitedProfile(driver.id);
                 }}
               >
-                <Ionicons name="close" size={17} color="#A1A1AA" />
+                <Ionicons name="close" size={17} color="#9B969B" />
               </TouchableOpacity>
             </TouchableOpacity>
           ))}
@@ -244,7 +244,7 @@ export default function SearchDriversScreen() {
           {renderVisitedProfilesSection()}
 
           <View style={styles.emptyBox}>
-            <Ionicons name="people-outline" size={42} color="#52525B" />
+            <Ionicons name="people-outline" size={42} color="#8F8A91" />
             <Text style={styles.emptyTitle}>Busque outros motoristas</Text>
             <Text style={styles.emptyText}>
               Você poderá abrir o perfil público, ver cidade e iniciar conexões
@@ -258,7 +258,7 @@ export default function SearchDriversScreen() {
     if (loading) {
       return (
         <View style={styles.emptyBox}>
-          <ActivityIndicator color="#22C55E" />
+          <ActivityIndicator color="#D4A64A" />
           <Text style={styles.emptyTitle}>Buscando perfis...</Text>
           <Text style={styles.emptyText}>
             Aguarde enquanto encontramos motoristas relacionados à sua busca.
@@ -269,7 +269,7 @@ export default function SearchDriversScreen() {
 
     return (
       <View style={styles.emptyBox}>
-        <Ionicons name="alert-circle-outline" size={42} color="#52525B" />
+        <Ionicons name="alert-circle-outline" size={42} color="#8F8A91" />
         <Text style={styles.emptyTitle}>Nenhum perfil encontrado</Text>
         <Text style={styles.emptyText}>
           Tente buscar por outro nome, username ou cidade.
@@ -292,7 +292,7 @@ export default function SearchDriversScreen() {
               style={styles.backButton}
               onPress={() => router.back()}
             >
-              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+              <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
             </TouchableOpacity>
 
             <View style={{ flex: 1 }}>
@@ -303,7 +303,7 @@ export default function SearchDriversScreen() {
 
           <View style={styles.searchCard}>
             <View style={styles.searchIcon}>
-              <Ionicons name="search-outline" size={24} color="#22C55E" />
+              <Ionicons name="search-outline" size={24} color="#D4A64A" />
             </View>
 
             <View style={{ flex: 1 }}>
@@ -315,7 +315,7 @@ export default function SearchDriversScreen() {
           </View>
 
           <View style={styles.inputBox}>
-            <Ionicons name="search-outline" size={20} color="#A1A1AA" />
+            <Ionicons name="search-outline" size={20} color="#9B969B" />
 
             <TextInput
               value={search}
@@ -329,10 +329,10 @@ export default function SearchDriversScreen() {
             />
 
             {loading ? (
-              <ActivityIndicator color="#22C55E" />
+              <ActivityIndicator color="#D4A64A" />
             ) : search.length > 0 ? (
               <TouchableOpacity activeOpacity={0.85} onPress={clearSearch}>
-                <Ionicons name="close-circle" size={22} color="#71717A" />
+                <Ionicons name="close-circle" size={22} color="#8F8A91" />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -359,7 +359,7 @@ export default function SearchDriversScreen() {
                 />
               ) : (
                 <View style={styles.driverAvatarFallback}>
-                  <Ionicons name="person" size={23} color="#FFFFFF" />
+                  <Ionicons name="person" size={23} color="#F5F0E6" />
                 </View>
               )}
 
@@ -374,7 +374,7 @@ export default function SearchDriversScreen() {
               </View>
 
               <View style={styles.openProfileIcon}>
-                <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+                <Ionicons name="chevron-forward" size={20} color="#F5F0E6" />
               </View>
             </TouchableOpacity>
           )}
@@ -387,74 +387,107 @@ export default function SearchDriversScreen() {
 const styles = StyleSheet.create({
   keyboardContainer: {
     flex: 1,
-    backgroundColor: "#09090B",
+    backgroundColor: "#050505",
   },
-  container: { flex: 1, backgroundColor: "#09090B" },
+  container: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
   contentTop: {
     paddingHorizontal: 18,
-    paddingTop: 54,
+    paddingTop: 48,
+    backgroundColor: "#050505",
   },
   listContent: {
     paddingHorizontal: 18,
     paddingBottom: Platform.OS === "ios" ? 190 : 240,
+    backgroundColor: "#050505",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 18,
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: "#070707",
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
   },
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
   headerEyebrow: {
-    color: "#22C55E",
-    fontSize: 12,
+    color: "#D4A64A",
+    fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
-  headerTitle: { color: "#FFFFFF", fontSize: 26, fontWeight: "900" },
+  headerTitle: {
+    color: "#F5F0E6",
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+    marginTop: 2,
+  },
   searchCard: {
     minHeight: 96,
-    borderRadius: 28,
-    backgroundColor: "#052E16",
+    borderRadius: 18,
+    backgroundColor: "#101014",
     borderWidth: 1,
-    borderColor: "#166534",
+    borderColor: "#2A2830",
+    borderLeftWidth: 4,
+    borderLeftColor: "#D4A64A",
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 13,
     marginBottom: 14,
+    shadowColor: "#D4A64A",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 10,
   },
   searchIcon: {
     width: 50,
     height: 50,
-    borderRadius: 18,
-    backgroundColor: "rgba(34,197,94,0.22)",
+    borderRadius: 13,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
-  searchTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
+  searchTitle: {
+    color: "#F5F0E6",
+    fontSize: 17,
+    fontWeight: "900",
+  },
   searchText: {
-    color: "#BBF7D0",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 5,
+    lineHeight: 17,
   },
   inputBox: {
     height: 58,
-    borderRadius: 20,
-    backgroundColor: "#18181B",
+    borderRadius: 14,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     paddingHorizontal: 15,
     flexDirection: "row",
     alignItems: "center",
@@ -464,9 +497,9 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: "100%",
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   historySection: {
     marginBottom: 14,
@@ -478,12 +511,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   historyTitle: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 16,
     fontWeight: "900",
   },
   historySubtitle: {
-    color: "#71717A",
+    color: "#8F8A91",
     fontSize: 11,
     fontWeight: "700",
     marginTop: 3,
@@ -509,10 +542,10 @@ const styles = StyleSheet.create({
   },
   visitedProfileCard: {
     minHeight: 64,
-    borderRadius: 20,
-    backgroundColor: "#111827",
+    borderRadius: 14,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     paddingHorizontal: 12,
     paddingVertical: 9,
     flexDirection: "row",
@@ -522,25 +555,27 @@ const styles = StyleSheet.create({
   visitedProfileAvatar: {
     width: 42,
     height: 42,
-    borderRadius: 999,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.30)",
   },
   visitedProfileAvatarFallback: {
     width: 42,
     height: 42,
-    borderRadius: 999,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#101014",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
   visitedProfileName: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 14,
     fontWeight: "900",
   },
   visitedProfileMeta: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 11,
     fontWeight: "700",
     marginTop: 3,
@@ -548,31 +583,32 @@ const styles = StyleSheet.create({
   removeHistoryButton: {
     width: 32,
     height: 32,
-    borderRadius: 999,
-    backgroundColor: "#18181B",
+    borderRadius: 10,
+    backgroundColor: "#101014",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
   emptyBox: {
     minHeight: 260,
-    borderRadius: 28,
-    backgroundColor: "#111827",
+    borderRadius: 18,
+    backgroundColor: "#101014",
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
   },
   emptyTitle: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 17,
     fontWeight: "900",
     marginTop: 13,
+    textAlign: "center",
   },
   emptyText: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
@@ -581,30 +617,40 @@ const styles = StyleSheet.create({
   },
   driverCard: {
     minHeight: 76,
-    borderRadius: 22,
-    backgroundColor: "#111827",
+    borderRadius: 16,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     padding: 13,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     marginBottom: 10,
   },
-  driverAvatar: { width: 50, height: 50, borderRadius: 999 },
+  driverAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.30)",
+  },
   driverAvatarFallback: {
     width: 50,
     height: 50,
-    borderRadius: 999,
-    backgroundColor: "#18181B",
+    borderRadius: 13,
+    backgroundColor: "#101014",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
-  driverName: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
+  driverName: {
+    color: "#F5F0E6",
+    fontSize: 15,
+    fontWeight: "900",
+  },
   driverMeta: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
@@ -612,10 +658,10 @@ const styles = StyleSheet.create({
   openProfileIcon: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: "#18181B",
+    borderRadius: 11,
+    backgroundColor: "rgba(212,166,74,0.12)",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "rgba(212,166,74,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },

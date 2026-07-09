@@ -14,8 +14,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors } from '../../src/constants/colors';
-
 import { getVehicleDetails } from '../../src/features/vehicles/services/getVehicleDetails';
 
 function getVehicleImage(type: string) {
@@ -169,7 +167,7 @@ export default function VehicleDetailsScreen() {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingIconBox}>
-          <Ionicons name="car-sport-outline" size={34} color="#22C55E" />
+          <Ionicons name="car-sport-outline" size={34} color="#D4A64A" />
         </View>
 
         <Text style={styles.loadingText}>Carregando veículo...</Text>
@@ -189,7 +187,7 @@ export default function VehicleDetailsScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
         </TouchableOpacity>
 
         <View style={styles.headerTitleBlock}>
@@ -198,7 +196,7 @@ export default function VehicleDetailsScreen() {
         </View>
 
         <View style={styles.headerIconButton}>
-          <Ionicons name="analytics-outline" size={22} color="#22C55E" />
+          <Ionicons name="analytics-outline" size={22} color="#D4A64A" />
         </View>
       </View>
 
@@ -214,7 +212,7 @@ export default function VehicleDetailsScreen() {
 
         <View style={styles.vehicleInfo}>
           <View style={styles.vehicleTypeBadge}>
-            <Ionicons name="car-sport-outline" size={14} color="#8BFFBF" />
+            <Ionicons name="car-sport-outline" size={14} color="#D4A64A" />
             <Text style={styles.vehicleTypeBadgeText}>
               {getVehicleTypeLabel(vehicle.type)}
             </Text>
@@ -237,7 +235,7 @@ export default function VehicleDetailsScreen() {
           </View>
 
           <View style={styles.kmRow}>
-            <Ionicons name="speedometer-outline" size={18} color="#A1A1AA" />
+            <Ionicons name="speedometer-outline" size={18} color="#9B969B" />
             <Text style={styles.vehicleKm}>
               {Number(vehicle.current_km).toLocaleString('pt-BR')} km atuais
             </Text>
@@ -372,7 +370,7 @@ export default function VehicleDetailsScreen() {
         {sortedExpenseCategories.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconBox}>
-              <Ionicons name="receipt-outline" size={30} color="#71717A" />
+              <Ionicons name="receipt-outline" size={30} color="#8F8A91" />
             </View>
 
             <Text style={styles.emptyTitle}>Nenhuma despesa registrada</Text>
@@ -451,7 +449,7 @@ export default function VehicleDetailsScreen() {
       </View>
 
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={20} color="#71717A" />
+        <Ionicons name="search-outline" size={20} color="#8F8A91" />
 
         <TextInput
           value={search}
@@ -463,14 +461,14 @@ export default function VehicleDetailsScreen() {
 
         {!!search && (
           <TouchableOpacity activeOpacity={0.85} onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={20} color="#71717A" />
+            <Ionicons name="close-circle" size={20} color="#8F8A91" />
           </TouchableOpacity>
         )}
       </View>
 
       {filteredExpenses.length === 0 ? (
         <View style={styles.emptyListBox}>
-          <Ionicons name="search-outline" size={30} color="#71717A" />
+          <Ionicons name="search-outline" size={30} color="#8F8A91" />
           <Text style={styles.emptyTitle}>Nenhuma despesa encontrada</Text>
           <Text style={styles.emptyText}>
             Tente buscar por outro termo ou verifique se existem despesas lançadas.
@@ -517,7 +515,7 @@ export default function VehicleDetailsScreen() {
 
                 {!!expense.location && (
                   <View style={styles.expenseLocationRow}>
-                    <Ionicons name="location-outline" size={14} color="#71717A" />
+                    <Ionicons name="location-outline" size={14} color="#8F8A91" />
                     <Text style={styles.expenseLocation} numberOfLines={1}>
                       {expense.location}
                     </Text>
@@ -539,55 +537,58 @@ export default function VehicleDetailsScreen() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
-
   loadingIconBox: {
     width: 74,
     height: 74,
-    borderRadius: 24,
-    backgroundColor: '#102A1A',
+    borderRadius: 16,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: '#14532D',
+    borderColor: 'rgba(212,166,74,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
-
   loadingText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '800',
   },
-
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#050505',
   },
-
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 140,
+    paddingHorizontal: 18,
+    paddingTop: 48,
+    paddingBottom: 150,
+    backgroundColor: '#050505',
   },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
     gap: 12,
+    backgroundColor: '#070707',
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
   },
-
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -595,64 +596,64 @@ const styles = StyleSheet.create({
   headerTitleBlock: {
     flex: 1,
   },
-
   headerEyebrow: {
-    color: '#A1A1AA',
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
+    color: '#D4A64A',
+    fontSize: 10,
     fontWeight: '900',
-    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   },
-
+  headerTitle: {
+    color: '#F5F0E6',
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 3,
+    letterSpacing: -0.5,
+  },
   headerIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: '#102A1A',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#14532D',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   heroCard: {
     minHeight: 178,
-    backgroundColor: '#0D1117',
-    borderRadius: 30,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
     overflow: 'hidden',
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 10,
   },
-
   heroGlow: {
     position: 'absolute',
     width: 170,
     height: 170,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     opacity: 0.08,
     right: -60,
     top: -50,
   },
-
   vehicleImageBox: {
     width: 116,
     height: 116,
-    borderRadius: 28,
-    backgroundColor: '#111827',
+    borderRadius: 18,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -667,30 +668,27 @@ const styles = StyleSheet.create({
   vehicleInfo: {
     flex: 1,
   },
-
   vehicleTypeBadge: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#052E1A',
+    backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
-    borderColor: '#14532D',
+    borderColor: 'rgba(212,166,74,0.24)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
     marginBottom: 10,
   },
-
   vehicleTypeBadgeText: {
-    color: '#8BFFBF',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
-
   vehicleTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 21,
     lineHeight: 26,
     fontWeight: '900',
@@ -702,32 +700,28 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 10,
   },
-
   plateBadge: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#D4A64A',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-
   plateText: {
-    color: '#09090B',
+    color: '#080808',
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1,
   },
-
   yearBadge: {
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-
   yearText: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -738,9 +732,8 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: 12,
   },
-
   vehicleKm: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '800',
   },
@@ -751,14 +744,13 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
-
   metricCard: {
     width: '48%',
-    backgroundColor: '#111827',
-    borderRadius: 22,
+    backgroundColor: '#18171D',
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
   },
 
   metricTopRow: {
@@ -767,47 +759,50 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 12,
   },
-
   metricIconGreen: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: '#052E1A',
+    borderRadius: 11,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   metricIconRed: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: '#2A0D0D',
+    borderRadius: 11,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   metricIconBlue: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: '#0B1F3A',
+    borderRadius: 11,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   metricIconOrange: {
     width: 38,
     height: 38,
-    borderRadius: 14,
-    backgroundColor: '#2A1A05',
+    borderRadius: 11,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   metricLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
     flex: 1,
   },
 
@@ -826,9 +821,8 @@ const styles = StyleSheet.create({
   metricValueRedText: {
     color: '#EF4444',
   },
-
   metricValueWhite: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 19,
     fontWeight: '900',
   },
@@ -838,12 +832,11 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: '900',
   },
-
   performanceCard: {
-    backgroundColor: '#18181B',
-    borderRadius: 26,
+    backgroundColor: '#18171D',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 18,
     marginBottom: 24,
   },
@@ -854,24 +847,21 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'flex-start',
   },
-
   performanceTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
-
   performanceSubtitle: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
   },
-
   performanceStatusBadge: {
-    backgroundColor: '#052E1A',
+    backgroundColor: 'rgba(34,197,94,0.12)',
     borderWidth: 1,
-    borderColor: '#14532D',
+    borderColor: 'rgba(34,197,94,0.28)',
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -883,7 +873,7 @@ const styles = StyleSheet.create({
   },
 
   performanceStatusText: {
-    color: '#8BFFBF',
+    color: '#22C55E',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -892,11 +882,10 @@ const styles = StyleSheet.create({
   performanceStatusTextDanger: {
     color: '#FCA5A5',
   },
-
   progressTrack: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     overflow: 'hidden',
     marginTop: 18,
   },
@@ -917,18 +906,16 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 14,
   },
-
   performanceFooterText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
   },
-
   performanceFooterDot: {
     width: 4,
     height: 4,
     borderRadius: 999,
-    backgroundColor: '#52525B',
+    backgroundColor: '#8F8A91',
   },
 
   sectionHeader: {
@@ -938,25 +925,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 12,
   },
-
   sectionTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 19,
     fontWeight: '900',
   },
-
   sectionSubtitle: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
   },
-
   categoryCard: {
-    backgroundColor: '#111827',
-    borderRadius: 26,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 16,
     marginBottom: 24,
   },
@@ -979,38 +963,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-
   categoryIconBox: {
     width: 38,
     height: 38,
-    borderRadius: 14,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   categoryName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
     fontSize: 14,
   },
-
   categoryPercent: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontWeight: '700',
     fontSize: 12,
     marginTop: 2,
   },
-
   categoryValue: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontWeight: '900',
     fontSize: 13,
   },
-
   categoryTrack: {
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     overflow: 'hidden',
   },
 
@@ -1018,67 +997,60 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 999,
   },
-
   countBadge: {
     minWidth: 36,
     height: 36,
     paddingHorizontal: 10,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   countBadgeText: {
-    color: '#FFFFFF',
+    color: '#D4A64A',
     fontSize: 13,
     fontWeight: '900',
   },
-
   searchBox: {
     height: 56,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginBottom: 14,
   },
-
   searchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '700',
   },
-
   expenseCard: {
-    backgroundColor: '#18181B',
-    borderRadius: 22,
+    backgroundColor: '#18171D',
+    borderRadius: 16,
     padding: 14,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
   },
-
   expenseIconBox: {
     width: 44,
     height: 44,
-    borderRadius: 16,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   expenseTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -1089,23 +1061,20 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: 5,
   },
-
   expenseCategory: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
     maxWidth: 110,
   },
-
   expenseDot: {
     width: 4,
     height: 4,
     borderRadius: 999,
-    backgroundColor: '#52525B',
+    backgroundColor: '#8F8A91',
   },
-
   expenseDate: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1116,9 +1085,8 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: 6,
   },
-
   expenseLocation: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     flex: 1,
@@ -1135,38 +1103,34 @@ const styles = StyleSheet.create({
     paddingVertical: 26,
     paddingHorizontal: 16,
   },
-
   emptyListBox: {
     alignItems: 'center',
     paddingVertical: 32,
     paddingHorizontal: 18,
-    backgroundColor: '#18181B',
-    borderRadius: 24,
+    backgroundColor: '#18171D',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
   },
-
   emptyIconBox: {
     width: 58,
     height: 58,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
-
   emptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
     textAlign: 'center',
   },
-
   emptyText: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',

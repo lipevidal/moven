@@ -17,8 +17,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 
-import { colors } from '../../../src/constants/colors';
-
 import { getVehicles } from '../../../src/features/vehicles/services/getVehicles';
 import { createWorkSession } from '../../../src/features/workSessions/services/createWorkSession';
 import { supabase } from '../../../src/database/supabase';
@@ -390,7 +388,7 @@ export default function NewJourneyScreen() {
           </Text>
 
           <Text style={styles.subtitle}>
-            Inicie sua jornada de trabalho
+            Configure veículo, KM inicial, cidade base e horário de início.
           </Text>
         </View>
 
@@ -448,7 +446,7 @@ export default function NewJourneyScreen() {
               <Ionicons
                 name="chevron-down"
                 size={22}
-                color="#FFFFFF"
+                color="#F5F0E6"
               />
             </>
           ) : (
@@ -466,7 +464,7 @@ export default function NewJourneyScreen() {
                 style={styles.reloadVehiclesButton}
                 onPress={loadVehicles}
               >
-                <Ionicons name="refresh-outline" size={17} color="#06130B" />
+                <Ionicons name="refresh-outline" size={17} color="#080808" />
 
                 <Text style={styles.reloadVehiclesButtonText}>
                   Atualizar lista
@@ -488,7 +486,7 @@ export default function NewJourneyScreen() {
             }
             keyboardType="numeric"
             placeholder="45.678 km"
-            placeholderTextColor="#71717A"
+            placeholderTextColor="#8F8A91"
             style={styles.input}
           />
 
@@ -503,7 +501,7 @@ export default function NewJourneyScreen() {
           style={styles.selectCard}
           onPress={() => setMunicipalityModalVisible(true)}
         >
-          <Ionicons name="location-outline" size={24} color="#22C55E" />
+          <Ionicons name="location-outline" size={24} color="#D4A64A" />
 
           <View style={{ flex: 1 }}>
             <Text style={styles.selectText}>
@@ -514,7 +512,7 @@ export default function NewJourneyScreen() {
 
           </View>
 
-          <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+          <Ionicons name="chevron-forward" size={22} color="#F5F0E6" />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -526,7 +524,7 @@ export default function NewJourneyScreen() {
           <Ionicons
             name="play-circle"
             size={24}
-            color="#FFFFFF"
+            color="#F5F0E6"
           />
 
           <Text style={styles.startButtonText}>
@@ -557,14 +555,14 @@ export default function NewJourneyScreen() {
                 <Ionicons
                   name="close"
                   size={26}
-                  color="#FFFFFF"
+                  color="#F5F0E6"
                 />
               </TouchableOpacity>
             </View>
 
             {vehicles.length === 0 ? (
               <View style={styles.modalEmptyVehicles}>
-                <Ionicons name="car-sport-outline" size={34} color="#71717A" />
+                <Ionicons name="car-sport-outline" size={34} color="#8F8A91" />
 
                 <Text style={styles.modalEmptyVehiclesTitle}>
                   Nenhum veículo cadastrado
@@ -579,7 +577,7 @@ export default function NewJourneyScreen() {
                   style={styles.modalReloadVehiclesButton}
                   onPress={loadVehicles}
                 >
-                  <Ionicons name="refresh-outline" size={18} color="#06130B" />
+                  <Ionicons name="refresh-outline" size={18} color="#080808" />
 
                   <Text style={styles.modalReloadVehiclesButtonText}>
                     Atualizar veículos
@@ -636,7 +634,7 @@ export default function NewJourneyScreen() {
                     <Ionicons
                       name="checkmark-circle"
                       size={24}
-                      color="#22C55E"
+                      color="#D4A64A"
                     />
                   )}
                 </TouchableOpacity>
@@ -666,7 +664,7 @@ export default function NewJourneyScreen() {
                 <Ionicons
                   name="close"
                   size={26}
-                  color="#FFFFFF"
+                  color="#F5F0E6"
                 />
               </TouchableOpacity>
             </View>
@@ -692,7 +690,7 @@ export default function NewJourneyScreen() {
                     )
                   }
                   placeholder="DD/MM/AAAA"
-                  placeholderTextColor="#71717A"
+                  placeholderTextColor="#8F8A91"
                   keyboardType="numeric"
                   maxLength={10}
                   style={styles.modalInput}
@@ -714,7 +712,7 @@ export default function NewJourneyScreen() {
                     )
                   }
                   placeholder="HH:MM"
-                  placeholderTextColor="#71717A"
+                  placeholderTextColor="#8F8A91"
                   keyboardType="numeric"
                   maxLength={5}
                   style={styles.modalInput}
@@ -753,7 +751,7 @@ export default function NewJourneyScreen() {
             <View style={styles.municipalityHeader}>
               <View style={styles.municipalityHeaderLeft}>
                 <View style={styles.municipalityHeaderIcon}>
-                  <Ionicons name="location-outline" size={24} color="#22C55E" />
+                  <Ionicons name="location-outline" size={24} color="#D4A64A" />
                 </View>
 
                 <View style={{ flex: 1 }}>
@@ -770,18 +768,18 @@ export default function NewJourneyScreen() {
                 style={styles.municipalityCloseButton}
                 onPress={() => setMunicipalityModalVisible(false)}
               >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={24} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
             <View style={styles.municipalitySearchBox}>
-              <Ionicons name="search-outline" size={20} color="#71717A" />
+              <Ionicons name="search-outline" size={20} color="#8F8A91" />
 
               <TextInput
                 value={municipalitySearch}
                 onChangeText={handleSearchMunicipalities}
                 placeholder="Buscar cidade"
-                placeholderTextColor="#71717A"
+                placeholderTextColor="#8F8A91"
                 autoCapitalize="words"
                 autoCorrect={false}
                 style={styles.municipalitySearchInput}
@@ -795,14 +793,14 @@ export default function NewJourneyScreen() {
                     setMunicipalities([]);
                   }}
                 >
-                  <Ionicons name="close-circle" size={20} color="#71717A" />
+                  <Ionicons name="close-circle" size={20} color="#8F8A91" />
                 </TouchableOpacity>
               ) : null}
             </View>
 
             {selectedMunicipality ? (
               <View style={styles.selectedCityPreview}>
-                <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+                <Ionicons name="checkmark-circle" size={20} color="#D4A64A" />
 
                 <Text style={styles.selectedCityPreviewText} numberOfLines={1}>
                   Atual: {selectedMunicipality.name} - {selectedMunicipality.uf}
@@ -819,7 +817,7 @@ export default function NewJourneyScreen() {
               {municipalitySearch.trim().length < 2 ? (
                 <View style={styles.municipalityEmptyState}>
                   <View style={styles.municipalityEmptyIcon}>
-                    <Ionicons name="map-outline" size={32} color="#71717A" />
+                    <Ionicons name="map-outline" size={32} color="#8F8A91" />
                   </View>
 
                   <Text style={styles.municipalityEmptyTitle}>
@@ -833,7 +831,7 @@ export default function NewJourneyScreen() {
               ) : municipalities.length === 0 ? (
                 <View style={styles.municipalityEmptyState}>
                   <View style={styles.municipalityEmptyIcon}>
-                    <Ionicons name="search-outline" size={32} color="#71717A" />
+                    <Ionicons name="search-outline" size={32} color="#8F8A91" />
                   </View>
 
                   <Text style={styles.municipalityEmptyTitle}>
@@ -867,7 +865,7 @@ export default function NewJourneyScreen() {
                         <Ionicons
                           name="location-outline"
                           size={21}
-                          color={selected ? '#22C55E' : '#A1A1AA'}
+                          color={selected ? '#D4A64A' : '#9B969B'}
                         />
                       </View>
 
@@ -883,10 +881,10 @@ export default function NewJourneyScreen() {
 
                       {selected ? (
                         <View style={styles.municipalitySelectedBadge}>
-                          <Ionicons name="checkmark" size={16} color="#06130B" />
+                          <Ionicons name="checkmark" size={16} color="#080808" />
                         </View>
                       ) : (
-                        <Ionicons name="chevron-forward" size={20} color="#71717A" />
+                        <Ionicons name="chevron-forward" size={20} color="#8F8A91" />
                       )}
                     </TouchableOpacity>
                   );
@@ -903,137 +901,138 @@ export default function NewJourneyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#050505',
   },
-
   content: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingTop: 48,
+    paddingHorizontal: 18,
+    paddingBottom: 150,
+    backgroundColor: '#050505',
   },
-
   header: {
-    marginBottom: 24,
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 18,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: '#070707',
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
   },
-
   title: {
-    color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '800',
+    color: '#F5F0E6',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.6,
   },
-
   subtitle: {
-    color: '#71717A',
-    fontSize: 15,
-    marginTop: 4,
+    color: '#9B969B',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 6,
+    lineHeight: 19,
   },
-
   liveCard: {
-    minHeight: 52,
+    minHeight: 58,
     borderRadius: 16,
-    backgroundColor: '#03150C',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#14532D',
+    borderColor: '#2A2830',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    marginBottom: 26,
+    marginBottom: 22,
   },
-
   liveLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-
   liveDot: {
     width: 10,
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     marginRight: 10,
   },
-
   liveText: {
-    color: '#DCFCE7',
-    fontWeight: '700',
+    color: '#F5F0E6',
+    fontWeight: '800',
     flex: 1,
+    fontSize: 13,
   },
-
   changeTimeButton: {
-    height: 34,
-    borderRadius: 999,
-    backgroundColor: '#22C55E',
-    paddingHorizontal: 14,
+    height: 35,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.24)',
+    paddingHorizontal: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   changeTimeText: {
-    color: '#FFFFFF',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
-
   label: {
-    color: '#A1A1AA',
-    fontSize: 13,
-    fontWeight: '700',
+    color: '#F5F0E6',
+    fontSize: 12,
+    fontWeight: '900',
     marginBottom: 8,
+    marginLeft: 4,
+    letterSpacing: 0.2,
   },
-
   vehicleCard: {
-    minHeight: 82,
-    borderRadius: 20,
-    backgroundColor: '#0B1220',
+    minHeight: 88,
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    marginBottom: 22,
+    marginBottom: 20,
   },
-
   vehicleImage: {
     width: 86,
     height: 54,
     resizeMode: 'contain',
     marginRight: 12,
   },
-
   vehicleTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '900',
   },
-
   vehicleKm: {
-    color: '#71717A',
+    color: '#9B969B',
     marginTop: 4,
     fontSize: 13,
     fontWeight: '700',
   },
-
   noVehicleTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
-
   noVehicleText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
     lineHeight: 17,
   },
-
   reloadVehiclesButton: {
     alignSelf: 'flex-start',
     minHeight: 36,
-    borderRadius: 999,
-    backgroundColor: '#22C55E',
+    borderRadius: 10,
+    backgroundColor: '#D4A64A',
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -1041,118 +1040,115 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 10,
   },
-
   reloadVehiclesButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 12,
     fontWeight: '900',
   },
-
   inputCard: {
     height: 74,
-    borderRadius: 20,
-    backgroundColor: '#0B1220',
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#2A2830',
     paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 26,
+    marginBottom: 22,
   },
-
   input: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 30,
-    fontWeight: '800',
+    fontWeight: '900',
     padding: 0,
   },
-
   kmText: {
-    color: '#71717A',
+    color: '#9B969B',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-
   startButton: {
-    height: 62,
-    borderRadius: 20,
-    backgroundColor: '#003400',
+    height: 60,
+    borderRadius: 14,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    marginTop: 25
+    marginTop: 18,
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 10,
   },
-
   startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '800',
+    color: '#080808',
+    fontSize: 16,
+    fontWeight: '900',
   },
-
   modalOverlay: {
     flex: 1,
-    backgroundColor:
-      'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(0,0,0,0.84)',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
-
   modalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 24,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
+    maxHeight: '86%',
   },
-
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 18,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
   },
-
   modalTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
+    color: '#F5F0E6',
+    fontSize: 21,
+    fontWeight: '900',
+    letterSpacing: -0.3,
   },
-
   modalEmptyVehicles: {
     minHeight: 190,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 18,
     marginBottom: 10,
   },
-
   modalEmptyVehiclesTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 10,
     textAlign: 'center',
   },
-
   modalEmptyVehiclesText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 6,
     textAlign: 'center',
     lineHeight: 18,
   },
-
   modalReloadVehiclesButton: {
     minHeight: 42,
-    borderRadius: 15,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     paddingHorizontal: 14,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -1160,17 +1156,17 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: 14,
   },
-
   modalReloadVehiclesButtonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 13,
     fontWeight: '900',
   },
-
   modalVehicle: {
     height: 78,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
+    borderWidth: 1,
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
@@ -1183,22 +1179,22 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
     marginRight: 12,
   },
-
   modalVehicleTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '900',
   },
-
   modalVehiclePlate: {
-    color: '#71717A',
+    color: '#9B969B',
     marginTop: 4,
     fontSize: 13,
+    fontWeight: '700',
   },
-
   modalDescription: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
     marginBottom: 14,
   },
 
@@ -1207,60 +1203,60 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 18,
   },
-
   dateInputBox: {
     flex: 1,
     minHeight: 76,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-
   inputLabel: {
-    color: '#A1A1AA',
-    fontSize: 12,
-    fontWeight: '800',
+    color: '#D4A64A',
+    fontSize: 11,
+    fontWeight: '900',
     marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-
   modalInput: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '900',
     padding: 0,
   },
-
   saveTimeButton: {
     height: 56,
-    borderRadius: 16,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   saveTimeButtonText: {
-    color: '#FFFFFF',
+    color: '#080808',
     fontSize: 16,
     fontWeight: '900',
   },
   municipalityHandle: {
-    width: 48,
-    height: 5,
+    width: 46,
+    height: 4,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#D4A64A',
+    opacity: 0.65,
     alignSelf: 'center',
-    marginBottom: 18,
+    marginBottom: 16,
   },
-
   municipalityHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
     marginBottom: 18,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
   },
 
   municipalityHeaderLeft: {
@@ -1269,81 +1265,74 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
   },
-
   municipalityHeaderIcon: {
     width: 48,
     height: 48,
-    borderRadius: 17,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   municipalityEyebrow: {
-    color: '#22C55E',
-    fontSize: 11,
+    color: '#D4A64A',
+    fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
-
   municipalityTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
+    color: '#F5F0E6',
+    fontSize: 21,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.3,
   },
-
   municipalityDescription: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
     marginTop: 4,
   },
-
   municipalityCloseButton: {
     width: 42,
     height: 42,
-    borderRadius: 15,
-    backgroundColor: '#18181B',
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   municipalitySearchBox: {
     height: 56,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
     marginBottom: 12,
   },
-
   selectedCityPreview: {
     minHeight: 42,
-    borderRadius: 15,
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
   },
-
   selectedCityPreviewText: {
     flex: 1,
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -1351,13 +1340,12 @@ const styles = StyleSheet.create({
   municipalityListContent: {
     paddingBottom: 24,
   },
-
   municipalityItem: {
     minHeight: 70,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 13,
     paddingVertical: 12,
     marginBottom: 10,
@@ -1365,127 +1353,115 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-
   municipalityItemActive: {
-    backgroundColor: 'rgba(34,197,94,0.10)',
-    borderColor: 'rgba(34,197,94,0.55)',
+    backgroundColor: 'rgba(212,166,74,0.10)',
+    borderColor: 'rgba(212,166,74,0.55)',
   },
-
   municipalityItemIcon: {
     width: 42,
     height: 42,
-    borderRadius: 15,
-    backgroundColor: '#111827',
+    borderRadius: 12,
+    backgroundColor: '#101014',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   municipalityName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
-
   municipalityUf: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
     marginTop: 4,
   },
-
   municipalitySelectedBadge: {
     width: 30,
     height: 30,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   municipalityEmptyState: {
     minHeight: 210,
-    borderRadius: 24,
-    backgroundColor: '#18181B',
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 18,
     marginTop: 8,
   },
-
   municipalityEmptyIcon: {
     width: 64,
     height: 64,
-    borderRadius: 22,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
-
   municipalityEmptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     textAlign: 'center',
   },
-
   municipalityEmptyText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 18,
     textAlign: 'center',
     marginTop: 7,
   },
-
   selectCard: {
-    minHeight: 62,
+    minHeight: 64,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginBottom: 16,
+    marginBottom: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-
   selectText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
   municipalityModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: 'rgba(0,0,0,0.84)',
     justifyContent: 'flex-end',
   },
-
   municipalityModalContent: {
     height: '82%',
-    backgroundColor: '#09090B',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 20,
+    backgroundColor: '#101014',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
   },
-
   municipalitySearchInput: {
     flex: 1,
     height: '100%',
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '800',
     padding: 0,
   },
 
   emptyText: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 14,
     textAlign: 'center',
     marginTop: 24,

@@ -312,16 +312,16 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
     return {
       label: 'Leve',
       icon: 'leaf-outline' as const,
-      color: '#22C55E',
-      backgroundColor: 'rgba(34,197,94,0.13)',
-      borderColor: 'rgba(34,197,94,0.30)',
+      color: '#D4A64A',
+      backgroundColor: 'rgba(212,166,74,0.13)',
+      borderColor: 'rgba(212,166,74,0.30)',
     };
   }
 
   return {
     label: 'Sem perfil',
     icon: 'briefcase-outline' as const,
-    color: '#A1A1AA',
+    color: '#9B969B',
     backgroundColor: 'rgba(161,161,170,0.10)',
     borderColor: 'rgba(161,161,170,0.22)',
   };
@@ -1707,7 +1707,7 @@ export default function ActiveSessionScreen() {
     const good = Number(params.good ?? 0);
 
     if (value <= 0 || !bad || !good || bad >= good) {
-      return '#FFFFFF';
+      return '#F5F0E6';
     }
 
     if (value >= good) {
@@ -1891,7 +1891,7 @@ export default function ActiveSessionScreen() {
             style={styles.activeModernHeaderCityButton}
             onPress={() => setMunicipalityModalVisible(true)}
           >
-            <Ionicons name="location-outline" size={18} color="#22C55E" />
+            <Ionicons name="location-outline" size={18} color="#D4A64A" />
 
             <Text style={styles.activeModernHeaderCityText} numberOfLines={1}>
               {session.municipality
@@ -1899,7 +1899,7 @@ export default function ActiveSessionScreen() {
                 : 'Definir cidade'}
             </Text>
 
-            <Ionicons name="chevron-down" size={15} color="#A1A1AA" />
+            <Ionicons name="chevron-down" size={15} color="#9B969B" />
           </TouchableOpacity>
         </View>*/}
 
@@ -1946,7 +1946,7 @@ export default function ActiveSessionScreen() {
                 <Ionicons
                   name={session.status === 'paused' ? 'pause-circle-outline' : 'time-outline'}
                   size={20}
-                  color={session.status === 'paused' ? '#F59E0B' : '#22C55E'}
+                  color={session.status === 'paused' ? '#F59E0B' : '#D4A64A'}
                 />
                 <Text style={styles.activeModernTimerHintText}>
                   {session.status === 'paused' ? 'Cronômetro pausado' : 'Cronômetro rodando'}
@@ -1963,7 +1963,7 @@ export default function ActiveSessionScreen() {
                 onPress={() => setMunicipalityModalVisible(true)}
               >
                 <View style={styles.activeModernInfoIcon}>
-                  <Ionicons name="location-outline" size={24} color="#22C55E" />
+                  <Ionicons name="location-outline" size={24} color="#D4A64A" />
                 </View>
                 <View style={{ flex: 1,}}>
                   <Text style={styles.activeModernInfoLabel}>Cidade base</Text>
@@ -1973,12 +1973,12 @@ export default function ActiveSessionScreen() {
                       : 'Definir cidade'}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#A1A1AA" />
+                <Ionicons name="chevron-forward" size={18} color="#9B969B" />
               </TouchableOpacity>
 
               <View style={styles.activeModernInfoRow}>
                 <View style={styles.activeModernInfoIcon}>
-                  <Ionicons name="car-sport-outline" size={24} color="#A1A1AA" />
+                  <Ionicons name="car-sport-outline" size={24} color="#9B969B" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activeModernInfoLabel}>Veículo</Text>
@@ -2001,9 +2001,9 @@ export default function ActiveSessionScreen() {
         <View style={styles.activeModernMetricsGrid}>
 
           <View style={styles.activeModernMetricCard}>
-            <View style={{flexDirection: 'row', gap: 10}}>
+            <View style={styles.activeModernMetricHeader}>
               <View style={styles.activeModernMetricIconGreen}>
-                <Ionicons name="cash-outline" size={24} color="#22C55E" />
+                <Ionicons name="cash-outline" size={24} color="#D4A64A" />
               </View>
               <Text style={styles.activeModernMetricLabel}>Faturamento</Text>
             </View>
@@ -2013,7 +2013,7 @@ export default function ActiveSessionScreen() {
           </View>
 
           <View style={styles.activeModernMetricCard}>
-            <View style={{flexDirection: 'row', gap: 10}}>
+            <View style={styles.activeModernMetricHeader}>
               <View style={styles.activeModernMetricIconOrange}>
                 <Ionicons name="speedometer-outline" size={24} color="#F59E0B" />
               </View>
@@ -2025,9 +2025,9 @@ export default function ActiveSessionScreen() {
           </View>
 
           <View style={styles.activeModernMetricCard}>
-            <View style={{flexDirection: 'row', gap: 10}}>
+            <View style={styles.activeModernMetricHeader}>
               <View style={styles.activeModernMetricIconBlue}>
-                <Ionicons name="analytics-outline" size={24} color="#3B82F6" />
+                <Ionicons name="analytics-outline" size={24} color="#D4A64A" />
               </View>
               <Text style={styles.activeModernMetricLabel}>Ganho/h</Text>
             </View>
@@ -2048,9 +2048,9 @@ export default function ActiveSessionScreen() {
           </View>
 
           <View style={styles.activeModernMetricCard}>
-            <View style={{flexDirection: 'row', gap: 10}}>
+            <View style={styles.activeModernMetricHeader}>
               <View style={styles.activeModernMetricIconPurple}>
-                <Ionicons name="navigate-outline" size={24} color="#A855F7" />
+                <Ionicons name="navigate-outline" size={24} color="#D4A64A" />
               </View>
               <Text style={styles.activeModernMetricLabel}>Ganho/km</Text>
             </View>
@@ -2083,7 +2083,7 @@ export default function ActiveSessionScreen() {
             onPress={openCreateGainModal}
           >
             <View style={styles.activeModernQuickIconGreen}>
-              <Ionicons name="add" size={25} color="#06130B" />
+              <Ionicons name="add" size={25} color="#080808" />
             </View>
             <Text style={styles.activeModernQuickText}>Novo ganho</Text>
           </TouchableOpacity>
@@ -2094,7 +2094,7 @@ export default function ActiveSessionScreen() {
             onPress={() => setKmModalVisible(true)}
           >
             <View style={styles.activeModernQuickIconBlue}>
-              <Ionicons name="speedometer-outline" size={20} color="#FFFFFF" />
+              <Ionicons name="speedometer-outline" size={20} color="#F5F0E6" />
             </View>
             <Text style={styles.activeModernQuickText}>Atualizar KM</Text>
           </TouchableOpacity>
@@ -2105,7 +2105,7 @@ export default function ActiveSessionScreen() {
             onPress={openCreateRideModal}
           >
             <View style={styles.activeModernQuickIconPurple}>
-              <Ionicons name="navigate-outline" size={24} color="#FFFFFF" />
+              <Ionicons name="navigate-outline" size={24} color="#F5F0E6" />
             </View>
             <Text style={styles.activeModernQuickText}>Nova corrida</Text>
           </TouchableOpacity>*/}
@@ -2125,7 +2125,7 @@ export default function ActiveSessionScreen() {
                 onPress={() => setFinishedDrawerVisible(true)}
               >
                 <Text style={styles.activeModernSeeAllText}>Ver todas</Text>
-                <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+                <Ionicons name="chevron-forward" size={16} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2181,7 +2181,7 @@ export default function ActiveSessionScreen() {
 
           {earningsForDisplay.length === 0 ? (
             <View style={styles.activeModernEmptyState}>
-              <Ionicons name="receipt-outline" size={28} color="#71717A" />
+              <Ionicons name="receipt-outline" size={28} color="#8F8A91" />
               <Text style={styles.activeModernEmptyText}>Nenhum ganho registrado ainda.</Text>
             </View>
           ) : (
@@ -2221,7 +2221,7 @@ export default function ActiveSessionScreen() {
                       style={styles.activeModernEarningAction}
                       onPress={() => openEditGainModal(earning)}
                     >
-                      <Ionicons name="create-outline" size={18} color="#60A5FA" />
+                      <Ionicons name="create-outline" size={18} color="#D4A64A" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -2245,7 +2245,7 @@ export default function ActiveSessionScreen() {
             onPress={() => setFinishedDrawerVisible(true)}
           >
             <View style={styles.activeModernFinishedRidesSoftIcon}>
-              <Ionicons name="checkmark-done-outline" size={19} color="#BFDBFE" />
+              <Ionicons name="checkmark-done-outline" size={19} color="#D4A64A" />
             </View>
 
             <View style={{ flex: 1 }}>
@@ -2257,14 +2257,14 @@ export default function ActiveSessionScreen() {
               </Text>
             </View>
 
-            <Ionicons name="chevron-forward" size={19} color="#BFDBFE" />
+            <Ionicons name="chevron-forward" size={19} color="#D4A64A" />
           </TouchableOpacity>
         ) : null}
 
         <View style={styles.activeModernSessionActionsCard}>
           <View style={styles.activeModernSessionActionsHeader}>
             <View style={styles.activeModernSessionActionsIcon}>
-              <Ionicons name="settings-outline" size={21} color="#22C55E" />
+              <Ionicons name="settings-outline" size={21} color="#D4A64A" />
             </View>
 
             <View style={{ flex: 1 }}>
@@ -2299,7 +2299,7 @@ export default function ActiveSessionScreen() {
                       : 'pause-circle-outline'
                   }
                   size={20}
-                  color={session.status === 'paused' ? '#06130B' : '#92400E'}
+                  color={session.status === 'paused' ? '#080808' : '#92400E'}
                 />
               </View>
 
@@ -2319,7 +2319,7 @@ export default function ActiveSessionScreen() {
               <Ionicons
                 name="chevron-forward"
                 size={20}
-                color={session.status === 'paused' ? '#14532D' : '#F59E0B'}
+                color={session.status === 'paused' ? 'rgba(212,166,74,0.28)' : '#F59E0B'}
               />
             </TouchableOpacity>
 
@@ -2345,7 +2345,7 @@ export default function ActiveSessionScreen() {
               onPress={openFinishSessionModal}
             >
               <View style={styles.activeModernFinishSessionIcon}>
-                <Ionicons name="checkmark-done-outline" size={20} color="#06130B" />
+                <Ionicons name="checkmark-done-outline" size={20} color="#080808" />
               </View>
 
               <View style={{ flex: 1 }}>
@@ -2357,7 +2357,7 @@ export default function ActiveSessionScreen() {
                 </Text>
               </View>
 
-              <Ionicons name="chevron-forward" size={20} color="#BBF7D0" />
+              <Ionicons name="chevron-forward" size={20} color="#E8C46D" />
             </TouchableOpacity>
         </View>
 
@@ -2396,7 +2396,7 @@ export default function ActiveSessionScreen() {
                             : 'navigate-outline'
                       }
                       size={24}
-                      color="#FFFFFF"
+                      color="#F5F0E6"
                     />
                   </View>
 
@@ -2424,7 +2424,7 @@ export default function ActiveSessionScreen() {
                   style={styles.rideModalCloseButton}
                   onPress={() => setRideModalVisible(false)}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -2453,7 +2453,7 @@ export default function ActiveSessionScreen() {
                     style={styles.rideModalManageButtonTop}
                     onPress={openPlatformDrawerFromRideModal}
                   >
-                    <Ionicons name="apps-outline" size={16} color="#FFFFFF" />
+                    <Ionicons name="apps-outline" size={16} color="#F5F0E6" />
                     <Text style={styles.rideModalManageButtonTopText}>Gerenciar</Text>
                   </TouchableOpacity>
                 </View>
@@ -2465,7 +2465,7 @@ export default function ActiveSessionScreen() {
                     onPress={openPlatformDrawerFromRideModal}
                   >
                     <View style={styles.rideModalEmptyIcon}>
-                      <Ionicons name="apps-outline" size={30} color="#A1A1AA" />
+                      <Ionicons name="apps-outline" size={30} color="#9B969B" />
                     </View>
 
                     <Text style={styles.rideModalEmptyTitle}>
@@ -2519,7 +2519,7 @@ export default function ActiveSessionScreen() {
 
                           {selected && (
                             <View style={styles.rideModalPlatformCheck}>
-                              <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                              <Ionicons name="checkmark" size={13} color="#F5F0E6" />
                             </View>
                           )}
                         </TouchableOpacity>
@@ -2567,7 +2567,7 @@ export default function ActiveSessionScreen() {
 
                       <View style={styles.rideModalMoneyInputCard}>
                         <View style={styles.rideModalInputIconBlue}>
-                          <Ionicons name="speedometer-outline" size={18} color="#93C5FD" />
+                          <Ionicons name="speedometer-outline" size={18} color="#D4A64A" />
                         </View>
 
                         <TextInput
@@ -2586,7 +2586,7 @@ export default function ActiveSessionScreen() {
 
                 {activeRide && !editingRide && (
                   <View style={styles.rideModalInfoCard}>
-                    <Ionicons name="information-circle-outline" size={22} color="#60A5FA" />
+                    <Ionicons name="information-circle-outline" size={22} color="#D4A64A" />
                     <Text style={styles.rideModalInfoText}>
                       Como já existe uma corrida em andamento, esta nova corrida ficará aguardando início.
                     </Text>
@@ -2602,7 +2602,7 @@ export default function ActiveSessionScreen() {
                 <Ionicons
                   name={editingRide ? 'save-outline' : activeRide ? 'add-circle-outline' : 'play-circle-outline'}
                   size={22}
-                  color="#FFFFFF"
+                  color="#F5F0E6"
                 />
 
                 <Text style={styles.rideModalPrimaryButtonText}>
@@ -2642,7 +2642,7 @@ export default function ActiveSessionScreen() {
                   <Text style={styles.modalTitle}>Iniciar corrida</Text>
 
                   <TouchableOpacity onPress={() => setStartWaitingRideModalVisible(false)}>
-                    <Ionicons name="close" size={26} color="#FFFFFF" />
+                    <Ionicons name="close" size={26} color="#F5F0E6" />
                   </TouchableOpacity>
                 </View>
 
@@ -2650,7 +2650,7 @@ export default function ActiveSessionScreen() {
                   value={rideStartKm}
                   onChangeText={(text) => setRideStartKm(formatKm(text))}
                   placeholder="KM inicial"
-                  placeholderTextColor="#71717A"
+                  placeholderTextColor="#8F8A91"
                   keyboardType="numeric"
                   onFocus={scrollStartWaitingRideModalToEnd}
                   style={styles.input}
@@ -2672,7 +2672,7 @@ export default function ActiveSessionScreen() {
 
             <View style={styles.completedRidesHeader}>
               <View style={styles.completedRidesHeaderIcon}>
-                <Ionicons name="checkmark-done-outline" size={24} color="#22C55E" />
+                <Ionicons name="checkmark-done-outline" size={24} color="#D4A64A" />
               </View>
 
               <View style={{ flex: 1 }}>
@@ -2688,7 +2688,7 @@ export default function ActiveSessionScreen() {
                 style={styles.completedRidesCloseButton}
                 onPress={() => setFinishedDrawerVisible(false)}
               >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={24} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -2699,7 +2699,7 @@ export default function ActiveSessionScreen() {
             >
               {finishedRides.length === 0 ? (
                 <View style={styles.completedRidesEmptyBox}>
-                  <Ionicons name="car-sport-outline" size={34} color="#71717A" />
+                  <Ionicons name="car-sport-outline" size={34} color="#8F8A91" />
                   <Text style={styles.completedRidesEmptyTitle}>Nenhuma corrida concluída</Text>
                   <Text style={styles.completedRidesEmptyText}>
                     As corridas finalizadas nesta jornada aparecerão aqui.
@@ -2737,7 +2737,7 @@ export default function ActiveSessionScreen() {
                             </Text>
 
                             <View style={styles.completedRideStatusRow}>
-                              <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
+                              <Ionicons name="checkmark-circle" size={14} color="#D4A64A" />
                               <Text style={styles.completedRideStatusText}>Status: concluída</Text>
                             </View>
                           </View>
@@ -2796,7 +2796,7 @@ export default function ActiveSessionScreen() {
                           style={styles.completedRideEditButton}
                           onPress={() => openEditFinishedRideModal(ride)}
                         >
-                          <Ionicons name="create-outline" size={18} color="#FFFFFF" />
+                          <Ionicons name="create-outline" size={18} color="#F5F0E6" />
                           <Text style={styles.completedRideEditText}>Editar</Text>
                         </TouchableOpacity>
 
@@ -2839,7 +2839,7 @@ export default function ActiveSessionScreen() {
                     <Ionicons
                       name={editingEarningId ? 'create-outline' : 'cash-outline'}
                       size={24}
-                      color="#22C55E"
+                      color="#D4A64A"
                     />
                   </View>
 
@@ -2859,7 +2859,7 @@ export default function ActiveSessionScreen() {
                   style={styles.gainModernCloseButton}
                   onPress={() => setGainModalVisible(false)}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -2887,7 +2887,7 @@ export default function ActiveSessionScreen() {
                         return (
                           <>
                             <View style={styles.gainModernLockedLogoFallback}>
-                              <Ionicons name="apps-outline" size={22} color="#22C55E" />
+                              <Ionicons name="apps-outline" size={22} color="#D4A64A" />
                             </View>
 
                             <View style={{ flex: 1 }}>
@@ -2949,7 +2949,7 @@ export default function ActiveSessionScreen() {
                         style={styles.gainModernManageButton}
                         onPress={openPlatformDrawerFromGainModal}
                       >
-                        <Ionicons name="options-outline" size={17} color="#FFFFFF" />
+                        <Ionicons name="options-outline" size={17} color="#F5F0E6" />
                         <Text style={styles.gainModernManageButtonText}>Gerenciar</Text>
                       </TouchableOpacity>
                     </View>
@@ -2961,7 +2961,7 @@ export default function ActiveSessionScreen() {
                         onPress={openPlatformDrawerFromGainModal}
                       >
                         <View style={styles.gainModernEmptyIconBox}>
-                          <Ionicons name="apps-outline" size={30} color="#A1A1AA" />
+                          <Ionicons name="apps-outline" size={30} color="#9B969B" />
                         </View>
 
                         <Text style={styles.gainModernEmptyTitle}>
@@ -2973,7 +2973,7 @@ export default function ActiveSessionScreen() {
                         </Text>
 
                         <View style={styles.gainModernEmptyButton}>
-                          <Ionicons name="add" size={18} color="#FFFFFF" />
+                          <Ionicons name="add" size={18} color="#F5F0E6" />
                           <Text style={styles.gainModernEmptyButtonText}>
                             Gerenciar plataformas
                           </Text>
@@ -3043,7 +3043,7 @@ export default function ActiveSessionScreen() {
 
                               {selected && !alreadyHasGain && (
                                 <View style={styles.gainModernPlatformCheck}>
-                                  <Ionicons name="checkmark" size={14} color="#052E16" />
+                                  <Ionicons name="checkmark" size={14} color="#211D16" />
                                 </View>
                               )}
                             </TouchableOpacity>
@@ -3103,7 +3103,7 @@ export default function ActiveSessionScreen() {
                   <Ionicons
                     name={editingEarningId ? 'checkmark-circle-outline' : 'add-circle-outline'}
                     size={22}
-                    color="#FFFFFF"
+                    color="#F5F0E6"
                   />
 
                   <Text style={styles.gainModernSaveButtonText}>
@@ -3142,7 +3142,7 @@ export default function ActiveSessionScreen() {
                   style={styles.kmModernCloseButton}
                   onPress={() => setKmModalVisible(false)}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -3160,7 +3160,7 @@ export default function ActiveSessionScreen() {
                     </View>
 
                     <View style={styles.kmModernSummaryArrow}>
-                      <Ionicons name="arrow-forward" size={18} color="#A1A1AA" />
+                      <Ionicons name="arrow-forward" size={18} color="#9B969B" />
                     </View>
 
                     <View style={{ alignItems: 'flex-end' }}>
@@ -3173,7 +3173,7 @@ export default function ActiveSessionScreen() {
 
                   <View style={styles.kmModernDrivenBox}>
                     <View style={styles.kmModernDrivenIcon}>
-                      <Ionicons name="navigate-outline" size={19} color="#3B82F6" />
+                      <Ionicons name="navigate-outline" size={19} color="#D4A64A" />
                     </View>
 
                     <View style={{ flex: 1 }}>
@@ -3207,7 +3207,7 @@ export default function ActiveSessionScreen() {
                   </View>
 
                   <View style={styles.kmModernHintBox}>
-                    <Ionicons name="information-circle-outline" size={19} color="#A1A1AA" />
+                    <Ionicons name="information-circle-outline" size={19} color="#9B969B" />
                     <Text style={styles.kmModernHintText}>
                       O KM atual não pode ser menor que o KM inicial da jornada.
                     </Text>
@@ -3229,7 +3229,7 @@ export default function ActiveSessionScreen() {
                   style={styles.kmModernSaveButton}
                   onPress={handleUpdateKm}
                 >
-                  <Ionicons name="checkmark-circle-outline" size={22} color="#FFFFFF" />
+                  <Ionicons name="checkmark-circle-outline" size={22} color="#F5F0E6" />
                   <Text style={styles.kmModernSaveText}>Salvar KM</Text>
                 </TouchableOpacity>
               </View>
@@ -3249,7 +3249,7 @@ export default function ActiveSessionScreen() {
                 <Text style={styles.modalTitle}>Finalizar jornada</Text>
 
                 <TouchableOpacity onPress={() => setFinishModalVisible(false)}>
-                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                  <Ionicons name="close" size={26} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -3305,7 +3305,7 @@ export default function ActiveSessionScreen() {
                     style={styles.emptyPlatformsBox}
                     onPress={openPlatformDrawerFromFinishModal}
                   >
-                    <Ionicons name="apps-outline" size={34} color="#A1A1AA" />
+                    <Ionicons name="apps-outline" size={34} color="#9B969B" />
 
                     <Text style={styles.emptyPlatformsTitle}>
                       Nenhuma plataforma definida
@@ -3332,7 +3332,7 @@ export default function ActiveSessionScreen() {
                         style={styles.managePlatformsCompactButton}
                         onPress={openPlatformDrawerFromFinishModal}
                       >
-                        <Ionicons name="apps-outline" size={17} color="#FFFFFF" />
+                        <Ionicons name="apps-outline" size={17} color="#F5F0E6" />
 
                         <Text style={styles.managePlatformsCompactText}>
                           Gerenciar
@@ -3401,7 +3401,7 @@ export default function ActiveSessionScreen() {
                 style={styles.modalFinishButton}
                 onPress={handleFinishSession}
               >
-                <Ionicons name="stop-circle-outline" size={22} color="#FFFFFF" />
+                <Ionicons name="stop-circle-outline" size={22} color="#F5F0E6" />
 
                 <Text style={styles.modalFinishButtonText}>Concluir jornada</Text>
               </TouchableOpacity>
@@ -3422,7 +3422,7 @@ export default function ActiveSessionScreen() {
                 <Text style={styles.modalTitle}>Alterar horário</Text>
 
                 <TouchableOpacity onPress={() => setFinishTimeEditModalVisible(false)}>
-                  <Ionicons name="close" size={26} color="#FFFFFF" />
+                  <Ionicons name="close" size={26} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -3432,7 +3432,7 @@ export default function ActiveSessionScreen() {
 
               <View style={styles.finishTimeEditCard}>
                 <View style={styles.finishTimeEditIconBox}>
-                  <Ionicons name="time-outline" size={24} color="#22C55E" />
+                  <Ionicons name="time-outline" size={24} color="#D4A64A" />
                 </View>
 
                 <View style={{ flex: 1 }}>
@@ -3456,7 +3456,7 @@ export default function ActiveSessionScreen() {
                 value={draftFinishDateValue}
                 onChangeText={(text) => setDraftFinishDateValue(maskDateInput(text))}
                 placeholder="dd/mm/aaaa"
-                placeholderTextColor="#71717A"
+                placeholderTextColor="#8F8A91"
                 keyboardType="numeric"
                 maxLength={10}
                 style={styles.input}
@@ -3468,7 +3468,7 @@ export default function ActiveSessionScreen() {
                 value={draftFinishTimeValue}
                 onChangeText={(text) => setDraftFinishTimeValue(maskTimeInput(text))}
                 placeholder="00:00"
-                placeholderTextColor="#71717A"
+                placeholderTextColor="#8F8A91"
                 keyboardType="numeric"
                 maxLength={5}
                 style={styles.input}
@@ -3497,7 +3497,7 @@ export default function ActiveSessionScreen() {
               <View style={styles.finishRideModernHeader}>
                 <View style={styles.finishRideModernHeaderLeft}>
                   <View style={styles.finishRideModernHeaderIcon}>
-                    <Ionicons name="flag-outline" size={24} color="#22C55E" />
+                    <Ionicons name="flag-outline" size={24} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -3515,7 +3515,7 @@ export default function ActiveSessionScreen() {
                   style={styles.finishRideModernCloseButton}
                   onPress={() => setFinishRideModalVisible(false)}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -3629,7 +3629,7 @@ export default function ActiveSessionScreen() {
 
                 <View style={styles.finishRideModernInputBox}>
                   <View style={styles.finishRideModernInputIconBlue}>
-                    <Ionicons name="speedometer-outline" size={21} color="#60A5FA" />
+                    <Ionicons name="speedometer-outline" size={21} color="#D4A64A" />
                   </View>
 
                   <TextInput
@@ -3646,7 +3646,7 @@ export default function ActiveSessionScreen() {
 
                 {finishingRide && (
                   <View style={styles.finishRideModernHintCard}>
-                    <Ionicons name="information-circle-outline" size={20} color="#A1A1AA" />
+                    <Ionicons name="information-circle-outline" size={20} color="#9B969B" />
                     <Text style={styles.finishRideModernHintText}>
                       O KM final precisa ser maior ou igual ao KM inicial da corrida.
                     </Text>
@@ -3661,7 +3661,7 @@ export default function ActiveSessionScreen() {
                   style={styles.finishRideModernButton}
                   onPress={handleFinishRide}
                 >
-                  <Ionicons name="checkmark-circle-outline" size={23} color="#FFFFFF" />
+                  <Ionicons name="checkmark-circle-outline" size={23} color="#F5F0E6" />
                   <Text style={styles.finishRideModernButtonText}>Concluir corrida</Text>
                 </TouchableOpacity>
               </View>
@@ -3678,7 +3678,7 @@ export default function ActiveSessionScreen() {
             <View style={styles.rideResultModernHeader}>
               <View style={styles.rideResultModernHeaderLeft}>
                 <View style={styles.rideResultModernIconBox}>
-                  <Ionicons name="checkmark-circle" size={30} color="#22C55E" />
+                  <Ionicons name="checkmark-circle" size={30} color="#D4A64A" />
                 </View>
 
                 <View style={{ flex: 1 }}>
@@ -3692,7 +3692,7 @@ export default function ActiveSessionScreen() {
                 style={styles.rideResultModernCloseButton}
                 onPress={() => setRideResultModalVisible(false)}
               >
-                <Ionicons name="close" size={25} color="#FFFFFF" />
+                <Ionicons name="close" size={25} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -3711,7 +3711,7 @@ export default function ActiveSessionScreen() {
                   </View>
 
                   <View style={styles.rideResultModernSuccessBadge}>
-                    <Ionicons name="sparkles-outline" size={16} color="#86EFAC" />
+                    <Ionicons name="sparkles-outline" size={16} color="#D4A64A" />
                     <Text style={styles.rideResultModernSuccessText}>Salva</Text>
                   </View>
                 </View>
@@ -3719,7 +3719,7 @@ export default function ActiveSessionScreen() {
                 <View style={styles.rideResultModernDivider} />
 
                 <View style={styles.rideResultModernHeroHintRow}>
-                  <Ionicons name="information-circle-outline" size={18} color="#A1A1AA" />
+                  <Ionicons name="information-circle-outline" size={18} color="#9B969B" />
                   <Text style={styles.rideResultModernHeroHintText}>
                     Este valor foi somado aos ganhos da jornada e usado no cálculo do desempenho.
                   </Text>
@@ -3729,7 +3729,7 @@ export default function ActiveSessionScreen() {
               <View style={styles.rideResultModernStatsGrid}>
                 <View style={styles.rideResultModernStatCard}>
                   <View style={styles.rideResultModernStatIconGreen}>
-                    <Ionicons name="time-outline" size={21} color="#22C55E" />
+                    <Ionicons name="time-outline" size={21} color="#D4A64A" />
                   </View>
 
                   <Text style={styles.rideResultModernStatLabel}>Ganho por hora</Text>
@@ -3740,7 +3740,7 @@ export default function ActiveSessionScreen() {
 
                 <View style={styles.rideResultModernStatCard}>
                   <View style={styles.rideResultModernStatIconBlue}>
-                    <Ionicons name="navigate-outline" size={21} color="#60A5FA" />
+                    <Ionicons name="navigate-outline" size={21} color="#D4A64A" />
                   </View>
 
                   <Text style={styles.rideResultModernStatLabel}>Ganho por km</Text>
@@ -3751,7 +3751,7 @@ export default function ActiveSessionScreen() {
 
                 <View style={styles.rideResultModernStatCardWide}>
                   <View style={styles.rideResultModernStatIconPurple}>
-                    <Ionicons name="speedometer-outline" size={21} color="#A855F7" />
+                    <Ionicons name="speedometer-outline" size={21} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -3775,7 +3775,7 @@ export default function ActiveSessionScreen() {
                   }, 250);
                 }}
               >
-                <Ionicons name="list-outline" size={20} color="#FFFFFF" />
+                <Ionicons name="list-outline" size={20} color="#F5F0E6" />
                 <Text style={styles.rideResultModernSecondaryButtonText}>Ver concluídas</Text>
               </TouchableOpacity>
 
@@ -3784,7 +3784,7 @@ export default function ActiveSessionScreen() {
                 style={styles.rideResultModernPrimaryButton}
                 onPress={() => setRideResultModalVisible(false)}
               >
-                <Ionicons name="checkmark-circle-outline" size={21} color="#FFFFFF" />
+                <Ionicons name="checkmark-circle-outline" size={21} color="#F5F0E6" />
                 <Text style={styles.rideResultModernPrimaryButtonText}>Entendi</Text>
               </TouchableOpacity>
             </View>
@@ -3804,7 +3804,7 @@ export default function ActiveSessionScreen() {
               <View style={styles.editFinishedRideModernHeader}>
                 <View style={styles.editFinishedRideModernHeaderLeft}>
                   <View style={styles.editFinishedRideModernHeaderIcon}>
-                    <Ionicons name="create-outline" size={24} color="#60A5FA" />
+                    <Ionicons name="create-outline" size={24} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -3822,7 +3822,7 @@ export default function ActiveSessionScreen() {
                   style={styles.editFinishedRideModernCloseButton}
                   onPress={() => setEditFinishedRideModalVisible(false)}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
@@ -3877,7 +3877,7 @@ export default function ActiveSessionScreen() {
                     <View style={styles.editFinishedRideModernInfoGrid}>
                       <View style={styles.editFinishedRideModernInfoCard}>
                         <View style={styles.editFinishedRideModernInfoTitleRow}>
-                          <Ionicons name="time-outline" size={16} color="#A1A1AA" />
+                          <Ionicons name="time-outline" size={16} color="#9B969B" />
                           <Text style={styles.editFinishedRideModernInfoLabel}>Início</Text>
                         </View>
                         <Text style={styles.editFinishedRideModernInfoValue}>
@@ -3887,7 +3887,7 @@ export default function ActiveSessionScreen() {
 
                       <View style={styles.editFinishedRideModernInfoCard}>
                         <View style={styles.editFinishedRideModernInfoTitleRow}>
-                          <Ionicons name="flag-outline" size={16} color="#A1A1AA" />
+                          <Ionicons name="flag-outline" size={16} color="#9B969B" />
                           <Text style={styles.editFinishedRideModernInfoLabel}>Final</Text>
                         </View>
                         <Text style={styles.editFinishedRideModernInfoValue}>
@@ -3897,7 +3897,7 @@ export default function ActiveSessionScreen() {
 
                       <View style={styles.editFinishedRideModernInfoCard}>
                         <View style={styles.editFinishedRideModernInfoTitleRow}>
-                          <Ionicons name="stopwatch-outline" size={16} color="#A1A1AA" />
+                          <Ionicons name="stopwatch-outline" size={16} color="#9B969B" />
                           <Text style={styles.editFinishedRideModernInfoLabel}>Tempo</Text>
                         </View>
                         <Text style={styles.editFinishedRideModernInfoValue}>
@@ -3907,7 +3907,7 @@ export default function ActiveSessionScreen() {
 
                       <View style={styles.editFinishedRideModernInfoCard}>
                         <View style={styles.editFinishedRideModernInfoTitleRow}>
-                          <Ionicons name="navigate-outline" size={16} color="#A1A1AA" />
+                          <Ionicons name="navigate-outline" size={16} color="#9B969B" />
                           <Text style={styles.editFinishedRideModernInfoLabel}>KM</Text>
                         </View>
                         <Text style={styles.editFinishedRideModernInfoValue}>
@@ -3972,7 +3972,7 @@ export default function ActiveSessionScreen() {
                   style={styles.editFinishedRideModernSaveButton}
                   onPress={handleUpdateFinishedRide}
                 >
-                  <Ionicons name="checkmark-circle-outline" size={21} color="#FFFFFF" />
+                  <Ionicons name="checkmark-circle-outline" size={21} color="#F5F0E6" />
                   <Text style={styles.editFinishedRideModernSaveText}>Salvar</Text>
                 </TouchableOpacity>
               </View>
@@ -3988,7 +3988,7 @@ export default function ActiveSessionScreen() {
               <Text style={styles.modalTitle}>Minhas plataformas</Text>
 
               <TouchableOpacity onPress={closePlatformDrawerAndReturn}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+                <Ionicons name="close" size={26} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -4028,7 +4028,7 @@ export default function ActiveSessionScreen() {
                           togglePlatformSelection(platform.id);
                         }}
                       >
-                        <Ionicons name="close" size={18} color="#FFFFFF" />
+                        <Ionicons name="close" size={18} color="#F5F0E6" />
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>
@@ -4050,7 +4050,7 @@ export default function ActiveSessionScreen() {
 
             <View style={styles.driversNowHeader}>
               <View style={styles.driversNowHeaderIcon}>
-                <Ionicons name="radio-outline" size={24} color="#22C55E" />
+                <Ionicons name="radio-outline" size={24} color="#D4A64A" />
               </View>
 
               <View style={{ flex: 1 }}>
@@ -4070,7 +4070,7 @@ export default function ActiveSessionScreen() {
                 style={styles.driversNowCloseButton}
                 onPress={() => setDriversModalVisible(false)}
               >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={24} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -4079,7 +4079,7 @@ export default function ActiveSessionScreen() {
 
               <View style={styles.driversNowHeroLeft}>
                 <View style={styles.driversNowHeroIcon}>
-                  <Ionicons name="radio-outline" size={26} color="#86EFAC" />
+                  <Ionicons name="radio-outline" size={26} color="#D4A64A" />
                 </View>
 
                 <View style={{ flex: 1 }}>
@@ -4109,7 +4109,7 @@ export default function ActiveSessionScreen() {
               }}
             >
               <View style={styles.driversNowPublicChatIcon}>
-                <Ionicons name="chatbubbles-outline" size={22} color="#FFFFFF" />
+                <Ionicons name="chatbubbles-outline" size={22} color="#F5F0E6" />
               </View>
 
               <View style={{ flex: 1 }}>
@@ -4126,7 +4126,7 @@ export default function ActiveSessionScreen() {
                   </Text>
                 </View>
               ) : (
-                <Ionicons name="chevron-forward" size={20} color="#A1A1AA" />
+                <Ionicons name="chevron-forward" size={20} color="#9B969B" />
               )}
             </TouchableOpacity>
 
@@ -4139,7 +4139,7 @@ export default function ActiveSessionScreen() {
               {visibleOnlineDrivers.length === 0 ? (
                 <View style={styles.driversNowEmptyBox}>
                   <View style={styles.driversNowEmptyIcon}>
-                    <Ionicons name="car-sport-outline" size={34} color="#71717A" />
+                    <Ionicons name="car-sport-outline" size={34} color="#8F8A91" />
                   </View>
 
                   <Text style={styles.driversNowEmptyTitle}>
@@ -4173,7 +4173,7 @@ export default function ActiveSessionScreen() {
                           />
                         ) : (
                           <View style={styles.driversNowAvatarFallback}>
-                            <Ionicons name="person" size={23} color="#FFFFFF" />
+                            <Ionicons name="person" size={23} color="#F5F0E6" />
                           </View>
                         )}
 
@@ -4238,7 +4238,7 @@ export default function ActiveSessionScreen() {
                       />
                     ) : (
                       <View style={styles.driverActionsAvatarFallback}>
-                        <Ionicons name="person" size={26} color="#FFFFFF" />
+                        <Ionicons name="person" size={26} color="#F5F0E6" />
                       </View>
                     )}
                   </View>
@@ -4255,7 +4255,7 @@ export default function ActiveSessionScreen() {
                     style={styles.driverActionsCloseButton}
                     onPress={closeDriverActions}
                   >
-                    <Ionicons name="close" size={22} color="#FFFFFF" />
+                    <Ionicons name="close" size={22} color="#F5F0E6" />
                   </TouchableOpacity>
                 </View>
 
@@ -4265,7 +4265,7 @@ export default function ActiveSessionScreen() {
                   onPress={handleViewSelectedDriverProfile}
                 >
                   <View style={styles.driverActionsOptionIconGreen}>
-                    <Ionicons name="person-circle-outline" size={24} color="#22C55E" />
+                    <Ionicons name="person-circle-outline" size={24} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -4275,7 +4275,7 @@ export default function ActiveSessionScreen() {
                     </Text>
                   </View>
 
-                  <Ionicons name="chevron-forward" size={20} color="#71717A" />
+                  <Ionicons name="chevron-forward" size={20} color="#8F8A91" />
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -4284,7 +4284,7 @@ export default function ActiveSessionScreen() {
                   onPress={handleMessageSelectedDriver}
                 >
                   <View style={styles.driverActionsOptionIconBlue}>
-                    <Ionicons name="chatbubble-ellipses-outline" size={23} color="#60A5FA" />
+                    <Ionicons name="chatbubble-ellipses-outline" size={23} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -4294,7 +4294,7 @@ export default function ActiveSessionScreen() {
                     </Text>
                   </View>
 
-                  <Ionicons name="chevron-forward" size={20} color="#71717A" />
+                  <Ionicons name="chevron-forward" size={20} color="#8F8A91" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -4311,7 +4311,7 @@ export default function ActiveSessionScreen() {
               </Text>
 
               <TouchableOpacity onPress={() => setMunicipalityModalVisible(false)}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+                <Ionicons name="close" size={26} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
 
@@ -4319,7 +4319,7 @@ export default function ActiveSessionScreen() {
               value={municipalitySearch}
               onChangeText={handleSearchMunicipalities}
               placeholder="Buscar cidade"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#8F8A91"
               style={styles.citySearchInput}
             />
 
@@ -4344,7 +4344,7 @@ export default function ActiveSessionScreen() {
                     <Ionicons
                       name="checkmark-circle"
                       size={22}
-                      color="#22C55E"
+                      color="#D4A64A"
                     />
                   )}
                 </TouchableOpacity>
@@ -4385,7 +4385,7 @@ export default function ActiveSessionScreen() {
               <View style={styles.cityChatModernHeader}>
                 <View style={styles.cityChatModernHeaderLeft}>
                   <View style={styles.cityChatModernHeaderIcon}>
-                    <Ionicons name="chatbubbles-outline" size={24} color="#60A5FA" />
+                    <Ionicons name="chatbubbles-outline" size={24} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -4393,7 +4393,7 @@ export default function ActiveSessionScreen() {
                       <Text style={styles.cityChatModernEyebrow}>Comunidade local</Text>
 
                       <View style={styles.cityChatModernBadge}>
-                        <Ionicons name="people-outline" size={13} color="#BFDBFE" />
+                        <Ionicons name="people-outline" size={13} color="#D4A64A" />
                         <Text style={styles.cityChatModernBadgeText}>Cidade</Text>
                       </View>
                     </View>
@@ -4413,12 +4413,12 @@ export default function ActiveSessionScreen() {
                   style={styles.cityChatModernCloseButton}
                   onPress={() => setCityChatVisible(false)}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.cityChatModernInfoCard}>
-                <Ionicons name="radio-outline" size={19} color="#60A5FA" />
+                <Ionicons name="radio-outline" size={19} color="#D4A64A" />
                 <Text style={styles.cityChatModernInfoText}>
                   Mensagens em tempo real. Ao abrir este chat, as mensagens da cidade são marcadas como lidas.
                 </Text>
@@ -4433,7 +4433,7 @@ export default function ActiveSessionScreen() {
                 {chatMessages.length === 0 ? (
                   <View style={styles.cityChatModernEmptyBox}>
                     <View style={styles.cityChatModernEmptyIcon}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={32} color="#71717A" />
+                      <Ionicons name="chatbubble-ellipses-outline" size={32} color="#8F8A91" />
                     </View>
 
                     <Text style={styles.cityChatModernEmptyTitle}>
@@ -4553,7 +4553,7 @@ export default function ActiveSessionScreen() {
                             </Text>
 
                             {isMe && (
-                              <Ionicons name="checkmark-done" size={14} color="#DCFCE7" />
+                              <Ionicons name="checkmark-done" size={14} color="#F5F0E6" />
                             )}
                           </View>
                         </TouchableOpacity>
@@ -4566,7 +4566,7 @@ export default function ActiveSessionScreen() {
               {replyingCityMessage && (
                 <View style={styles.cityChatModernReplyingBox}>
                   <View style={styles.cityChatModernReplyingIcon}>
-                    <Ionicons name="return-up-forward-outline" size={18} color="#60A5FA" />
+                    <Ionicons name="return-up-forward-outline" size={18} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -4580,20 +4580,20 @@ export default function ActiveSessionScreen() {
                     activeOpacity={0.85}
                     onPress={() => setReplyingCityMessage(null)}
                   >
-                    <Ionicons name="close" size={22} color="#FFFFFF" />
+                    <Ionicons name="close" size={22} color="#F5F0E6" />
                   </TouchableOpacity>
                 </View>
               )}
 
               <View style={styles.cityChatModernInputBar}>
                 <View style={styles.cityChatModernInputWrapper}>
-                  <Ionicons name="chatbubble-outline" size={19} color="#71717A" />
+                  <Ionicons name="chatbubble-outline" size={19} color="#8F8A91" />
 
                   <TextInput
                     value={chatMessage}
                     onChangeText={setChatMessage}
                     placeholder="Mensagem para a cidade..."
-                    placeholderTextColor="#71717A"
+                    placeholderTextColor="#8F8A91"
                     style={styles.cityChatModernInput}
                     multiline
                   />
@@ -4608,7 +4608,7 @@ export default function ActiveSessionScreen() {
                   ]}
                   onPress={handleSendCityMessage}
                 >
-                  <Ionicons name="send" size={20} color="#FFFFFF" />
+                  <Ionicons name="send" size={20} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -4646,7 +4646,7 @@ export default function ActiveSessionScreen() {
                     />
                   ) : (
                     <View style={styles.privateChatHeaderAvatarFallbackModern}>
-                      <Ionicons name="person" size={22} color="#FFFFFF" />
+                      <Ionicons name="person" size={22} color="#F5F0E6" />
                     </View>
                   )}
 
@@ -4657,7 +4657,7 @@ export default function ActiveSessionScreen() {
                       </Text>
 
                       <View style={styles.privateChatPrivateBadgeModern}>
-                        <Ionicons name="lock-closed" size={11} color="#93C5FD" />
+                        <Ionicons name="lock-closed" size={11} color="#D4A64A" />
                         <Text style={styles.privateChatPrivateBadgeTextModern}>
                           Privado
                         </Text>
@@ -4675,12 +4675,12 @@ export default function ActiveSessionScreen() {
                   style={styles.privateChatCloseButtonModern}
                   onPress={() => setPrivateChatVisible(false)}
                 >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.privateChatNoticeModern}>
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#60A5FA" />
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#D4A64A" />
                 <Text style={styles.privateChatNoticeTextModern}>
                   Mensagens privadas aparecem somente para vocês dois.
                 </Text>
@@ -4695,7 +4695,7 @@ export default function ActiveSessionScreen() {
                 {privateMessages.length === 0 ? (
                   <View style={styles.privateChatEmptyBoxModern}>
                     <View style={styles.privateChatEmptyIconModern}>
-                      <Ionicons name="chatbubble-outline" size={30} color="#71717A" />
+                      <Ionicons name="chatbubble-outline" size={30} color="#8F8A91" />
                     </View>
 
                     <Text style={styles.privateChatEmptyTitleModern}>
@@ -4732,7 +4732,7 @@ export default function ActiveSessionScreen() {
                             />
                           ) : (
                             <View style={styles.privateChatMessageAvatarFallbackModern}>
-                              <Ionicons name="person" size={17} color="#FFFFFF" />
+                              <Ionicons name="person" size={17} color="#F5F0E6" />
                             </View>
                           )
                         )}
@@ -4816,7 +4816,7 @@ export default function ActiveSessionScreen() {
                             </Text>
 
                             {isMe && (
-                              <Ionicons name="checkmark-done" size={15} color="#14532D" />
+                              <Ionicons name="checkmark-done" size={15} color="rgba(212,166,74,0.28)" />
                             )}
                           </View>
                         </TouchableOpacity>
@@ -4829,7 +4829,7 @@ export default function ActiveSessionScreen() {
               {replyingPrivateMessage && (
                 <View style={styles.privateChatReplyingBoxModern}>
                   <View style={styles.privateChatReplyingIconModern}>
-                    <Ionicons name="return-up-forward-outline" size={18} color="#60A5FA" />
+                    <Ionicons name="return-up-forward-outline" size={18} color="#D4A64A" />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -4847,7 +4847,7 @@ export default function ActiveSessionScreen() {
                     style={styles.privateChatReplyingCloseModern}
                     onPress={() => setReplyingPrivateMessage(null)}
                   >
-                    <Ionicons name="close" size={20} color="#FFFFFF" />
+                    <Ionicons name="close" size={20} color="#F5F0E6" />
                   </TouchableOpacity>
                 </View>
               )}
@@ -4857,7 +4857,7 @@ export default function ActiveSessionScreen() {
                   value={privateMessageText}
                   onChangeText={setPrivateMessageText}
                   placeholder="Digite uma mensagem..."
-                  placeholderTextColor="#71717A"
+                  placeholderTextColor="#8F8A91"
                   multiline
                   style={styles.privateChatInputModern}
                 />
@@ -4870,7 +4870,7 @@ export default function ActiveSessionScreen() {
                   ]}
                   onPress={handleSendPrivateMessage}
                 >
-                  <Ionicons name="send" size={20} color="#FFFFFF" />
+                  <Ionicons name="send" size={20} color="#F5F0E6" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -4884,6 +4884,13 @@ export default function ActiveSessionScreen() {
 
 
 const styles = StyleSheet.create({
+  activeModernMetricHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 38,
+  },
+
   container: {
     flex: 1,
   },
@@ -4922,32 +4929,32 @@ const styles = StyleSheet.create({
     width: 11,
     height: 11,
     borderRadius: 99,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     marginRight: 5
   },
 
   statusTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '600',
   },
 
   startedText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     marginTop: 3,
     marginLeft: 20
   },
 
   timer: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 65,
     fontWeight: '600',
     marginTop: 28,
   },
 
   timerLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     marginTop: 0,
     fontSize: 14,
     fontWeight: '600',
@@ -4971,13 +4978,13 @@ const styles = StyleSheet.create({
   },
 
   metricLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '600',
   },
 
   metricValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 25,
     fontWeight: '700',
     marginTop: 12,
@@ -5003,7 +5010,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
     fontSize: 12,
   },
@@ -5018,19 +5025,19 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     marginBottom: 12,
   },
 
   emptyText: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontWeight: '700',
   },
 
   earningItem: {
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
@@ -5040,13 +5047,13 @@ const styles = StyleSheet.create({
   },
 
   earningPlatform: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   earningAmount: {
-    color: '#22C55E',
+    color: '#D4A64A',
     marginTop: 4,
     fontSize: 15,
     fontWeight: '900',
@@ -5061,7 +5068,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -5086,7 +5093,7 @@ const styles = StyleSheet.create({
   },
 
   finishButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -5111,13 +5118,13 @@ const styles = StyleSheet.create({
   },
 
   bottomButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   rideInfo: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     marginTop: 6,
@@ -5133,7 +5140,7 @@ const styles = StyleSheet.create({
   },
 
   finishRideButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -5147,57 +5154,59 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Platform.OS === 'ios' ? 24 : 40,
   },
-
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(0,0,0,0.84)',
     justifyContent: 'center',
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
   },
-
   modalContent: {
-    backgroundColor: '#111827',
-    borderRadius: 24,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
+    maxHeight: '90%',
   },
-
   modalContentLarge: {
-    backgroundColor: '#111827',
-    borderRadius: 24,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#27272A',
-    maxHeight: '85%',
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
+    maxHeight: '92%',
   },
-
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-
-  modalTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '900',
-  },
-
-  modalSubtitle: {
-    color: '#A1A1AA',
+    gap: 12,
     marginBottom: 14,
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#211D16',
+  },
+  modalTitle: {
+    color: '#F5F0E6',
+    fontSize: 21,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+  },
+  modalSubtitle: {
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
+    lineHeight: 19,
   },
 
   platformChip: {
     height: 42,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 16,
     justifyContent: 'center',
     marginRight: 8,
@@ -5205,39 +5214,39 @@ const styles = StyleSheet.create({
   },
 
   platformChipActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
   },
 
   platformChipText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '800',
   },
-
   input: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#18181B',
+    height: 55,
+    borderRadius: 12,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    color: '#FFFFFF',
-    paddingHorizontal: 16,
-    fontSize: 16,
+    borderColor: '#2A2830',
+    color: '#F5F0E6',
+    paddingHorizontal: 14,
+    fontSize: 15,
     fontWeight: '800',
-    marginBottom: 14,
+    marginBottom: 13,
   },
-
   modalSaveButton: {
     height: 56,
-    borderRadius: 16,
-    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
   },
-
   modalSaveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: '#080808',
+    fontSize: 15,
     fontWeight: '900',
   },
 
@@ -5255,11 +5264,11 @@ const styles = StyleSheet.create({
   gainModernSheet: {
     width: '100%',
     maxHeight: '88%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingTop: 10,
     paddingHorizontal: 18,
     paddingBottom: 14,
@@ -5274,7 +5283,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 18,
   },
@@ -5296,16 +5305,16 @@ const styles = StyleSheet.create({
   gainModernHeaderIcon: {
     width: 50,
     height: 50,
-    borderRadius: 17,
-    backgroundColor: '#052E16',
+    borderRadius: 12,
+    backgroundColor: '#211D16',
     borderWidth: 1,
-    borderColor: '#14532D',
+    borderColor: 'rgba(212,166,74,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   gainModernEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -5313,7 +5322,7 @@ const styles = StyleSheet.create({
   },
 
   gainModernTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 22,
     fontWeight: '900',
     marginTop: 2,
@@ -5323,15 +5332,15 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   gainModernSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 19,
@@ -5356,13 +5365,13 @@ const styles = StyleSheet.create({
   },
 
   gainModernSectionTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   gainModernSectionHint: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -5380,7 +5389,7 @@ const styles = StyleSheet.create({
   },
 
   gainModernManageButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -5394,10 +5403,10 @@ const styles = StyleSheet.create({
   gainModernPlatformCard: {
     width: '48.4%',
     minHeight: 66,
-    borderRadius: 18,
-    backgroundColor: '#111827',
+    borderRadius: 13,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
@@ -5406,8 +5415,8 @@ const styles = StyleSheet.create({
   },
 
   gainModernPlatformCardActive: {
-    backgroundColor: '#052E16',
-    borderColor: '#22C55E',
+    backgroundColor: '#211D16',
+    borderColor: '#D4A64A',
   },
 
   gainModernPlatformCardDisabled: {
@@ -5418,20 +5427,20 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 13,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   gainModernPlatformLogoFallback: {
     width: 40,
     height: 40,
     borderRadius: 13,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   gainModernPlatformLogoText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
@@ -5442,20 +5451,20 @@ const styles = StyleSheet.create({
   },
 
   gainModernPlatformName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
 
   gainModernPlatformHint: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 10,
     fontWeight: '800',
     marginTop: 3,
   },
 
   gainModernPlatformHintActive: {
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 10,
     fontWeight: '900',
     marginTop: 3,
@@ -5468,19 +5477,19 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     borderWidth: 3,
-    borderColor: '#09090B',
+    borderColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   gainModernLockedPlatformCard: {
     minHeight: 82,
-    borderRadius: 20,
-    backgroundColor: '#052E16',
+    borderRadius: 14,
+    backgroundColor: '#211D16',
     borderWidth: 1,
-    borderColor: '#22C55E',
+    borderColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -5492,32 +5501,32 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 15,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   gainModernLockedLogoFallback: {
     width: 48,
     height: 48,
     borderRadius: 15,
-    backgroundColor: '#14532D',
+    backgroundColor: 'rgba(212,166,74,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   gainModernLockedLogoText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 20,
     fontWeight: '900',
   },
 
   gainModernLockedLabel: {
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
 
   gainModernLockedName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
     marginTop: 2,
@@ -5535,16 +5544,16 @@ const styles = StyleSheet.create({
   },
 
   gainModernLockedBadgeText: {
-    color: '#BBF7D0',
+    color: '#E8C46D',
     fontSize: 11,
     fontWeight: '900',
   },
 
   gainModernEmptyPlatformsBox: {
-    borderRadius: 22,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 20,
     alignItems: 'center',
   },
@@ -5552,16 +5561,16 @@ const styles = StyleSheet.create({
   gainModernEmptyIconBox: {
     width: 58,
     height: 58,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   gainModernEmptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
     marginTop: 12,
@@ -5569,7 +5578,7 @@ const styles = StyleSheet.create({
   },
 
   gainModernEmptyText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 19,
@@ -5590,7 +5599,7 @@ const styles = StyleSheet.create({
   },
 
   gainModernEmptyButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -5605,10 +5614,10 @@ const styles = StyleSheet.create({
 
   gainModernAmountInputCard: {
     height: 64,
-    borderRadius: 20,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -5618,14 +5627,14 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: '#052E16',
+    backgroundColor: '#211D16',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
 
   gainModernCurrencyText: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -5633,7 +5642,7 @@ const styles = StyleSheet.create({
   gainModernAmountInput: {
     flex: 1,
     height: '100%',
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 28,
     fontWeight: '900',
     padding: 0,
@@ -5641,19 +5650,19 @@ const styles = StyleSheet.create({
 
   gainModernFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#18181B',
+    borderTopColor: '#18171D',
     paddingTop: 12,
   },
 
   gainModernSaveButton: {
     height: 58,
-    borderRadius: 18,
-    backgroundColor: '#22C55E',
+    borderRadius: 13,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 9,
-    shadowColor: '#22C55E',
+    shadowColor: '#D4A64A',
     shadowOpacity: 0.28,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -5665,7 +5674,7 @@ const styles = StyleSheet.create({
   },
 
   gainModernSaveButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
@@ -5682,7 +5691,7 @@ const styles = StyleSheet.create({
   },
 
   addInsideFinishText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -5699,72 +5708,71 @@ const styles = StyleSheet.create({
   },
 
   modalFinishButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
-
   drawerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.84)',
+    justifyContent: 'flex-end',
   },
-
   drawer: {
-    width: '86%',
-    height: '100%',
-    backgroundColor: '#111827',
-    paddingTop: 54,
-    paddingHorizontal: 18,
-    borderLeftWidth: 1,
-    borderLeftColor: '#27272A',
+    backgroundColor: '#101014',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    borderTopColor: 'rgba(212,166,74,0.34)',
+    maxHeight: '86%',
   },
 
   finishedRideItem: {
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
   },
   resultCard: {
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     },
 
     resultLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
     },
 
     resultValue: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 22,
     fontWeight: '900',
     marginTop: 6,
     },
 
     lockedPlatformBox: {
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     borderRadius: 16,
     padding: 14,
     marginBottom: 14,
   },
 
   lockedPlatformLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
   },
 
   lockedPlatformValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
     marginTop: 6,
@@ -5778,16 +5786,16 @@ const styles = StyleSheet.create({
   },
 
   loadingBox: {
-    backgroundColor: '#111827',
-    borderRadius: 18,
+    backgroundColor: '#101014',
+    borderRadius: 13,
     paddingHorizontal: 28,
     paddingVertical: 20,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
   },
 
   loadingText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
@@ -5807,9 +5815,9 @@ const styles = StyleSheet.create({
   platformListItem: {
     minHeight: 76,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
@@ -5817,8 +5825,8 @@ const styles = StyleSheet.create({
   },
 
   platformListItemSelected: {
-    borderColor: '#22C55E',
-    backgroundColor: '#052E16',
+    borderColor: '#D4A64A',
+    backgroundColor: '#211D16',
   },
 
   platformLogo: {
@@ -5832,26 +5840,26 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
 
   platformLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   platformListName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   platformListDescription: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
@@ -5871,7 +5879,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -5882,9 +5890,9 @@ const styles = StyleSheet.create({
   platformSelectCard: {
     minHeight: 70,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
@@ -5892,8 +5900,8 @@ const styles = StyleSheet.create({
   },
 
   platformSelectCardActive: {
-    backgroundColor: '#052E16',
-    borderColor: '#22C55E',
+    backgroundColor: '#211D16',
+    borderColor: '#D4A64A',
   },
 
   platformSelectLogo: {
@@ -5907,26 +5915,26 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
 
   platformSelectLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   platformSelectName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   platformSelectType: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
@@ -5944,7 +5952,7 @@ const styles = StyleSheet.create({
   },
 
   addPlatformCardText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -5960,16 +5968,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     padding: 10,
   },
 
   platformGridCardActive: {
-    backgroundColor: '#052E16',
-    borderColor: '#22C55E',
+    backgroundColor: '#211D16',
+    borderColor: '#D4A64A',
   },
 
   platformGridLogo: {
@@ -5982,19 +5990,19 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   platformGridLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   platformGridName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '800',
     textAlign: 'center',
@@ -6011,7 +6019,7 @@ const styles = StyleSheet.create({
   },
 
   addPlatformGridText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -6019,24 +6027,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptyPlatformsBox: {
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    borderRadius: 20,
+    borderColor: '#2A2830',
+    borderRadius: 14,
     padding: 24,
     alignItems: 'center',
     marginBottom:50,
   },
 
   emptyPlatformsTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
     marginTop: 14,
   },
 
   emptyPlatformsText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
@@ -6055,16 +6063,16 @@ const styles = StyleSheet.create({
   },
 
   emptyPlatformsButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
   platformLockedCard: {
     minHeight: 74,
     borderRadius: 16,
-    backgroundColor: '#052E16',
+    backgroundColor: '#211D16',
     borderWidth: 1,
-    borderColor: '#22C55E',
+    borderColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
@@ -6082,26 +6090,26 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
 
   platformLockedLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   platformLockedName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   platformLockedDescription: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
@@ -6115,10 +6123,10 @@ const styles = StyleSheet.create({
   },
 
   finishPlatformItem: {
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 12,
     marginBottom: 10,
   },
@@ -6140,20 +6148,20 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
 
   finishPlatformLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
 
   finishPlatformName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -6161,10 +6169,10 @@ const styles = StyleSheet.create({
   finishPlatformInput: {
     height: 50,
     borderRadius: 14,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
-    color: '#FFFFFF',
+    borderColor: '#2A2830',
+    color: '#F5F0E6',
     paddingHorizontal: 14,
     fontSize: 16,
     fontWeight: '800',
@@ -6182,15 +6190,15 @@ const styles = StyleSheet.create({
   },
 
   managePlatformsButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
   rideCardActive: {
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 18,
     marginBottom: 18,
-    backgroundColor: '#031B12',
+    backgroundColor: '#18171D',
     borderWidth: 1.5,
     borderColor: '#00FF85',
     overflow: 'hidden',
@@ -6238,20 +6246,20 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
   },
 
   rideLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 24,
     fontWeight: '900',
   },
 
   ridePlatform: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
@@ -6275,7 +6283,7 @@ const styles = StyleSheet.create({
   },
 
   rideStatsBox: {
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
@@ -6298,14 +6306,14 @@ const styles = StyleSheet.create({
   },
 
   rideStatLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 8,
   },
 
   rideStatValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
@@ -6349,7 +6357,7 @@ const styles = StyleSheet.create({
     flex: 2,
     height: 50,
     borderRadius: 14,
-    backgroundColor: '#16A34A',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -6369,12 +6377,12 @@ const styles = StyleSheet.create({
   },
 
   rideActionTextGreen: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
   rideWaitingItem: {
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 18,
     marginBottom: 16,
     backgroundColor: '#03142F',
@@ -6396,7 +6404,7 @@ const styles = StyleSheet.create({
   },
 
   rideWaitingBadgeText: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -6419,7 +6427,7 @@ const styles = StyleSheet.create({
   },
 
   startRideButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -6440,7 +6448,7 @@ const styles = StyleSheet.create({
   },
 
   rideWaitingValue: {
-    color: '#3B82F6',
+    color: '#D4A64A',
     fontSize: 28,
     fontWeight: '900',
     marginTop: 2,
@@ -6457,11 +6465,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(37,99,235,0.08)',
   },
   finishedRideCard: {
-    backgroundColor: '#0B1220',
-    borderRadius: 24,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     marginBottom: 16,
   },
 
@@ -6493,7 +6501,7 @@ const styles = StyleSheet.create({
   },
 
   finishedRideTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -6512,14 +6520,14 @@ const styles = StyleSheet.create({
   },
 
   finishedBadgeText: {
-    color: '#BBF7D0',
+    color: '#E8C46D',
     fontSize: 12,
     fontWeight: '900',
   },
 
   finishedDivider: {
     height: 1,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#2A2830',
     marginVertical: 14,
   },
 
@@ -6542,25 +6550,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 10,
     borderRadius: 10,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#2A2830',
     gap: 5,
     marginHorizontal: 10
   },
 
   finishedStatText: {
-    color: '#CBD5E1',
+    color: '#D9D3C7',
     fontSize: 15,
     fontWeight: '400',
   },
 
   finishedStatText1: {
-    color: '#CBD5E1',
+    color: '#D9D3C7',
     fontSize: 12,
     fontWeight: '400',
   },
 
   finishedStatText2: {
-    color: '#CBD5E1',
+    color: '#D9D3C7',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -6575,7 +6583,7 @@ const styles = StyleSheet.create({
   finishedEditButton: {
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#2A2830',
     paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
@@ -6583,7 +6591,7 @@ const styles = StyleSheet.create({
   },
 
   finishedEditText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
   },
 
@@ -6608,9 +6616,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: -5,
     minHeight: 62,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderTopWidth: 1,
-    borderTopColor: '#27272A',
+    borderTopColor: '#2A2830',
     paddingHorizontal: 18,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 28 : 14,
@@ -6624,13 +6632,13 @@ const styles = StyleSheet.create({
   },
 
   cityBottomTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
 
   cityBottomSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
@@ -6639,7 +6647,7 @@ const styles = StyleSheet.create({
   cityChangeButton: {
     height: 42,
     borderRadius: 14,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -6647,7 +6655,7 @@ const styles = StyleSheet.create({
   },
 
   cityChangeText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -6660,7 +6668,7 @@ const styles = StyleSheet.create({
 
   cityModalContent: {
     height: '90%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 20,
@@ -6674,17 +6682,17 @@ const styles = StyleSheet.create({
   },
 
   cityModalTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 22,
     fontWeight: '900',
   },
 
   driverOnlineItem: {
     minHeight: 68,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     marginBottom: 10,
     flexDirection: 'row',
@@ -6702,19 +6710,19 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   driverName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   driverStatus: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -6727,14 +6735,14 @@ const styles = StyleSheet.create({
   },
 
   driverLastMessage: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
   },
 
   driverLastMessageUnread: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
   },
 
@@ -6750,11 +6758,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 5,
     borderWidth: 2,
-    borderColor: '#09090B',
+    borderColor: '#050505',
   },
 
   privateChatUnreadBadgeText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 10,
     fontWeight: '900',
   },
@@ -6766,21 +6774,21 @@ const styles = StyleSheet.create({
 
   driversNowSheet: {
     height: '90%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 36,
     borderTopRightRadius: 36,
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 26 : 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
   },
 
   driversNowHandle: {
     width: 46,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -6795,8 +6803,8 @@ const styles = StyleSheet.create({
   driversNowHeaderIcon: {
     width: 52,
     height: 52,
-    borderRadius: 18,
-    backgroundColor: '#052E16',
+    borderRadius: 13,
+    backgroundColor: '#211D16',
     borderWidth: 1,
     borderColor: '#166534',
     alignItems: 'center',
@@ -6804,7 +6812,7 @@ const styles = StyleSheet.create({
   },
 
   driversNowEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -6812,14 +6820,14 @@ const styles = StyleSheet.create({
   },
 
   driversNowTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 25,
     fontWeight: '900',
     marginTop: 2,
   },
 
   driversNowSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -6829,19 +6837,19 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 15,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   driversNowSummaryCard: {
     minHeight: 86,
-    borderRadius: 24,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 12,
     marginBottom: 12,
     flexDirection: 'row',
@@ -6858,7 +6866,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 13,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
@@ -6868,7 +6876,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 13,
-    backgroundColor: 'rgba(59,130,246,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
@@ -6885,13 +6893,13 @@ const styles = StyleSheet.create({
   },
 
   driversNowSummaryValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
 
   driversNowSummaryLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 2,
@@ -6900,13 +6908,13 @@ const styles = StyleSheet.create({
   driversNowSummaryDivider: {
     width: 1,
     height: 44,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
   },
 
   driversNowHeroCard: {
     minHeight: 106,
-    borderRadius: 28,
-    backgroundColor: '#052E16',
+    borderRadius: 16,
+    backgroundColor: '#211D16',
     borderWidth: 1,
     borderColor: '#166534',
     padding: 15,
@@ -6938,7 +6946,7 @@ const styles = StyleSheet.create({
   driversNowHeroIcon: {
     width: 52,
     height: 52,
-    borderRadius: 19,
+    borderRadius: 13,
     backgroundColor: 'rgba(34,197,94,0.16)',
     borderWidth: 1,
     borderColor: 'rgba(134,239,172,0.28)',
@@ -6947,13 +6955,13 @@ const styles = StyleSheet.create({
   },
 
   driversNowHeroLabel: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   driversNowHeroText: {
-    color: '#BBF7D0',
+    color: '#E8C46D',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
@@ -6972,17 +6980,17 @@ const styles = StyleSheet.create({
   },
 
   driversNowHeroCount: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 31,
     fontWeight: '900',
   },
 
   driversNowPublicChatButton: {
     minHeight: 78,
-    borderRadius: 24,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 13,
     marginBottom: 14,
     flexDirection: 'row',
@@ -6993,20 +7001,20 @@ const styles = StyleSheet.create({
   driversNowPublicChatIcon: {
     width: 48,
     height: 48,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   driversNowPublicChatTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   driversNowPublicChatText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
@@ -7024,7 +7032,7 @@ const styles = StyleSheet.create({
   },
 
   driversNowPublicChatBadgeText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -7039,10 +7047,10 @@ const styles = StyleSheet.create({
 
   driversNowItem: {
     minHeight: 86,
-    borderRadius: 26,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 13,
     paddingVertical: 12,
     marginBottom: 10,
@@ -7063,16 +7071,16 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 999,
     borderWidth: 2,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
   },
 
   driversNowAvatarFallback: {
     width: 52,
     height: 52,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     borderWidth: 1,
-    borderColor: '#3F3F46',
+    borderColor: '#3A3430',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -7085,11 +7093,11 @@ const styles = StyleSheet.create({
     height: 15,
     borderRadius: 999,
     borderWidth: 3,
-    borderColor: '#111827',
+    borderColor: '#101014',
   },
 
   driversNowAvatarStatusActive: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
 
   driversNowAvatarStatusPaused: {
@@ -7115,13 +7123,13 @@ const styles = StyleSheet.create({
 
   driversNowName: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   driversNowNameCentered: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
     textAlign: 'left',
@@ -7143,7 +7151,7 @@ const styles = StyleSheet.create({
   },
 
   driversNowStatusPillActive: {
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderColor: 'rgba(34,197,94,0.32)',
   },
 
@@ -7159,7 +7167,7 @@ const styles = StyleSheet.create({
   },
 
   driversNowStatusTextActive: {
-    color: '#86EFAC',
+    color: '#D4A64A',
   },
 
   driversNowStatusTextPaused: {
@@ -7167,13 +7175,13 @@ const styles = StyleSheet.create({
   },
 
   driversNowLastMessage: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
   },
 
   driversNowLastMessageUnread: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
   },
 
@@ -7188,7 +7196,7 @@ const styles = StyleSheet.create({
   },
 
   driversNowChatButtonUnread: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
 
   driversNowUnreadBadge: {
@@ -7200,24 +7208,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#EF4444',
     borderWidth: 2,
-    borderColor: '#09090B',
+    borderColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
   },
 
   driversNowUnreadText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 10,
     fontWeight: '900',
   },
 
   driversNowEmptyBox: {
     minHeight: 230,
-    borderRadius: 26,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 22,
@@ -7226,24 +7234,24 @@ const styles = StyleSheet.create({
   driversNowEmptyIcon: {
     width: 68,
     height: 68,
-    borderRadius: 24,
-    backgroundColor: '#18181B',
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
 
   driversNowEmptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
     textAlign: 'center',
   },
 
   driversNowEmptyText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 19,
@@ -7253,10 +7261,10 @@ const styles = StyleSheet.create({
 
   driversNowSummarySingleCard: {
     minHeight: 82,
-    borderRadius: 24,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 12,
@@ -7276,16 +7284,16 @@ const styles = StyleSheet.create({
   driversNowSummaryIconGreenLarge: {
     width: 48,
     height: 48,
-    borderRadius: 17,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   driversNowSummaryHint: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 11,
     fontWeight: '700',
     marginTop: 3,
@@ -7293,7 +7301,7 @@ const styles = StyleSheet.create({
   },
 
   driversNowSummaryValueLarge: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 30,
     fontWeight: '900',
   },
@@ -7306,14 +7314,14 @@ const styles = StyleSheet.create({
     height: 15,
     borderRadius: 999,
     borderWidth: 3,
-    borderColor: '#111827',
-    backgroundColor: '#22C55E',
+    borderColor: '#101014',
+    backgroundColor: '#D4A64A',
   },
 
   driversNowJourneyIconBox: {
     width: 48,
     height: 48,
-    borderRadius: 18,
+    borderRadius: 13,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -7332,11 +7340,11 @@ const styles = StyleSheet.create({
   },
 
   driverActionsCard: {
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 30 : 20,
@@ -7346,7 +7354,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -7369,22 +7377,22 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 999,
     borderWidth: 2,
-    borderColor: '#22C55E',
+    borderColor: '#D4A64A',
   },
 
   driverActionsAvatarFallback: {
     width: 54,
     height: 54,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   driverActionsEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -7392,7 +7400,7 @@ const styles = StyleSheet.create({
   },
 
   driverActionsTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
     marginTop: 3,
@@ -7402,19 +7410,19 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 15,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   driverActionsOption: {
     minHeight: 76,
-    borderRadius: 22,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -7427,7 +7435,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.10)',
+    backgroundColor: 'rgba(212,166,74,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -7442,13 +7450,13 @@ const styles = StyleSheet.create({
   },
 
   driverActionsOptionTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   driverActionsOptionText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -7458,10 +7466,10 @@ const styles = StyleSheet.create({
   citySearchInput: {
     height: 56,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    color: '#FFFFFF',
+    borderColor: '#2A2830',
+    color: '#F5F0E6',
     paddingHorizontal: 16,
     fontSize: 15,
     fontWeight: '700',
@@ -7471,9 +7479,9 @@ const styles = StyleSheet.create({
   cityOptionItem: {
     minHeight: 66,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 16,
     paddingVertical: 10,
     marginBottom: 10,
@@ -7483,13 +7491,13 @@ const styles = StyleSheet.create({
   },
 
   cityOptionName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   cityOptionRegion: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
@@ -7509,7 +7517,7 @@ const styles = StyleSheet.create({
   },
 
   cityChatButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -7528,14 +7536,14 @@ const styles = StyleSheet.create({
   },
 
   chatBadgeText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 10,
     fontWeight: '900',
   },
 
   cityChatContent: {
     height: '82%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 18,
@@ -7558,16 +7566,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   chatBubble: {
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    borderRadius: 18,
+    borderColor: '#2A2830',
+    borderRadius: 13,
     paddingHorizontal: 14,
     paddingVertical: 10,
     maxWidth: '75%',
@@ -7576,13 +7584,13 @@ const styles = StyleSheet.create({
   },
 
   chatUserName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
 
   chatText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '600',
     marginTop: 5,
@@ -7609,10 +7617,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
     maxHeight: 100,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    color: '#FFFFFF',
+    borderColor: '#2A2830',
+    color: '#F5F0E6',
     paddingHorizontal: 14,
     fontSize: 14,
     fontWeight: '700',
@@ -7622,7 +7630,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -7640,9 +7648,9 @@ const styles = StyleSheet.create({
   replyingBox: {
     minHeight: 54,
     borderRadius: 16,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 10,
@@ -7652,13 +7660,13 @@ const styles = StyleSheet.create({
   },
 
   replyingLabel: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
 
   replyingText: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '700',
     marginTop: 3,
@@ -7667,7 +7675,7 @@ const styles = StyleSheet.create({
   replyPreview: {
     backgroundColor: 'rgba(0,0,0,0.18)',
     borderLeftWidth: 3,
-    borderLeftColor: '#FFFFFF',
+    borderLeftColor: '#F5F0E6',
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 8,
@@ -7675,7 +7683,7 @@ const styles = StyleSheet.create({
   },
 
   replyPreviewText: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -7686,10 +7694,10 @@ const styles = StyleSheet.create({
   },
 
   finishTimeCard: {
-    backgroundColor: '#111827',
-    borderRadius: 22,
+    backgroundColor: '#101014',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 14,
     marginBottom: 14,
   },
@@ -7705,7 +7713,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 16,
-    backgroundColor: '#052E16',
+    backgroundColor: '#211D16',
     borderWidth: 1,
     borderColor: '#166534',
     alignItems: 'center',
@@ -7713,13 +7721,13 @@ const styles = StyleSheet.create({
   },
 
   finishTimeTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   finishTimeSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '600',
     lineHeight: 16,
@@ -7733,12 +7741,12 @@ const styles = StyleSheet.create({
 
   finishTimeInput: {
     height: 52,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '800',
   },
@@ -7747,8 +7755,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
     backgroundColor: '#001B12',
     borderWidth: 1,
-    borderColor: '#14532D',
-    borderRadius: 26,
+    borderColor: 'rgba(212,166,74,0.28)',
+    borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginBottom: 16,
@@ -7769,12 +7777,12 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
 
   finishTimePreviewText: {
     flex: 1,
-    color: '#DCFCE7',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -7783,14 +7791,14 @@ const styles = StyleSheet.create({
     minWidth: 90,
     height: 40,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
 
   finishTimePreviewButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -7799,8 +7807,8 @@ const styles = StyleSheet.create({
     minHeight: 50,
     backgroundColor: '#001B12',
     borderWidth: 1,
-    borderColor: '#14532D',
-    borderRadius: 22,
+    borderColor: 'rgba(212,166,74,0.28)',
+    borderRadius: 14,
     padding: 10,
     marginBottom: 18,
     flexDirection: 'row',
@@ -7812,7 +7820,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 16,
-    backgroundColor: '#052E16',
+    backgroundColor: '#211D16',
     borderWidth: 1,
     borderColor: '#166534',
     alignItems: 'center',
@@ -7820,7 +7828,7 @@ const styles = StyleSheet.create({
   },
 
   finishTimeEditTitle: {
-    color: '#DCFCE7',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -7837,7 +7845,7 @@ const styles = StyleSheet.create({
   },
 
   finishKmLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 15,
     fontWeight: '900',
     marginBottom: 10,
@@ -7847,10 +7855,10 @@ const styles = StyleSheet.create({
 
   finishKmInputCard: {
     height: 92,
-    backgroundColor: '#0B1220',
-    borderRadius: 26,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#2A2830',
     paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
@@ -7859,14 +7867,14 @@ const styles = StyleSheet.create({
   finishKmInput: {
     flex: 1,
     height: '100%',
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 40,
     fontWeight: '900',
     letterSpacing: -1,
   },
 
   finishKmUnit: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 20,
     fontWeight: '900',
     marginLeft: 12,
@@ -7886,13 +7894,13 @@ const styles = StyleSheet.create({
   },
 
   finishPlatformsTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
 
   finishPlatformsSubtitle: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -7901,9 +7909,9 @@ const styles = StyleSheet.create({
   managePlatformsCompactButton: {
     height: 40,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -7912,16 +7920,16 @@ const styles = StyleSheet.create({
   },
 
   managePlatformsCompactText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
 
   finishPlatformModernCard: {
-    backgroundColor: '#0B1220',
-    borderRadius: 22,
+    backgroundColor: '#101014',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#2A2830',
     padding: 14,
     marginBottom: 12,
   },
@@ -7937,9 +7945,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 16,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -7952,19 +7960,19 @@ const styles = StyleSheet.create({
   },
 
   finishPlatformModernLogoText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
 
   finishPlatformModernName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   finishPlatformModernHint: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -7972,17 +7980,17 @@ const styles = StyleSheet.create({
 
   finishPlatformAmountBox: {
     height: 54,
-    backgroundColor: '#111827',
-    borderRadius: 18,
+    backgroundColor: '#101014',
+    borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
   },
 
   finishPlatformCurrency: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 15,
     fontWeight: '900',
     marginRight: 8,
@@ -7991,7 +7999,7 @@ const styles = StyleSheet.create({
   finishPlatformModernInput: {
     flex: 1,
     height: '100%',
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
@@ -7999,25 +8007,24 @@ const styles = StyleSheet.create({
   finishModalContentFull: {
     width: '100%',
     height: '92%',
-    backgroundColor: '#111827',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
   },
-
   activeModernContainer: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: '#050505',
   },
   activeModernContainerPaused: {
-    backgroundColor: '#120A02',
+    backgroundColor: '#050505',
   },
   activeModernContent: {
-    paddingTop: 54,
+    paddingTop: 48,
     paddingHorizontal: 18,
-    // Espaço para a barra inferior das tabs e para os modais.
-    paddingBottom: 110,
+    paddingBottom: 158,
+    backgroundColor: '#050505',
   },
   activeModernHeader: {
     minHeight: 54,
@@ -8030,10 +8037,10 @@ const styles = StyleSheet.create({
   activeModernHeaderButton: {
     width: 46,
     height: 46,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(24,24,27,0.92)',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -8051,10 +8058,10 @@ const styles = StyleSheet.create({
   activeModernHeaderCityButton: {
     maxWidth: 170,
     minHeight: 46,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(24,24,27,0.92)',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -8064,34 +8071,41 @@ const styles = StyleSheet.create({
 
   activeModernHeaderCityText: {
     flexShrink: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
   activeModernHeaderEyebrow: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   activeModernHeaderTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
     marginTop: 2,
   },
   activeModernHeroCard: {
-    borderRadius: 32,
-    backgroundColor: '#031B12',
+    borderRadius: 20,
+    backgroundColor: '#080808',
     borderWidth: 1,
-    borderColor: '#166534',
-    padding: 18,
-    marginBottom: 14,
+    borderColor: '#2A2830',
+    borderLeftWidth: 1,
+    //borderLeftColor: '#D4A64A',
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.10,
+    shadowRadius: 24,
+    elevation: 12,
   },
   activeModernHeroCardPaused: {
-    backgroundColor: '#2A1605',
-    borderColor: '#92400E',
+    borderLeftColor: '#F59E0B',
+    shadowColor: '#F59E0B',
   },
   activeModernHeroTop: {
     flexDirection: 'row',
@@ -8100,38 +8114,38 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   activeModernStatusPill: {
-    minHeight: 36,
-    borderRadius: 999,
-    backgroundColor: 'rgba(34,197,94,0.16)',
+    minHeight: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: '#166534',
+    borderColor: 'rgba(212,166,74,0.24)',
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 8,
+    gap: 7,
   },
   activeModernStatusPillPaused: {
-    backgroundColor: 'rgba(245,158,11,0.16)',
-    borderColor: '#92400E',
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderColor: 'rgba(245,158,11,0.24)',
   },
   activeModernStatusDot: {
-    width: 9,
-    height: 9,
+    width: 8,
+    height: 8,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
   activeModernStatusDotPaused: {
     backgroundColor: '#F59E0B',
   },
   activeModernStatusText: {
-    color: '#DCFCE7',
-    fontSize: 13,
+    color: '#D4A64A',
+    fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 1.2,
   },
   activeModernStartedText: {
-    color: '#A1A1AA',
-    fontSize: 14,
+    color: '#9B969B',
+    fontSize: 12,
     fontWeight: '800',
   },
   activeModernHeroBody: {
@@ -8143,31 +8157,34 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   activeModernTimerLabel: {
-    color: '#A1A1AA',
-    fontSize: 14,
-    fontWeight: '800',
+    color: '#9B969B',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   activeModernTimerValue: {
-    color: '#FFFFFF',
-    fontSize: 54,
-    fontWeight: '700',
-    letterSpacing: -1.5,
-    marginTop: 8,
+    color: '#F5F0E6',
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: -1.2,
+    marginTop: 6,
   },
   activeModernTimerHintRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
+    marginTop: 10,
   },
   activeModernTimerHintText: {
-    color: '#D4D4D8',
-    fontSize: 13,
+    color: '#9B969B',
+    fontSize: 12,
     fontWeight: '800',
   },
   activeModernHeroDivider: {
     width: 1,
-    minWidth: 132,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: '#2A2830',
+    marginHorizontal: 12,
   },
   activeModernInfoColumn: {
     flex: 1,
@@ -8201,12 +8218,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   activeModernInfoLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
   },
   activeModernInfoValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
     marginTop: 2,
@@ -8235,78 +8252,97 @@ const styles = StyleSheet.create({
   },
   activeModernMetricCard: {
     width: '48.5%',
-    minHeight: 96,
-    borderRadius: 24,
-    backgroundColor: 'rgba(24,24,27,0.92)',
+    minHeight: 58,
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    padding: 14,
+    borderColor: '#2A2830',
+    borderLeftWidth: 3,
+    borderLeftColor: 'rgba(212,166,74,0.62)',
+    padding: 12,
+    justifyContent: 'center',
   },
   activeModernMetricIconGreen: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.14)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernMetricIconBlue: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
-    backgroundColor: 'rgba(59,130,246,0.14)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernMetricIconPurple: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
-    backgroundColor: 'rgba(168,85,247,0.14)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernMetricIconOrange: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
-    backgroundColor: 'rgba(245,158,11,0.14)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernMetricLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '900',
-    marginTop: 10,
+    flex: 1,
   },
   activeModernMetricValueGreen: {
-    color: '#FFFFFF',
-    fontSize: 20,
+    color: '#F5F0E6',
+    fontSize: 18,
     fontWeight: '900',
-    marginTop: 4,
+    marginTop: 5,
+    marginBottom: 5,
     textAlign: 'center',
+    alignSelf: 'stretch',
   },
   activeModernMetricValueBlue: {
-    color: '#FFFFFF',
-    fontSize: 20,
+    color: '#F5F0E6',
+    fontSize: 18,
     fontWeight: '900',
-    marginTop: 4,
-    textAlign: 'center'
+    marginTop: 5,
+    marginBottom: 5,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   activeModernMetricValuePurple: {
-    color: '#FFFFFF',
-    fontSize: 20,
+    color: '#F5F0E6',
+    fontSize: 18,
     fontWeight: '900',
-    marginTop: 4,
+    marginTop: 5,
+    marginBottom: 5,
     textAlign: 'center',
+    alignSelf: 'stretch',
   },
   activeModernMetricValueOrange: {
-    color: '#FFFFFF',
-    fontSize: 20,
+    color: '#F5F0E6',
+    fontSize: 18,
     fontWeight: '900',
-    marginTop: 4,
+    marginTop: 5,
+    marginBottom: 5,
     textAlign: 'center',
+    alignSelf: 'stretch',
   },
   activeModernSectionHeaderRow: {
     marginBottom: 12,
@@ -8318,12 +8354,13 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   activeModernSectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
+    color: '#F5F0E6',
+    fontSize: 17,
     fontWeight: '900',
+    letterSpacing: -0.2,
   },
   activeModernSectionSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -8335,38 +8372,42 @@ const styles = StyleSheet.create({
   },
   activeModernQuickButton: {
     flex: 1,
-    borderRadius: 24,
-    padding: 12,
-    gap: 10,
-    alignItems: 'center',
+    minHeight: 86,
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    flexDirection: 'row',
+    borderColor: '#2A2830',
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
   },
   activeModernQuickButtonGain: {
-    backgroundColor: 'rgba(34,197,94,0.10)',
-    borderColor: 'rgba(34,197,94,0.22)',
+    borderColor: 'rgba(212,166,74,0.32)',
+    backgroundColor: 'rgba(212,166,74,0.08)',
   },
   activeModernQuickButtonKm: {
-    backgroundColor: 'rgba(59,130,246,0.10)',
-    borderColor: 'rgba(59,130,246,0.22)',
+    borderColor: 'rgba(212,166,74,0.24)',
   },
   activeModernQuickButtonRide: {
     backgroundColor: 'rgba(168,85,247,0.10)',
-    borderColor: 'rgba(168,85,247,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
   },
   activeModernQuickIconGreen: {
     width: 42,
     height: 42,
-    borderRadius: 999,
-    backgroundColor: '#4ADE80',
+    borderRadius: 12,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernQuickIconBlue: {
     width: 42,
     height: 42,
-    borderRadius: 999,
-    backgroundColor: '#3B82F6',
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -8374,22 +8415,22 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 999,
-    backgroundColor: '#A855F7',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
   },
   activeModernQuickText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
     textAlign: 'center',
   },
   activeModernRideCardActive: {
-    borderRadius: 28,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 16,
     marginBottom: 18,
   },
@@ -8397,9 +8438,9 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     height: 28,
     borderRadius: 999,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -8426,26 +8467,26 @@ const styles = StyleSheet.create({
   activeModernRideLogo: {
     width: 58,
     height: 58,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: '#000000',
   },
   activeModernRideLogoFallback: {
     width: 58,
     height: 58,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: '#020617',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernRideLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
   activeModernRideTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
@@ -8458,14 +8499,14 @@ const styles = StyleSheet.create({
   activeModernRideFinishButton: {
     minHeight: 48,
     borderRadius: 16,
-    backgroundColor: '#16A34A',
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
     paddingHorizontal: 14,
   },
   activeModernRideFinishText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -8477,19 +8518,19 @@ const styles = StyleSheet.create({
   },
   activeModernRideStatBox: {
     width: '48.3%',
-    borderRadius: 18,
-    backgroundColor: '#0B1220',
+    borderRadius: 13,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 12,
   },
   activeModernRideStatLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
   },
   activeModernRideStatValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
     marginTop: 5,
@@ -8501,7 +8542,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   activeModernRideStatValueBlue: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 15,
     fontWeight: '900',
     marginTop: 5,
@@ -8515,16 +8556,16 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 16,
-    backgroundColor: '#0B1220',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   activeModernRideActionTextBlue: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -8548,15 +8589,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   activeModernCountBadgeText: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontWeight: '900',
   },
   activeModernWaitingCard: {
     minHeight: 96,
-    borderRadius: 22,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -8572,30 +8613,30 @@ const styles = StyleSheet.create({
   activeModernWaitingLogo: {
     width: 56,
     height: 56,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: '#020617',
   },
   activeModernWaitingLogoFallback: {
     width: 56,
     height: 56,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: '#020617',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernWaitingLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
   },
   activeModernWaitingTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
   activeModernWaitingSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 2,
@@ -8617,7 +8658,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: 'rgba(34,197,94,0.28)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.35)',
+    borderColor: 'rgba(212,166,74,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -8642,10 +8683,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   activeModernFinishedCard: {
-    borderRadius: 28,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 16,
     marginBottom: 18,
   },
@@ -8661,7 +8702,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   activeModernSeeAllText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -8687,16 +8728,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#020617',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernFinishedLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontWeight: '900',
   },
   activeModernFinishedTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -8712,26 +8753,19 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   activeModernFinishedKm: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 3,
   },
   activeModernSessionActionsCard: {
-    borderRadius: 30,
-    backgroundColor: '#0B1220',
-    borderWidth: 1,
-    borderColor: '#1F2937',
+    backgroundColor: '#18171D',
+    borderRadius: 18,
     padding: 16,
-    marginBottom: 22,
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 14,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 22,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    marginTop: 4,
+    marginBottom: 18,
   },
   activeModernSessionActionsHeader: {
     flexDirection: 'row',
@@ -8740,48 +8774,47 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   activeModernSessionActionsIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.24)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernSessionActionsTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: '#F5F0E6',
+    fontSize: 15,
     fontWeight: '900',
   },
   activeModernSessionActionsSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
-    lineHeight: 17,
     marginTop: 3,
+    lineHeight: 17,
   },
   activeModernPrimarySessionAction: {
-    minHeight: 56,
-    borderRadius: 24,
-    backgroundColor: 'rgba(245,158,11,0.12)',
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245,158,11,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.32)',
-    padding: 12,
+    borderColor: 'rgba(245,158,11,0.24)',
+    padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-    flex: 1,
+    gap: 9,
   },
   activeModernPrimarySessionActionResume: {
-    backgroundColor: '#22C55E',
-    borderColor: '#86EFAC',
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    borderColor: 'rgba(212,166,74,0.28)',
   },
   activeModernPrimarySessionIcon: {
     width: 32,
     height: 32,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(245,158,11,0.18)',
     borderWidth: 1,
     borderColor: 'rgba(245,158,11,0.26)',
@@ -8798,7 +8831,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   activeModernPrimarySessionTitleResume: {
-    color: '#06130B',
+    color: '#080808',
   },
   activeModernPrimarySessionSubtitle: {
     color: '#FED7AA',
@@ -8815,17 +8848,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   activeModernDeleteSessionAction: {
-    width: 110,
-    minHeight: 52,
-    borderRadius: 24,
-    backgroundColor: 'rgba(239,68,68,0.15)',
+    minWidth: 102,
+    minHeight: 58,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239,68,68,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.34)',
-    alignItems: 'center',
-    gap: 5,
-    padding: 12,
+    borderColor: 'rgba(239,68,68,0.24)',
+    padding: 10,
     flexDirection: 'row',
-    marginBottom: 12,
+    alignItems: 'center',
+    gap: 9,
   },
   activeModernDeleteSessionIcon: {
     width: 32,
@@ -8841,95 +8873,98 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   activeModernDeleteSessionSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
     marginTop: 2,
   },
   activeModernFinishSessionAction: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 24,
-    backgroundColor: '#16A34A',
-    borderWidth: 1,
-    borderColor: '#4ADE80',
-    padding: 12,
+    minHeight: 62,
+    borderRadius: 14,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    shadowColor: '#22C55E',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
+    gap: 10,
+    padding: 12,
+    marginTop: 12,
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.20,
     shadowRadius: 16,
     elevation: 8,
   },
   activeModernFinishSessionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#BBF7D0',
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    backgroundColor: 'rgba(8,8,8,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernFinishSessionActionTitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
+    color: '#080808',
+    fontSize: 15,
     fontWeight: '900',
   },
   activeModernFinishSessionActionSubtitle: {
-    color: '#DCFCE7',
-    fontSize: 11,
+    color: 'rgba(8,8,8,0.68)',
+    fontSize: 12,
     fontWeight: '800',
-    marginTop: 3,
+    marginTop: 2,
   },
   activeModernEarningsCard: {
-    borderRadius: 28,
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#1F2937',
+    backgroundColor: '#18171D',
+    borderRadius: 18,
     padding: 16,
-    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D4A64A',
+    marginTop: 16,
+    marginBottom: 14,
   },
   activeModernEarningsTotal: {
-    color: '#4ADE80',
-    fontSize: 16,
+    color: '#D4A64A',
+    fontSize: 15,
     fontWeight: '900',
   },
   activeModernEmptyState: {
     minHeight: 90,
-    borderRadius: 20,
-    backgroundColor: '#0B1220',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    padding: 16,
+    marginTop: 12,
   },
   activeModernEmptyText: {
-    color: '#71717A',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '800',
+    marginTop: 8,
+    textAlign: 'center',
   },
   activeModernEarningItem: {
     minHeight: 72,
+    borderRadius: 14,
+    backgroundColor: '#101014',
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    padding: 12,
+    marginTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    paddingTop: 12,
-    marginTop: 12,
+    gap: 10,
   },
   activeModernEarningIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -8941,18 +8976,18 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   activeModernEarningLogoFallbackText: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 13,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   activeModernEarningPlatform: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: '#F5F0E6',
+    fontSize: 14,
     fontWeight: '900',
   },
   activeModernEarningAmount: {
-    color: '#4ADE80',
+    color: '#D4A64A',
     fontSize: 14,
     fontWeight: '900',
     marginTop: 3,
@@ -8962,68 +8997,61 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   activeModernEarningGeneratedHint: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 10,
     fontWeight: '800',
     marginTop: 3,
   },
-
   activeModernFinishedRidesSoftButton: {
-    minHeight: 64,
-    borderRadius: 20,
-    backgroundColor: 'rgba(37,99,235,0.10)',
+    minHeight: 68,
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.22)',
-    paddingHorizontal: 13,
-    paddingVertical: 11,
+    borderColor: '#2A2830',
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    marginTop: -4,
+    gap: 10,
     marginBottom: 14,
   },
-
   activeModernFinishedRidesSoftIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
-    backgroundColor: 'rgba(59,130,246,0.18)',
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.26)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   activeModernFinishedRidesSoftTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
-
   activeModernFinishedRidesSoftSubtitle: {
-    color: '#BFDBFE',
-    fontSize: 11,
-    fontWeight: '800',
+    color: '#9B969B',
+    fontSize: 12,
+    fontWeight: '700',
     marginTop: 3,
   },
-
   activeModernEarningAction: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: 'rgba(59,130,246,0.10)',
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(59,130,246,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeModernEarningActionDanger: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: 'rgba(239,68,68,0.10)',
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239,68,68,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.22)',
+    borderColor: 'rgba(239,68,68,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -9041,21 +9069,21 @@ const styles = StyleSheet.create({
 
   rideModalSheetModern: {
     maxHeight: Platform.OS === 'ios' ? '90%' : '86%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 18 : 12,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
   },
 
   rideModalHandle: {
     width: 52,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -9078,8 +9106,8 @@ const styles = StyleSheet.create({
   rideModalHeaderIcon: {
     width: 52,
     height: 52,
-    borderRadius: 18,
-    backgroundColor: '#052E16',
+    borderRadius: 13,
+    backgroundColor: '#211D16',
     borderWidth: 1,
     borderColor: '#166534',
     alignItems: 'center',
@@ -9097,7 +9125,7 @@ const styles = StyleSheet.create({
   },
 
   rideModalEyebrowModern: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -9105,7 +9133,7 @@ const styles = StyleSheet.create({
   },
 
   rideModalTitleModern: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 2,
@@ -9115,15 +9143,15 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   rideModalDescription: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 18,
@@ -9147,13 +9175,13 @@ const styles = StyleSheet.create({
   },
 
   rideModalSectionTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
 
   rideModalSectionSubtitle: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -9171,7 +9199,7 @@ const styles = StyleSheet.create({
   },
 
   rideModalManageButtonTopText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -9186,10 +9214,10 @@ const styles = StyleSheet.create({
   rideModalPlatformCardModern: {
     width: '48%',
     minHeight: 62,
-    borderRadius: 18,
-    backgroundColor: '#111827',
+    borderRadius: 13,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
@@ -9201,15 +9229,15 @@ const styles = StyleSheet.create({
   },
 
   rideModalPlatformCardModernActive: {
-    backgroundColor: '#052E16',
-    borderColor: '#22C55E',
+    backgroundColor: '#211D16',
+    borderColor: '#D4A64A',
   },
 
   rideModalPlatformLogoWrap: {
     width: 38,
     height: 38,
     borderRadius: 14,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
@@ -9224,13 +9252,13 @@ const styles = StyleSheet.create({
   },
 
   rideModalPlatformLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   rideModalPlatformNameModern: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
     textAlign: 'left',
@@ -9244,7 +9272,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -9260,7 +9288,7 @@ const styles = StyleSheet.create({
   },
 
   rideModalInputLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '900',
     marginBottom: 7,
@@ -9269,10 +9297,10 @@ const styles = StyleSheet.create({
 
   rideModalMoneyInputCard: {
     minHeight: 60,
-    borderRadius: 18,
-    backgroundColor: '#111827',
+    borderRadius: 13,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -9283,7 +9311,7 @@ const styles = StyleSheet.create({
     minWidth: 38,
     height: 38,
     borderRadius: 14,
-    backgroundColor: 'rgba(34,197,94,0.14)',
+    backgroundColor: 'rgba(212,166,74,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -9305,7 +9333,7 @@ const styles = StyleSheet.create({
 
   rideModalInputModern: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
     padding: 0,
@@ -9313,8 +9341,8 @@ const styles = StyleSheet.create({
 
   rideModalInfoCard: {
     minHeight: 62,
-    borderRadius: 18,
-    backgroundColor: 'rgba(59,130,246,0.10)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(59,130,246,0.22)',
     flexDirection: 'row',
@@ -9326,7 +9354,7 @@ const styles = StyleSheet.create({
 
   rideModalInfoText: {
     flex: 1,
-    color: '#BFDBFE',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -9334,8 +9362,8 @@ const styles = StyleSheet.create({
 
   rideModalPrimaryButton: {
     height: 60,
-    borderRadius: 20,
-    backgroundColor: '#22C55E',
+    borderRadius: 14,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -9344,17 +9372,17 @@ const styles = StyleSheet.create({
   },
 
   rideModalPrimaryButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
 
   rideModalEmptyPlatforms: {
     minHeight: 190,
-    borderRadius: 24,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -9364,23 +9392,23 @@ const styles = StyleSheet.create({
   rideModalEmptyIcon: {
     width: 58,
     height: 58,
-    borderRadius: 20,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
 
   rideModalEmptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
 
   rideModalEmptyText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
@@ -9399,7 +9427,7 @@ const styles = StyleSheet.create({
   },
 
   rideModalEmptyButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -9416,9 +9444,9 @@ const styles = StyleSheet.create({
     maxHeight: '82%',
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingTop: 10,
     paddingHorizontal: 18,
     paddingBottom: Platform.OS === 'ios' ? 28 : 18,
@@ -9428,7 +9456,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 18,
   },
@@ -9451,8 +9479,8 @@ const styles = StyleSheet.create({
   rideResultModernIconBox: {
     width: 52,
     height: 52,
-    borderRadius: 19,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.28)',
     alignItems: 'center',
@@ -9460,7 +9488,7 @@ const styles = StyleSheet.create({
   },
 
   rideResultModernEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -9468,7 +9496,7 @@ const styles = StyleSheet.create({
   },
 
   rideResultModernTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 23,
     fontWeight: '900',
     marginTop: 2,
@@ -9478,9 +9506,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -9494,9 +9522,9 @@ const styles = StyleSheet.create({
   },
 
   rideResultModernHeroCard: {
-    borderRadius: 28,
+    borderRadius: 16,
     padding: 16,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.25)',
     marginBottom: 12,
@@ -9510,14 +9538,14 @@ const styles = StyleSheet.create({
   },
 
   rideResultModernHeroLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
     marginBottom: 6,
   },
 
   rideResultModernHeroValue: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 36,
     fontWeight: '900',
     letterSpacing: -1,
@@ -9526,9 +9554,9 @@ const styles = StyleSheet.create({
   rideResultModernSuccessBadge: {
     height: 32,
     borderRadius: 999,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -9536,7 +9564,7 @@ const styles = StyleSheet.create({
   },
 
   rideResultModernSuccessText: {
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -9555,7 +9583,7 @@ const styles = StyleSheet.create({
 
   rideResultModernHeroHintText: {
     flex: 1,
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -9570,19 +9598,19 @@ const styles = StyleSheet.create({
   rideResultModernStatCard: {
     flex: 1,
     minWidth: '45%',
-    borderRadius: 22,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 13,
   },
 
   rideResultModernStatCardWide: {
     width: '100%',
-    borderRadius: 22,
-    backgroundColor: '#18181B',
+    borderRadius: 14,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 13,
     flexDirection: 'row',
     alignItems: 'center',
@@ -9593,7 +9621,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 14,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -9613,32 +9641,32 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 15,
-    backgroundColor: 'rgba(168,85,247,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   rideResultModernStatLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginBottom: 6,
   },
 
   rideResultModernStatValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   rideResultModernStatValueGreen: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 19,
     fontWeight: '900',
   },
 
   rideResultModernStatValueBlue: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 19,
     fontWeight: '900',
   },
@@ -9649,16 +9677,16 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
 
   rideResultModernSecondaryButton: {
     flex: 1,
     minHeight: 56,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -9666,7 +9694,7 @@ const styles = StyleSheet.create({
   },
 
   rideResultModernSecondaryButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -9674,13 +9702,13 @@ const styles = StyleSheet.create({
   rideResultModernPrimaryButton: {
     flex: 1.1,
     minHeight: 56,
-    borderRadius: 18,
-    backgroundColor: '#16A34A',
+    borderRadius: 13,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#22C55E',
+    shadowColor: '#D4A64A',
     shadowOpacity: 0.22,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -9688,7 +9716,7 @@ const styles = StyleSheet.create({
   },
 
   rideResultModernPrimaryButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -9706,9 +9734,9 @@ const styles = StyleSheet.create({
     height: '92%',
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingTop: 10,
     paddingHorizontal: 18,
     paddingBottom: Platform.OS === 'ios' ? 28 : 18,
@@ -9722,7 +9750,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 18,
   },
@@ -9745,8 +9773,8 @@ const styles = StyleSheet.create({
   finishRideModernHeaderIcon: {
     width: 50,
     height: 50,
-    borderRadius: 18,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.28)',
     alignItems: 'center',
@@ -9754,7 +9782,7 @@ const styles = StyleSheet.create({
   },
 
   finishRideModernEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -9762,7 +9790,7 @@ const styles = StyleSheet.create({
   },
 
   finishRideModernTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 23,
     fontWeight: '900',
     marginTop: 2,
@@ -9772,9 +9800,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -9791,11 +9819,11 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
 
   finishRideModernSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 19,
@@ -9803,9 +9831,9 @@ const styles = StyleSheet.create({
   },
 
   finishRideModernSummaryCard: {
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 14,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.25)',
     marginBottom: 12,
@@ -9821,10 +9849,10 @@ const styles = StyleSheet.create({
   finishRideModernPlatformBox: {
     width: 52,
     height: 52,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -9833,23 +9861,23 @@ const styles = StyleSheet.create({
   finishRideModernPlatformLogo: {
     width: 52,
     height: 52,
-    borderRadius: 18,
+    borderRadius: 13,
   },
 
   finishRideModernPlatformInitial: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 22,
     fontWeight: '900',
   },
 
   finishRideModernPlatformName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   finishRideModernPlatformHint: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -9858,9 +9886,9 @@ const styles = StyleSheet.create({
   finishRideModernLiveBadge: {
     height: 31,
     borderRadius: 999,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -9871,11 +9899,11 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
 
   finishRideModernLiveText: {
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 10,
     fontWeight: '900',
   },
@@ -9889,7 +9917,7 @@ const styles = StyleSheet.create({
   finishRideModernStatBox: {
     flex: 1,
     minWidth: '45%',
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(255,255,255,0.035)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
@@ -9898,7 +9926,7 @@ const styles = StyleSheet.create({
 
   finishRideModernStatBoxWide: {
     width: '100%',
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(34,197,94,0.08)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.16)',
@@ -9906,35 +9934,35 @@ const styles = StyleSheet.create({
   },
 
   finishRideModernStatLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginBottom: 6,
   },
 
   finishRideModernStatValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
 
   finishRideModernStatValueGreen: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 19,
     fontWeight: '900',
   },
 
   finishRideModernFieldsCard: {
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 14,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     marginBottom: 0,
   },
 
   finishRideModernInputLabel: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
     marginBottom: 8,
@@ -9942,10 +9970,10 @@ const styles = StyleSheet.create({
 
   finishRideModernInputBox: {
     minHeight: 58,
-    borderRadius: 18,
-    backgroundColor: '#09090B',
+    borderRadius: 13,
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -9956,7 +9984,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 13,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -9973,14 +10001,14 @@ const styles = StyleSheet.create({
   },
 
   finishRideModernCurrencyText: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 14,
     fontWeight: '900',
   },
 
   finishRideModernMoneyInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 26,
     fontWeight: '900',
     paddingVertical: 8,
@@ -9988,14 +10016,14 @@ const styles = StyleSheet.create({
 
   finishRideModernKmInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 21,
     fontWeight: '900',
     paddingVertical: 8,
   },
 
   finishRideModernKmUnit: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '900',
     marginLeft: 8,
@@ -10014,7 +10042,7 @@ const styles = StyleSheet.create({
 
   finishRideModernHintText: {
     flex: 1,
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -10022,13 +10050,13 @@ const styles = StyleSheet.create({
 
   finishRideModernButton: {
     minHeight: 58,
-    borderRadius: 19,
-    backgroundColor: '#16A34A',
+    borderRadius: 13,
+    backgroundColor: '#D4A64A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 9,
-    shadowColor: '#22C55E',
+    shadowColor: '#D4A64A',
     shadowOpacity: 0.25,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -10036,7 +10064,7 @@ const styles = StyleSheet.create({
   },
 
   finishRideModernButtonText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
@@ -10051,7 +10079,7 @@ const styles = StyleSheet.create({
   finishedModernSheet: {
     width: '100%',
     maxHeight: '94%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderWidth: 1,
@@ -10071,7 +10099,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     marginBottom: 16,
   },
 
@@ -10085,16 +10113,16 @@ const styles = StyleSheet.create({
   finishedModernHeaderIcon: {
     width: 48,
     height: 48,
-    borderRadius: 18,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 13,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
   },
 
   finishedModernEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -10103,7 +10131,7 @@ const styles = StyleSheet.create({
   },
 
   finishedModernTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 22,
     fontWeight: '900',
   },
@@ -10120,7 +10148,7 @@ const styles = StyleSheet.create({
   },
 
   finishedModernSummaryCard: {
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: '#101B14',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.18)',
@@ -10133,14 +10161,14 @@ const styles = StyleSheet.create({
   },
 
   finishedModernSummaryLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
     marginBottom: 4,
   },
 
   finishedModernSummaryValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 30,
     fontWeight: '900',
   },
@@ -10153,7 +10181,7 @@ const styles = StyleSheet.create({
   finishedModernMiniStat: {
     flex: 1,
     minHeight: 78,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(255,255,255,0.045)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
@@ -10162,13 +10190,13 @@ const styles = StyleSheet.create({
   },
 
   finishedModernMiniStatLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
   },
 
   finishedModernMiniStatValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -10183,10 +10211,10 @@ const styles = StyleSheet.create({
   },
 
   finishedModernRideCard: {
-    borderRadius: 24,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 14,
   },
 
@@ -10209,7 +10237,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 15,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   finishedModernRideLogoFallback: {
@@ -10224,14 +10252,14 @@ const styles = StyleSheet.create({
   },
 
   finishedModernRideLogoFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
 
   finishedModernRidePlatform: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
@@ -10244,7 +10272,7 @@ const styles = StyleSheet.create({
   },
 
   finishedModernRideTimeText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -10256,35 +10284,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.18)',
   },
 
   finishedModernStatusText: {
-    color: '#BBF7D0',
+    color: '#E8C46D',
     fontSize: 11,
     fontWeight: '900',
   },
 
   finishedModernRideAmountBox: {
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(34,197,94,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.13)',
+    borderColor: 'rgba(212,166,74,0.13)',
     padding: 13,
     marginBottom: 12,
   },
 
   finishedModernRideAmountLabel: {
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '800',
     marginBottom: 3,
   },
 
   finishedModernRideAmount: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 23,
     fontWeight: '900',
   },
@@ -10299,7 +10327,7 @@ const styles = StyleSheet.create({
   finishedModernStatPill: {
     width: '48.8%',
     minHeight: 64,
-    borderRadius: 17,
+    borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.045)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
@@ -10310,14 +10338,14 @@ const styles = StyleSheet.create({
   },
 
   finishedModernStatLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
     marginBottom: 2,
   },
 
   finishedModernStatValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -10333,7 +10361,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: 'rgba(96,165,250,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -10341,7 +10369,7 @@ const styles = StyleSheet.create({
   },
 
   finishedModernEditText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -10375,11 +10403,11 @@ const styles = StyleSheet.create({
   completedRidesSheet: {
     width: '100%',
     maxHeight: '92%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: 24,
@@ -10389,7 +10417,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -10405,7 +10433,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.25)',
     alignItems: 'center',
@@ -10413,7 +10441,7 @@ const styles = StyleSheet.create({
   },
 
   completedRidesEyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -10421,14 +10449,14 @@ const styles = StyleSheet.create({
   },
 
   completedRidesTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 22,
     fontWeight: '900',
     marginTop: 2,
   },
 
   completedRidesSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '600',
     marginTop: 3,
@@ -10439,18 +10467,18 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 15,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   completedRidesSummaryCard: {
-    backgroundColor: '#111827',
-    borderRadius: 24,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 16,
     marginBottom: 14,
   },
@@ -10460,13 +10488,13 @@ const styles = StyleSheet.create({
   },
 
   completedRidesSummaryLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '800',
   },
 
   completedRidesSummaryValue: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 34,
     fontWeight: '900',
     marginTop: 2,
@@ -10480,23 +10508,23 @@ const styles = StyleSheet.create({
   completedRidesMiniStat: {
     flex: 1,
     minHeight: 82,
-    borderRadius: 18,
-    backgroundColor: '#0B1220',
+    borderRadius: 13,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 10,
     justifyContent: 'space-between',
   },
 
   completedRidesMiniStatLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginTop: 6,
   },
 
   completedRidesMiniStatValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -10510,23 +10538,23 @@ const styles = StyleSheet.create({
   },
 
   completedRidesEmptyBox: {
-    borderRadius: 24,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 24,
     alignItems: 'center',
   },
 
   completedRidesEmptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
     marginTop: 12,
   },
 
   completedRidesEmptyText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
@@ -10535,10 +10563,10 @@ const styles = StyleSheet.create({
   },
 
   completedRideCard: {
-    backgroundColor: '#0B1220',
-    borderRadius: 28,
+    backgroundColor: '#101014',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 16,
     marginBottom: 14,
   },
@@ -10560,7 +10588,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 15,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E6',
   },
 
   completedRideLogoFallback: {
@@ -10579,7 +10607,7 @@ const styles = StyleSheet.create({
   },
 
   completedRidePlatform: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
@@ -10592,7 +10620,7 @@ const styles = StyleSheet.create({
   },
 
   completedRideStatusText: {
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -10602,13 +10630,13 @@ const styles = StyleSheet.create({
   },
 
   completedRideAmountLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
   },
 
   completedRideAmountValue: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 20,
     fontWeight: '900',
     marginTop: 2,
@@ -10617,10 +10645,10 @@ const styles = StyleSheet.create({
   completedRideTimelineCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#111827',
-    borderRadius: 20,
+    backgroundColor: '#101014',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 12,
     marginTop: 16,
   },
@@ -10635,7 +10663,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 999,
-    backgroundColor: '#16A34A',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -10650,13 +10678,13 @@ const styles = StyleSheet.create({
   },
 
   completedRideTimelineLabel: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 11,
     fontWeight: '800',
   },
 
   completedRideTimelineValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -10664,7 +10692,7 @@ const styles = StyleSheet.create({
   completedRideTimelineLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     marginHorizontal: 10,
   },
 
@@ -10677,12 +10705,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: 'rgba(96,165,250,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.22)',
+    borderColor: 'rgba(212,166,74,0.22)',
     marginLeft: 10,
   },
 
   completedRideDurationText: {
-    color: '#BFDBFE',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -10697,10 +10725,10 @@ const styles = StyleSheet.create({
   completedRideDetailCard: {
     width: '48%',
     minHeight: 92,
-    borderRadius: 20,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 12,
   },
 
@@ -10708,7 +10736,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 12,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -10738,34 +10766,34 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 12,
-    backgroundColor: 'rgba(168,85,247,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
 
   completedRideDetailLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
   },
 
   completedRideDetailValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 4,
   },
 
   completedRideDetailValueGreen: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 4,
   },
 
   completedRideDetailValueBlue: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 4,
@@ -10796,7 +10824,7 @@ const styles = StyleSheet.create({
   },
 
   completedRideEditText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -10824,11 +10852,11 @@ const styles = StyleSheet.create({
   completedRidesSheetFullList: {
     width: '100%',
     maxHeight: '92%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 34 : 22,
@@ -10844,10 +10872,10 @@ const styles = StyleSheet.create({
   },
 
   completedRideListCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 18,
+    borderColor: '#2A2830',
+    borderRadius: 13,
     padding: 12,
     gap: 10,
   },
@@ -10871,7 +10899,7 @@ const styles = StyleSheet.create({
   },
 
   completedRideValuePillLabel: {
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 9,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -10879,7 +10907,7 @@ const styles = StyleSheet.create({
   },
 
   completedRideValuePillText: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 15,
     fontWeight: '900',
     marginTop: 1,
@@ -10888,10 +10916,10 @@ const styles = StyleSheet.create({
   completedRideTimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
-    borderRadius: 20,
+    borderColor: '#2A2830',
+    borderRadius: 14,
     padding: 12,
     gap: 12,
   },
@@ -10907,7 +10935,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 999,
-    backgroundColor: '#16A34A',
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -10922,13 +10950,13 @@ const styles = StyleSheet.create({
   },
 
   completedRideTimeLabel: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 11,
     fontWeight: '700',
   },
 
   completedRideTimeValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
     marginTop: 2,
@@ -10937,7 +10965,7 @@ const styles = StyleSheet.create({
   completedRideTimeDivider: {
     width: 1,
     height: 32,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
   },
 
   completedRideFullDetailsGrid: {
@@ -10948,10 +10976,10 @@ const styles = StyleSheet.create({
 
   completedRideFullDetailCard: {
     width: '48%',
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    borderRadius: 18,
+    borderColor: '#2A2830',
+    borderRadius: 13,
     padding: 12,
     minHeight: 88,
   },
@@ -10964,21 +10992,21 @@ const styles = StyleSheet.create({
   },
 
   completedRideFullDetailLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     flexShrink: 1,
   },
 
   completedRideFullDetailValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 4,
   },
 
   completedRideFullDetailValueGreen: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 4,
@@ -10995,7 +11023,7 @@ const styles = StyleSheet.create({
   completedRideCompactDetails: {
     backgroundColor: 'rgba(9, 9, 11, 0.66)',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     borderRadius: 14,
     paddingHorizontal: 11,
     paddingVertical: 9,
@@ -11011,7 +11039,7 @@ const styles = StyleSheet.create({
 
   completedRideCompactDivider: {
     height: 1,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
   },
 
   completedRideCompactGrid: {
@@ -11026,20 +11054,20 @@ const styles = StyleSheet.create({
   },
 
   completedRideCompactLabel: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 11,
     fontWeight: '700',
   },
 
   completedRideCompactValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
     marginTop: 2,
   },
 
   completedRideCompactValueGreen: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 14,
     fontWeight: '900',
     marginTop: 2,
@@ -11064,9 +11092,9 @@ const styles = StyleSheet.create({
     maxHeight: '88%',
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingTop: 10,
     paddingHorizontal: 18,
     paddingBottom: Platform.OS === 'ios' ? 30 : 20,
@@ -11076,7 +11104,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 18,
   },
@@ -11099,7 +11127,7 @@ const styles = StyleSheet.create({
   editFinishedRideModernHeaderIcon: {
     width: 52,
     height: 52,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(96,165,250,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(96,165,250,0.28)',
@@ -11108,7 +11136,7 @@ const styles = StyleSheet.create({
   },
 
   editFinishedRideModernEyebrow: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -11116,7 +11144,7 @@ const styles = StyleSheet.create({
   },
 
   editFinishedRideModernTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 24,
     fontWeight: '900',
     marginTop: 2,
@@ -11126,9 +11154,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -11139,17 +11167,17 @@ const styles = StyleSheet.create({
   },
 
   editFinishedRideModernSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 19,
   },
 
   editFinishedRideModernSummaryCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 24,
+    borderColor: '#2A2830',
+    borderRadius: 16,
     padding: 14,
     gap: 14,
   },
@@ -11163,10 +11191,10 @@ const styles = StyleSheet.create({
   editFinishedRideModernPlatformLogoBox: {
     width: 48,
     height: 48,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -11179,13 +11207,13 @@ const styles = StyleSheet.create({
   },
 
   editFinishedRideModernPlatformInitial: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
 
   editFinishedRideModernPlatformName: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
   },
@@ -11201,11 +11229,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#D4A64A',
   },
 
   editFinishedRideModernStatusText: {
-    color: '#86EFAC',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -11218,10 +11246,10 @@ const styles = StyleSheet.create({
 
   editFinishedRideModernInfoCard: {
     width: '48%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
-    borderRadius: 18,
+    borderColor: '#2A2830',
+    borderRadius: 13,
     padding: 12,
     minHeight: 76,
   },
@@ -11233,28 +11261,28 @@ const styles = StyleSheet.create({
   },
 
   editFinishedRideModernInfoLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
   },
 
   editFinishedRideModernInfoValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
     marginTop: 7,
   },
 
   editFinishedRideModernAmountCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 24,
+    borderColor: '#2A2830',
+    borderRadius: 16,
     padding: 14,
   },
 
   editFinishedRideModernInputLabel: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
     marginBottom: 10,
@@ -11262,10 +11290,10 @@ const styles = StyleSheet.create({
 
   editFinishedRideModernAmountInputBox: {
     height: 58,
-    borderRadius: 20,
-    backgroundColor: '#09090B',
+    borderRadius: 14,
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -11275,30 +11303,30 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 14,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.24)',
+    borderColor: 'rgba(212,166,74,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
 
   editFinishedRideModernCurrencyText: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 14,
     fontWeight: '900',
   },
 
   editFinishedRideModernAmountInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 24,
     fontWeight: '900',
     paddingVertical: 0,
   },
 
   editFinishedRideModernInputHint: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -11311,22 +11339,22 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#18181B',
+    borderTopColor: '#18171D',
   },
 
   editFinishedRideModernCancelButton: {
     flex: 1,
     height: 54,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   editFinishedRideModernCancelText: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -11334,7 +11362,7 @@ const styles = StyleSheet.create({
   editFinishedRideModernSaveButton: {
     flex: 1.25,
     height: 54,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
@@ -11343,7 +11371,7 @@ const styles = StyleSheet.create({
   },
 
   editFinishedRideModernSaveText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -11358,14 +11386,14 @@ const styles = StyleSheet.create({
   kmModernSheet: {
     width: '100%',
     maxHeight: '88%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 28 : 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
   },
 
   kmModernHandle: {
@@ -11395,7 +11423,7 @@ const styles = StyleSheet.create({
   kmModernIconBox: {
     width: 50,
     height: 50,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(245,158,11,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(245,158,11,0.24)',
@@ -11404,14 +11432,14 @@ const styles = StyleSheet.create({
   },
 
   kmModernEyebrow: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
     marginBottom: 3,
   },
 
   kmModernTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 22,
     fontWeight: '900',
   },
@@ -11420,9 +11448,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 16,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -11433,10 +11461,10 @@ const styles = StyleSheet.create({
   },
 
   kmModernSummaryCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 24,
+    borderColor: '#2A2830',
+    borderRadius: 16,
     padding: 14,
     gap: 14,
   },
@@ -11449,14 +11477,14 @@ const styles = StyleSheet.create({
   },
 
   kmModernSummaryLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
     marginBottom: 5,
   },
 
   kmModernSummaryValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
@@ -11471,18 +11499,18 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 14,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   kmModernDrivenBox: {
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
-    borderRadius: 18,
+    borderColor: '#2A2830',
+    borderRadius: 13,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -11493,7 +11521,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 14,
-    backgroundColor: 'rgba(59,130,246,0.12)',
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(59,130,246,0.22)',
     alignItems: 'center',
@@ -11501,23 +11529,23 @@ const styles = StyleSheet.create({
   },
 
   kmModernDrivenLabel: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '800',
   },
 
   kmModernDrivenValue: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 18,
     fontWeight: '900',
     marginTop: 3,
   },
 
   kmModernInputSection: {
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 24,
+    borderColor: '#2A2830',
+    borderRadius: 16,
     padding: 14,
   },
 
@@ -11529,17 +11557,17 @@ const styles = StyleSheet.create({
   },
 
   kmModernInputLabel: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
 
   kmModernInputCard: {
     height: 62,
-    borderRadius: 20,
-    backgroundColor: '#09090B',
+    borderRadius: 14,
+    backgroundColor: '#050505',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
@@ -11547,7 +11575,7 @@ const styles = StyleSheet.create({
 
   kmModernInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 28,
     fontWeight: '900',
     paddingVertical: 0,
@@ -11574,17 +11602,17 @@ const styles = StyleSheet.create({
   kmModernHintBox: {
     flexDirection: 'row',
     gap: 8,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     padding: 11,
     marginTop: 12,
   },
 
   kmModernHintText: {
     flex: 1,
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -11596,22 +11624,22 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#18181B',
+    borderTopColor: '#18171D',
   },
 
   kmModernCancelButton: {
     flex: 1,
     height: 54,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   kmModernCancelText: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -11619,7 +11647,7 @@ const styles = StyleSheet.create({
   kmModernSaveButton: {
     flex: 1.35,
     height: 54,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: '#F59E0B',
     alignItems: 'center',
     justifyContent: 'center',
@@ -11628,7 +11656,7 @@ const styles = StyleSheet.create({
   },
 
   kmModernSaveText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
@@ -11647,11 +11675,11 @@ const styles = StyleSheet.create({
   privateChatSheetModern: {
     height: '86%',
     width: '100%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingTop: 10,
     paddingHorizontal: 16,
     paddingBottom: Platform.OS === 'ios' ? 22 : 14,
@@ -11661,7 +11689,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3F3F46',
+    backgroundColor: '#3A3430',
     alignSelf: 'center',
     marginBottom: 14,
   },
@@ -11686,17 +11714,17 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 999,
     borderWidth: 2,
-    borderColor: '#22C55E',
-    backgroundColor: '#18181B',
+    borderColor: '#D4A64A',
+    backgroundColor: '#18171D',
   },
 
   privateChatHeaderAvatarFallbackModern: {
     width: 48,
     height: 48,
     borderRadius: 999,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -11709,7 +11737,7 @@ const styles = StyleSheet.create({
 
   privateChatTitleModern: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
   },
@@ -11727,13 +11755,13 @@ const styles = StyleSheet.create({
   },
 
   privateChatPrivateBadgeTextModern: {
-    color: '#BFDBFE',
+    color: '#D4A64A',
     fontSize: 10,
     fontWeight: '900',
   },
 
   privateChatSubtitleModern: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -11743,9 +11771,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 15,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -11757,7 +11785,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     borderWidth: 1,
     borderColor: '#1E3A8A',
-    borderRadius: 18,
+    borderRadius: 13,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 12,
@@ -11765,7 +11793,7 @@ const styles = StyleSheet.create({
 
   privateChatNoticeTextModern: {
     flex: 1,
-    color: '#BFDBFE',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -11790,23 +11818,23 @@ const styles = StyleSheet.create({
   privateChatEmptyIconModern: {
     width: 62,
     height: 62,
-    borderRadius: 22,
-    backgroundColor: '#111827',
+    borderRadius: 14,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
 
   privateChatEmptyTitleModern: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
   },
 
   privateChatEmptyTextModern: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
@@ -11834,7 +11862,7 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 999,
     marginRight: 8,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
   },
 
   privateChatMessageAvatarFallbackModern: {
@@ -11842,13 +11870,13 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 999,
     marginRight: 8,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   privateChatBubbleModern: {
-    borderRadius: 20,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
     maxWidth: '78%',
@@ -11857,33 +11885,33 @@ const styles = StyleSheet.create({
   },
 
   privateChatBubbleMineModern: {
-    backgroundColor: '#22C55E',
-    borderColor: '#16A34A',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
     borderBottomRightRadius: 6,
   },
 
   privateChatBubbleOtherModern: {
-    backgroundColor: '#18181B',
-    borderColor: '#27272A',
+    backgroundColor: '#18171D',
+    borderColor: '#2A2830',
     borderBottomLeftRadius: 6,
   },
 
   privateChatSenderNameModern: {
-    color: '#BFDBFE',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
     marginBottom: 4,
   },
 
   privateChatMessageTextModern: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 20,
   },
 
   privateChatMessageTextMineModern: {
-    color: '#052E16',
+    color: '#211D16',
   },
 
   privateChatBubbleFooterModern: {
@@ -11895,19 +11923,19 @@ const styles = StyleSheet.create({
   },
 
   privateChatHourModern: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 10,
     fontWeight: '800',
   },
 
   privateChatHourMineModern: {
-    color: '#14532D',
+    color: 'rgba(212,166,74,0.28)',
   },
 
   privateChatReplyPreviewModern: {
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderLeftWidth: 3,
-    borderLeftColor: '#60A5FA',
+    borderLeftColor: '#D4A64A',
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 10,
@@ -11916,22 +11944,22 @@ const styles = StyleSheet.create({
 
   privateChatReplyPreviewMineModern: {
     backgroundColor: 'rgba(255,255,255,0.26)',
-    borderLeftColor: '#14532D',
+    borderLeftColor: 'rgba(212,166,74,0.28)',
   },
 
   privateChatReplyPreviewLabelModern: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 10,
     fontWeight: '900',
     marginBottom: 2,
   },
 
   privateChatReplyPreviewLabelMineModern: {
-    color: '#14532D',
+    color: 'rgba(212,166,74,0.28)',
   },
 
   privateChatReplyPreviewTextModern: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -11944,10 +11972,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 18,
+    borderColor: '#2A2830',
+    borderRadius: 13,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 10,
@@ -11963,13 +11991,13 @@ const styles = StyleSheet.create({
   },
 
   privateChatReplyingLabelModern: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
   },
 
   privateChatReplyingTextModern: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '700',
     marginTop: 2,
@@ -11979,7 +12007,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 11,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -11990,18 +12018,18 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#18181B',
+    borderTopColor: '#18171D',
   },
 
   privateChatInputModern: {
     flex: 1,
     minHeight: 50,
     maxHeight: 108,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
-    color: '#FFFFFF',
+    borderColor: '#2A2830',
+    color: '#F5F0E6',
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 12,
@@ -12012,8 +12040,8 @@ const styles = StyleSheet.create({
   privateChatSendButtonModern: {
     width: 50,
     height: 50,
-    borderRadius: 18,
-    backgroundColor: '#22C55E',
+    borderRadius: 13,
+    backgroundColor: '#D4A64A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -12035,11 +12063,11 @@ const styles = StyleSheet.create({
   cityChatModernSheet: {
     height: '88%',
     width: '100%',
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 24 : 14,
@@ -12071,7 +12099,7 @@ const styles = StyleSheet.create({
   cityChatModernHeaderIcon: {
     width: 50,
     height: 50,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(37,99,235,0.18)',
     borderWidth: 1,
     borderColor: 'rgba(96,165,250,0.35)',
@@ -12087,7 +12115,7 @@ const styles = StyleSheet.create({
   },
 
   cityChatModernEyebrow: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -12107,19 +12135,19 @@ const styles = StyleSheet.create({
   },
 
   cityChatModernBadgeText: {
-    color: '#BFDBFE',
+    color: '#D4A64A',
     fontSize: 11,
     fontWeight: '900',
   },
 
   cityChatModernTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 21,
     fontWeight: '900',
   },
 
   cityChatModernSubtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
@@ -12129,9 +12157,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 15,
-    backgroundColor: '#18181B',
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -12139,7 +12167,7 @@ const styles = StyleSheet.create({
   cityChatModernInfoCard: {
     marginTop: 16,
     minHeight: 48,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: 'rgba(37,99,235,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(96,165,250,0.24)',
@@ -12152,7 +12180,7 @@ const styles = StyleSheet.create({
 
   cityChatModernInfoText: {
     flex: 1,
-    color: '#BFDBFE',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
@@ -12177,24 +12205,24 @@ const styles = StyleSheet.create({
   cityChatModernEmptyIcon: {
     width: 70,
     height: 70,
-    borderRadius: 24,
-    backgroundColor: '#18181B',
+    borderRadius: 16,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
 
   cityChatModernEmptyTitle: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
     textAlign: 'center',
   },
 
   cityChatModernEmptyText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
@@ -12219,14 +12247,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 999,
-    backgroundColor: '#27272A',
+    backgroundColor: '#2A2830',
   },
 
   cityChatModernAvatarFallback: {
     width: 36,
     height: 36,
     borderRadius: 999,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#2A2830',
     borderWidth: 1,
     borderColor: '#374151',
     alignItems: 'center',
@@ -12234,7 +12262,7 @@ const styles = StyleSheet.create({
   },
 
   cityChatModernAvatarFallbackText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -12242,26 +12270,26 @@ const styles = StyleSheet.create({
   cityChatModernBubble: {
     maxWidth: '78%',
     minWidth: 90,
-    borderRadius: 20,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
   },
 
   cityChatModernBubbleOther: {
-    backgroundColor: '#18181B',
-    borderColor: '#27272A',
+    backgroundColor: '#18171D',
+    borderColor: '#2A2830',
     borderBottomLeftRadius: 7,
   },
 
   cityChatModernBubbleMe: {
-    backgroundColor: '#16A34A',
-    borderColor: '#22C55E',
+    backgroundColor: '#D4A64A',
+    borderColor: '#D4A64A',
     borderBottomRightRadius: 7,
   },
 
   cityChatModernUserName: {
-    color: '#BFDBFE',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
     marginBottom: 4,
@@ -12270,7 +12298,7 @@ const styles = StyleSheet.create({
   cityChatModernReplyPreview: {
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderLeftWidth: 3,
-    borderLeftColor: '#60A5FA',
+    borderLeftColor: '#D4A64A',
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 10,
@@ -12279,24 +12307,24 @@ const styles = StyleSheet.create({
 
   cityChatModernReplyPreviewMe: {
     backgroundColor: 'rgba(0,0,0,0.16)',
-    borderLeftColor: '#FFFFFF',
+    borderLeftColor: '#F5F0E6',
   },
 
   cityChatModernReplyPreviewText: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 12,
     fontWeight: '800',
   },
 
   cityChatModernMessageText: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 20,
   },
 
   cityChatModernMessageTextMe: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
   },
 
   cityChatModernHourRow: {
@@ -12308,21 +12336,21 @@ const styles = StyleSheet.create({
   },
 
   cityChatModernHourText: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 11,
     fontWeight: '800',
   },
 
   cityChatModernHourTextMe: {
-    color: '#DCFCE7',
+    color: '#F5F0E6',
   },
 
   cityChatModernReplyingBox: {
     minHeight: 58,
-    borderRadius: 18,
-    backgroundColor: '#111827',
+    borderRadius: 13,
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 12,
     paddingVertical: 9,
     marginBottom: 10,
@@ -12341,13 +12369,13 @@ const styles = StyleSheet.create({
   },
 
   cityChatModernReplyingLabel: {
-    color: '#60A5FA',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
   },
 
   cityChatModernReplyingText: {
-    color: '#E5E7EB',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '700',
     marginTop: 2,
@@ -12364,10 +12392,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 52,
     maxHeight: 110,
-    borderRadius: 18,
-    backgroundColor: '#18181B',
+    borderRadius: 13,
+    backgroundColor: '#18171D',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 13,
     paddingVertical: 11,
     flexDirection: 'row',
@@ -12379,7 +12407,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 28,
     maxHeight: 82,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 14,
     fontWeight: '700',
     padding: 0,
@@ -12388,7 +12416,7 @@ const styles = StyleSheet.create({
   cityChatModernSendButton: {
     width: 52,
     height: 52,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',

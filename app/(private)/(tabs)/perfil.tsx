@@ -145,9 +145,9 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
     return {
       title: "Jornada leve",
       icon: "leaf-outline" as const,
-      color: "#22C55E",
-      backgroundColor: "rgba(34,197,94,0.12)",
-      borderColor: "rgba(34,197,94,0.28)",
+      color: "#D4A64A",
+      backgroundColor: "rgba(212,166,74,0.12)",
+      borderColor: "rgba(212,166,74,0.28)",
       description:
         "Sua média diária está abaixo de 5h nos dias analisados.",
     };
@@ -156,7 +156,7 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
   return {
     title: "Perfil de jornada",
     icon: "briefcase-outline" as const,
-    color: "#A1A1AA",
+    color: "#9B969B",
     backgroundColor: "rgba(161,161,170,0.10)",
     borderColor: "rgba(161,161,170,0.22)",
     description:
@@ -269,8 +269,8 @@ export default function SocialProfileScreen() {
     const averageHoursPerDay = workedDays > 0 ? totalHours / workedDays : 0;
 
     const today = startOfDay(new Date());
-    const oneHundredDaysAgo = startOfDay(new Date());
-    oneHundredDaysAgo.setDate(today.getDate() - 99);
+    const thirtyDaysAgo = startOfDay(new Date());
+    thirtyDaysAgo.setDate(today.getDate() - 29);
 
     const sessionDates = sessions
       .map((session: any) => getSessionBaseDate(session))
@@ -287,9 +287,9 @@ export default function SocialProfileScreen() {
 
     const analysisStartDate = firstSessionDate
       ? startOfDay(
-          firstSessionDate.getTime() > oneHundredDaysAgo.getTime()
+          firstSessionDate.getTime() > thirtyDaysAgo.getTime()
             ? firstSessionDate
-            : oneHundredDaysAgo,
+            : thirtyDaysAgo,
         )
       : today;
 
@@ -385,7 +385,7 @@ export default function SocialProfileScreen() {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingIcon}>
-          <Ionicons name="person-circle-outline" size={38} color="#22C55E" />
+          <Ionicons name="person-circle-outline" size={38} color="#D4A64A" />
         </View>
         <Text style={styles.loadingText}>Carregando perfil...</Text>
       </View>
@@ -415,7 +415,7 @@ export default function SocialProfileScreen() {
             router.push("/(private)/perfil/configuracoes" as never)
           }
         >
-          <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
+          <Ionicons name="settings-outline" size={22} color="#F5F0E6" />
         </TouchableOpacity>
       </View>
 
@@ -425,7 +425,7 @@ export default function SocialProfileScreen() {
             <Image source={{ uri: avatarUrl }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarFallback}>
-              <Ionicons name="person" size={42} color="#FFFFFF" />
+              <Ionicons name="person" size={42} color="#F5F0E6" />
             </View>
           )}
 
@@ -436,7 +436,7 @@ export default function SocialProfileScreen() {
             />
 
             <View style={styles.cityRow}>
-              <Ionicons name="location-outline" size={16} color="#22C55E" />
+              <Ionicons name="location-outline" size={16} color="#D4A64A" />
               <Text style={styles.cityText} numberOfLines={1}>
                 {profile.city || "Cidade não informada"}
               </Text>
@@ -452,7 +452,7 @@ export default function SocialProfileScreen() {
               router.push("/(private)/perfil/minha-conta" as never)
             }
           >
-            <Ionicons name="create-outline" size={18} color="#06130B" />
+            <Ionicons name="create-outline" size={18} color="#080808" />
             <Text style={styles.editButtonText}>Editar perfil</Text>
           </TouchableOpacity>
 
@@ -461,7 +461,7 @@ export default function SocialProfileScreen() {
             style={styles.searchButton}
             onPress={() => router.push("/(private)/buscar-motoristas" as never)}
           >
-            <Ionicons name="search-outline" size={20} color="#FFFFFF" />
+            <Ionicons name="search-outline" size={20} color="#F5F0E6" />
           </TouchableOpacity>
         </View>
       </View>
@@ -516,12 +516,12 @@ export default function SocialProfileScreen() {
         </Text>
 
         <View style={styles.journeyProfileFooter}>
-          <Ionicons name="calendar-outline" size={15} color="#A1A1AA" />
+          <Ionicons name="calendar-outline" size={15} color="#9B969B" />
           <Text style={styles.journeyProfileFooterText}>
             Calculado com base em {stats.journeyProfileDays}{" "}
             {stats.journeyProfileDays === 1 ? "dia" : "dias"} de análise
-            {stats.journeyProfileDays >= 100
-              ? " dos últimos 100 dias."
+            {stats.journeyProfileDays >= 30
+              ? " dos últimos 30 dias."
               : " desde a primeira jornada registrada."}
           </Text>
         </View>
@@ -531,7 +531,7 @@ export default function SocialProfileScreen() {
         <View style={styles.statCardLarge}>
           <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
             <View style={styles.statIconGreen}>
-              <Ionicons name="speedometer-outline" size={24} color="#22C55E" />
+              <Ionicons name="speedometer-outline" size={24} color="#D4A64A" />
             </View>
             <Text style={styles.statLabel}>KM rodados</Text>
           </View>
@@ -542,7 +542,7 @@ export default function SocialProfileScreen() {
         <View style={styles.statCardLarge}>
           <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
             <View style={styles.statIconBlue}>
-              <Ionicons name="time-outline" size={24} color="#60A5FA" />
+              <Ionicons name="time-outline" size={24} color="#D4A64A" />
             </View>
             <View>
               <Text style={styles.statLabel}>Horas</Text>
@@ -558,7 +558,7 @@ export default function SocialProfileScreen() {
         <View style={styles.statCardLarge}>
           <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
             <View style={styles.statIconPurple}>
-              <Ionicons name="analytics-outline" size={24} color="#A78BFA" />
+              <Ionicons name="analytics-outline" size={24} color="#D4A64A" />
             </View>
             <View>
               <Text style={styles.statLabel}>Média km</Text>
@@ -675,7 +675,7 @@ export default function SocialProfileScreen() {
         onPress={() => router.push("/(private)/buscar-motoristas" as never)}
       >
         <View style={styles.findDriversIcon}>
-          <Ionicons name="people-outline" size={26} color="#FFFFFF" />
+          <Ionicons name="people-outline" size={26} color="#F5F0E6" />
         </View>
 
         <View style={{ flex: 1 }}>
@@ -686,7 +686,7 @@ export default function SocialProfileScreen() {
           </Text>
         </View>
 
-        <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+        <Ionicons name="chevron-forward" size={22} color="#F5F0E6" />
       </TouchableOpacity>
     </ScrollView>
   );
@@ -717,7 +717,7 @@ function ProfileMenuItem({
         <Ionicons
           name={icon}
           size={21}
-          color={danger ? "#FCA5A5" : "#22C55E"}
+          color={danger ? "#FCA5A5" : "#D4A64A"}
         />
       </View>
 
@@ -738,33 +738,41 @@ function ProfileMenuItem({
       <Ionicons
         name="chevron-forward"
         size={20}
-        color={danger ? "#FCA5A5" : "#71717A"}
+        color={danger ? "#FCA5A5" : "#8F8A91"}
       />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#09090B" },
-  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 140 },
+  container: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 48,
+    paddingBottom: 150,
+    backgroundColor: "#050505",
+  },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#09090B",
+    backgroundColor: "#050505",
     alignItems: "center",
     justifyContent: "center",
   },
   loadingIcon: {
     width: 72,
     height: 72,
-    borderRadius: 26,
-    backgroundColor: "rgba(34,197,94,0.12)",
+    borderRadius: 16,
+    backgroundColor: "rgba(212,166,74,0.12)",
     borderWidth: 1,
-    borderColor: "rgba(34,197,94,0.25)",
+    borderColor: "rgba(212,166,74,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
   loadingText: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 14,
     fontWeight: "800",
     marginTop: 14,
@@ -773,68 +781,91 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 18,
+    marginHorizontal: -18,
+    marginTop: -48,
+    marginBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    backgroundColor: "#070707",
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
   },
   headerEyebrow: {
-    color: "#22C55E",
-    fontSize: 12,
+    color: "#D4A64A",
+    fontSize: 9,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 1.7,
   },
   headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 28,
+    color: "#F5F0E6",
+    fontSize: 27,
     fontWeight: "900",
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.6,
   },
   headerIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
   profileHero: {
-    backgroundColor: "#111827",
-    borderRadius: 30,
+    backgroundColor: "#101014",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     padding: 18,
     marginBottom: 16,
+    shadowColor: "#D4A64A",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 10,
   },
   profileTop: { flexDirection: "row", alignItems: "center" },
   avatar: {
     width: 92,
     height: 92,
-    borderRadius: 999,
+    borderRadius: 13,
     marginRight: 16,
-    borderWidth: 3,
-    borderColor: "#22C55E",
+    borderWidth: 2,
+    borderColor: "#D4A64A",
   },
   avatarFallback: {
     width: 92,
     height: 92,
-    borderRadius: 999,
-    backgroundColor: "#18181B",
+    borderRadius: 13,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
   },
   profileInfo: { flex: 1 },
   cityRow: { flexDirection: "row", alignItems: "center", marginTop: 7, gap: 5 },
-  cityText: { color: "#A1A1AA", fontSize: 14, fontWeight: "700", flex: 1 },
+  cityText: {
+    color: "#9B969B",
+    fontSize: 14,
+    fontWeight: "700",
+    flex: 1,
+  },
   profileActions: { flexDirection: "row", gap: 10, marginTop: 18 },
   journeyProfileCard: {
-    borderRadius: 26,
+    borderRadius: 18,
     borderWidth: 1,
     padding: 16,
     marginBottom: 16,
+    backgroundColor: "#18171D",
+    borderColor: "#2A2830",
+    borderLeftWidth: 4,
+    borderLeftColor: "#D4A64A",
   },
   journeyProfileTop: {
     flexDirection: "row",
@@ -844,16 +875,16 @@ const styles = StyleSheet.create({
   journeyProfileIconBox: {
     width: 54,
     height: 54,
-    borderRadius: 19,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
   },
   journeyProfileEyebrow: {
-    color: "#A1A1AA",
-    fontSize: 12,
+    color: "#9B969B",
+    fontSize: 11,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.7,
+    letterSpacing: 1.2,
   },
   journeyProfileTitle: {
     fontSize: 20,
@@ -862,27 +893,27 @@ const styles = StyleSheet.create({
   },
   journeyProfileAverageBox: {
     minWidth: 82,
-    borderRadius: 18,
-    backgroundColor: "rgba(9,9,11,0.42)",
+    borderRadius: 13,
+    backgroundColor: "rgba(5,5,5,0.34)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(212,166,74,0.14)",
     paddingHorizontal: 10,
     paddingVertical: 9,
     alignItems: "center",
   },
   journeyProfileAverageValue: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 18,
     fontWeight: "900",
   },
   journeyProfileAverageLabel: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 10,
     fontWeight: "800",
     marginTop: 2,
   },
   journeyProfileDescription: {
-    color: "#E5E7EB",
+    color: "#F5F0E6",
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 19,
@@ -890,10 +921,10 @@ const styles = StyleSheet.create({
   },
   journeyProfileFooter: {
     minHeight: 36,
-    borderRadius: 14,
-    backgroundColor: "rgba(9,9,11,0.32)",
+    borderRadius: 12,
+    backgroundColor: "rgba(5,5,5,0.26)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(212,166,74,0.12)",
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginTop: 12,
@@ -903,7 +934,7 @@ const styles = StyleSheet.create({
   },
   journeyProfileFooterText: {
     flex: 1,
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 11,
     fontWeight: "800",
     lineHeight: 16,
@@ -911,77 +942,93 @@ const styles = StyleSheet.create({
   editButton: {
     flex: 1,
     height: 48,
-    borderRadius: 17,
-    backgroundColor: "#22C55E",
+    borderRadius: 12,
+    backgroundColor: "#D4A64A",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 7,
   },
-  editButtonText: { color: "#06130B", fontSize: 14, fontWeight: "900" },
+  editButtonText: {
+    color: "#080808",
+    fontSize: 14,
+    fontWeight: "900",
+  },
   searchButton: {
     width: 52,
     height: 48,
-    borderRadius: 17,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
   statsGrid: { flexDirection: "row", gap: 12, marginBottom: 14 },
   statCardLarge: {
     flex: 1,
-    minHeight: 102,
-    backgroundColor: "#18181B",
-    borderRadius: 24,
+    minHeight: 112,
+    backgroundColor: "#18171D",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#27272A",
-    padding: 10,
+    borderColor: "#2A2830",
+    padding: 12,
   },
   statIconGreen: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: "rgba(34,197,94,0.12)",
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
   statIconBlue: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: "rgba(96,165,250,0.12)",
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
-
   statIconPurple: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: "rgba(167,139,250,0.12)",
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
-
   statIconOrange: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 11,
     backgroundColor: "rgba(245,158,11,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
-  statLabel: { color: "#A1A1AA", fontSize: 12, fontWeight: "900" },
-  statValue: {
-    color: "#FFFFFF",
-    fontSize: 22,
+  statLabel: {
+    color: "#9B969B",
+    fontSize: 12,
     fontWeight: "900",
-    marginTop: 8,
+  },
+  statValue: {
+    color: "#F5F0E6",
+    fontSize: 21,
+    fontWeight: "900",
+    marginTop: 10,
+    textAlign: "center",
+    alignSelf: "stretch",
   },
   statHint: {
-    color: "#71717A",
+    color: "#8F8A91",
     fontSize: 11,
     fontWeight: "700",
     marginTop: 6,
@@ -989,10 +1036,12 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     minHeight: 78,
-    borderRadius: 24,
-    backgroundColor: "#1A1305",
+    borderRadius: 16,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#713F12",
+    borderColor: "#2A2830",
+    borderLeftWidth: 4,
+    borderLeftColor: "#F59E0B",
     padding: 15,
     flexDirection: "row",
     alignItems: "center",
@@ -1002,30 +1051,36 @@ const styles = StyleSheet.create({
   summaryIcon: {
     width: 46,
     height: 46,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: "rgba(245,158,11,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
-  summaryTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
+  summaryTitle: {
+    color: "#F5F0E6",
+    fontSize: 15,
+    fontWeight: "900",
+  },
   summaryText: {
-    color: "#FCD34D",
+    color: "#E8C46D",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
     lineHeight: 17,
   },
   sectionTitle: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 18,
     fontWeight: "900",
     marginBottom: 12,
   },
   menuCard: {
-    backgroundColor: "#111827",
-    borderRadius: 26,
+    backgroundColor: "#101014",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     paddingHorizontal: 14,
     marginBottom: 16,
   },
@@ -1035,26 +1090,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1F2937",
+    borderBottomColor: "#2A2830",
   },
   menuItemLast: { borderBottomWidth: 0 },
   menuIcon: {
     width: 42,
     height: 42,
-    borderRadius: 15,
-    backgroundColor: "rgba(34,197,94,0.10)",
+    borderRadius: 11,
+    backgroundColor: "rgba(212,166,74,0.10)",
     alignItems: "center",
     justifyContent: "center",
   },
   menuIconDanger: {
     backgroundColor: "rgba(239,68,68,0.12)",
   },
-  menuTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  menuTitle: {
+    color: "#F5F0E6",
+    fontSize: 14,
+    fontWeight: "900",
+  },
   menuTitleDanger: {
     color: "#FCA5A5",
   },
   menuDescription: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
@@ -1065,10 +1124,12 @@ const styles = StyleSheet.create({
   },
   findDriversCard: {
     minHeight: 96,
-    borderRadius: 26,
-    backgroundColor: "#052E16",
+    borderRadius: 18,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#166534",
+    borderColor: "#2A2830",
+    borderLeftWidth: 4,
+    borderLeftColor: "#D4A64A",
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -1077,14 +1138,20 @@ const styles = StyleSheet.create({
   findDriversIcon: {
     width: 50,
     height: 50,
-    borderRadius: 18,
-    backgroundColor: "rgba(34,197,94,0.22)",
+    borderRadius: 13,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
-  findDriversTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
+  findDriversTitle: {
+    color: "#F5F0E6",
+    fontSize: 16,
+    fontWeight: "900",
+  },
   findDriversText: {
-    color: "#BBF7D0",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,

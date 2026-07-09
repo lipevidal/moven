@@ -226,13 +226,13 @@ export default function ForgotPasswordScreen() {
               disabled={sending}
             >
               {sending ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color="#080808" />
               ) : (
                 <>
                   <Ionicons
                     name="mail-outline"
                     size={20}
-                    color="#FFFFFF"
+                    color="#080808"
                   />
 
                   <Text style={styles.buttonText}>
@@ -297,13 +297,13 @@ export default function ForgotPasswordScreen() {
                 disabled={updating}
               >
                 {updating ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="#080808" />
                 ) : (
                   <>
                     <Ionicons
                       name="lock-closed-outline"
                       size={20}
-                      color="#FFFFFF"
+                      color="#080808"
                     />
 
                     <Text style={styles.buttonText}>
@@ -350,128 +350,118 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
-
   container: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
-
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 44,
     paddingBottom: 180,
     justifyContent: 'flex-start',
+    backgroundColor: '#050505',
   },
-
   logo: {
     width: 210,
     height: 120,
     alignSelf: 'center',
     marginBottom: 6,
   },
-
   logoSmall: {
     width: 170,
     height: 90,
     marginBottom: 2,
   },
-
   title: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 30,
     fontWeight: '900',
     textAlign: 'center',
+    letterSpacing: -0.6,
   },
-
   subtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
     lineHeight: 20,
     marginTop: 8,
     marginBottom: 22,
   },
-
   card: {
-    backgroundColor: '#111827',
+    backgroundColor: '#101014',
     borderWidth: 1,
-    borderColor: '#1F2937',
-    borderRadius: 24,
+    borderColor: '#2A2830',
+    borderRadius: 18,
     padding: 16,
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 10,
   },
-
   label: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
     marginBottom: 8,
     marginLeft: 4,
   },
-
   input: {
     height: 58,
-    backgroundColor: '#18181B',
-    borderRadius: 18,
+    backgroundColor: '#18171D',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingHorizontal: 18,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     marginBottom: 16,
     fontSize: 15,
     fontWeight: '700',
   },
-
   inputDisabled: {
     opacity: 0.65,
   },
-
   codeInput: {
     textAlign: 'center',
     letterSpacing: 8,
     fontSize: 22,
     fontWeight: '900',
   },
-
   button: {
     height: 58,
-    backgroundColor: '#22C55E',
-    borderRadius: 18,
+    backgroundColor: '#D4A64A',
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
     flexDirection: 'row',
     gap: 10,
   },
-
   buttonDisabled: {
     opacity: 0.6,
   },
-
   buttonText: {
-    color: '#FFFFFF',
+    color: '#080808',
     fontSize: 16,
     fontWeight: '900',
   },
-
   secondaryButton: {
     height: 42,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
   },
-
   secondaryButtonText: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 13,
     fontWeight: '900',
   },
-
   link: {
-    color: '#22C55E',
+    color: '#D4A64A',
     textAlign: 'center',
     marginTop: 24,
     fontWeight: '900',

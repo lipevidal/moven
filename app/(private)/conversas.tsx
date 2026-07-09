@@ -232,7 +232,7 @@ export default function ConversationsListScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#22C55E" />
+        <ActivityIndicator color="#D4A64A" />
         <Text style={styles.loadingText}>Carregando conversas...</Text>
       </View>
     );
@@ -246,7 +246,7 @@ export default function ConversationsListScreen() {
           style={styles.headerIconButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
         </TouchableOpacity>
 
         <View style={{ flex: 1 }}>
@@ -260,7 +260,7 @@ export default function ConversationsListScreen() {
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl
-            tintColor="#22C55E"
+            tintColor="#D4A64A"
             refreshing={refreshing}
             onRefresh={() => loadConversations(false)}
           />
@@ -275,7 +275,7 @@ export default function ConversationsListScreen() {
             <Ionicons
               name="chatbubble-ellipses-outline"
               size={42}
-              color="#52525B"
+              color="#8F8A91"
             />
             <Text style={styles.emptyTitle}>Nenhuma conversa ainda</Text>
             <Text style={styles.emptyText}>
@@ -288,7 +288,7 @@ export default function ConversationsListScreen() {
               style={styles.searchDriversButton}
               onPress={() => router.push("/buscar-motoristas" as never)}
             >
-              <Ionicons name="search-outline" size={18} color="#06130B" />
+              <Ionicons name="search-outline" size={18} color="#080808" />
               <Text style={styles.searchDriversButtonText}>
                 Buscar motoristas
               </Text>
@@ -313,7 +313,7 @@ export default function ConversationsListScreen() {
                 />
               ) : (
                 <View style={styles.avatarFallback}>
-                  <Ionicons name="person" size={24} color="#FFFFFF" />
+                  <Ionicons name="person" size={24} color="#F5F0E6" />
                 </View>
               )}
 
@@ -355,7 +355,7 @@ export default function ConversationsListScreen() {
                   </Text>
                 </View>
               ) : (
-                <Ionicons name="chevron-forward" size={20} color="#71717A" />
+                <Ionicons name="chevron-forward" size={20} color="#8F8A91" />
               )}
             </TouchableOpacity>
           );
@@ -366,53 +366,62 @@ export default function ConversationsListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#09090B" },
+  container: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#09090B",
+    backgroundColor: "#050505",
     alignItems: "center",
     justifyContent: "center",
   },
   loadingText: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 14,
     fontWeight: "800",
     marginTop: 12,
   },
   header: {
     paddingHorizontal: 18,
-    paddingTop: 54,
+    paddingTop: 48,
     paddingBottom: 18,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    backgroundColor: "#070707",
+    borderBottomWidth: 1,
+    borderBottomColor: "#211D16",
+    marginBottom: 14,
   },
   headerIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
-    backgroundColor: "#18181B",
+    borderRadius: 12,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
   headerEyebrow: {
-    color: "#22C55E",
-    fontSize: 12,
+    color: "#D4A64A",
+    fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
   },
   headerTitle: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 27,
     fontWeight: "900",
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: -0.6,
   },
   listContent: {
     paddingHorizontal: 18,
-    paddingBottom: 140,
+    paddingBottom: 150,
+    backgroundColor: "#050505",
   },
   listContentEmpty: {
     flexGrow: 1,
@@ -420,22 +429,23 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     minHeight: 260,
-    borderRadius: 28,
-    backgroundColor: "#111827",
+    borderRadius: 18,
+    backgroundColor: "#101014",
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
   },
   emptyTitle: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 17,
     fontWeight: "900",
     marginTop: 13,
+    textAlign: "center",
   },
   emptyText: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
@@ -444,8 +454,8 @@ const styles = StyleSheet.create({
   },
   searchDriversButton: {
     height: 46,
-    borderRadius: 16,
-    backgroundColor: "#22C55E",
+    borderRadius: 12,
+    backgroundColor: "#D4A64A",
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -453,16 +463,16 @@ const styles = StyleSheet.create({
     marginTop: 17,
   },
   searchDriversButtonText: {
-    color: "#06130B",
+    color: "#080808",
     fontSize: 14,
     fontWeight: "900",
   },
   conversationCard: {
     minHeight: 86,
-    borderRadius: 24,
-    backgroundColor: "#111827",
+    borderRadius: 16,
+    backgroundColor: "#18171D",
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#2A2830",
     padding: 13,
     flexDirection: "row",
     alignItems: "center",
@@ -472,15 +482,17 @@ const styles = StyleSheet.create({
   avatar: {
     width: 54,
     height: 54,
-    borderRadius: 999,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.30)",
   },
   avatarFallback: {
     width: 54,
     height: 54,
-    borderRadius: 999,
-    backgroundColor: "#18181B",
+    borderRadius: 14,
+    backgroundColor: "#101014",
     borderWidth: 1,
-    borderColor: "#27272A",
+    borderColor: "#2A2830",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -494,42 +506,42 @@ const styles = StyleSheet.create({
   },
   userName: {
     flex: 1,
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontSize: 15,
     fontWeight: "900",
   },
   dateText: {
-    color: "#71717A",
+    color: "#8F8A91",
     fontSize: 11,
     fontWeight: "800",
   },
   userMeta: {
-    color: "#A1A1AA",
+    color: "#9B969B",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
   },
   lastMessage: {
-    color: "#71717A",
+    color: "#8F8A91",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 5,
   },
   lastMessageUnread: {
-    color: "#FFFFFF",
+    color: "#F5F0E6",
     fontWeight: "900",
   },
   unreadBadge: {
     minWidth: 26,
     height: 26,
     borderRadius: 999,
-    backgroundColor: "#22C55E",
+    backgroundColor: "#D4A64A",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 7,
   },
   unreadBadgeText: {
-    color: "#06130B",
+    color: "#080808",
     fontSize: 11,
     fontWeight: "900",
   },

@@ -220,7 +220,7 @@ export default function LoginScreen() {
           <Text style={styles.label}>E-mail</Text>
 
           <View style={[styles.inputContainer, errors.email && styles.inputContainerError]}>
-            <Ionicons name="mail-outline" size={20} color="#A1A1AA" />
+            <Ionicons name="mail-outline" size={20} color="#9B969B" />
 
             <TextInput
               value={email}
@@ -246,7 +246,7 @@ export default function LoginScreen() {
           <Text style={styles.label}>Senha</Text>
 
           <View style={[styles.inputContainer, errors.password && styles.inputContainerError]}>
-            <Ionicons name="lock-closed-outline" size={20} color="#A1A1AA" />
+            <Ionicons name="lock-closed-outline" size={20} color="#9B969B" />
 
             <TextInput
               value={password}
@@ -274,7 +274,7 @@ export default function LoginScreen() {
               <Ionicons
                 name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 size={22}
-                color="#A1A1AA"
+                color="#9B969B"
               />
             </TouchableOpacity>
           </View>
@@ -304,10 +304,10 @@ export default function LoginScreen() {
             activeOpacity={0.9}
           >
             {loading ? (
-              <ActivityIndicator color="#06130B" />
+              <ActivityIndicator color="#080808" />
             ) : (
               <>
-                <Ionicons name="log-in-outline" size={23} color="#06130B" />
+                <Ionicons name="log-in-outline" size={23} color="#080808" />
                 <Text style={styles.buttonText}>Entrar</Text>
               </>
             )}
@@ -329,150 +329,141 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
-
   container: {
     flex: 1,
-    backgroundColor: '#09090B',
+    backgroundColor: '#050505',
   },
-
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 36,
     paddingBottom: 70,
     justifyContent: 'center',
+    backgroundColor: '#050505',
   },
-
   scrollContentKeyboard: {
     justifyContent: 'flex-start',
     paddingTop: 18,
     paddingBottom: 220,
   },
-
   logoShell: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
+    paddingVertical: 8,
   },
-
   logo: {
     width: 220,
     height: 116,
   },
-
   logoKeyboard: {
     width: 160,
     height: 70,
   },
-
   heroCard: {
-    borderRadius: 30,
-    borderColor: '#1F2937',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    backgroundColor: '#101014',
     paddingHorizontal: 20,
+    paddingVertical: 18,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    shadowColor: '#D4A64A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 10,
   },
-
   heroIcon: {
     width: 54,
     height: 54,
-    borderRadius: 19,
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
+    borderColor: 'rgba(212,166,74,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
-
   eyebrow: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.1,
   },
-
   title: {
-    color: '#FFFFFF',
-    fontSize: 32
-    ,
+    color: '#F5F0E6',
+    fontSize: 32,
     fontWeight: '900',
     marginTop: 5,
     marginBottom: 10,
     textAlign: 'center',
+    letterSpacing: -0.6,
   },
-
   subtitle: {
-    color: '#A1A1AA',
+    color: '#9B969B',
     fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
     fontWeight: '700',
   },
-
   formCard: {
-    backgroundColor: '#111827',
-    borderRadius: 30,
+    backgroundColor: '#101014',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: '#2A2830',
     padding: 18,
   },
-
   label: {
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 13,
     fontWeight: '900',
     marginTop: 12,
     marginBottom: 8,
     marginLeft: 4,
   },
-
   inputContainer: {
     minHeight: 58,
-    backgroundColor: '#18181B',
-    borderRadius: 19,
+    backgroundColor: '#18171D',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#2A2830',
     paddingLeft: 16,
     paddingRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-
   inputContainerError: {
     borderColor: '#EF4444',
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
-
   input: {
     flex: 1,
     height: 56,
-    color: '#FFFFFF',
+    color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '700',
     paddingVertical: 0,
   },
-
   passwordIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 15,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   helperText: {
-    color: '#71717A',
+    color: '#8F8A91',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 7,
     marginLeft: 4,
   },
-
   errorText: {
     color: '#F87171',
     fontSize: 12,
@@ -481,42 +472,36 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     lineHeight: 17,
   },
-
   forgotButton: {
     alignSelf: 'flex-end',
     marginTop: 12,
     marginBottom: 4,
   },
-
   forgotButtonText: {
-    color: '#22C55E',
+    color: '#D4A64A',
     fontSize: 13,
     fontWeight: '900',
   },
-
   button: {
     height: 60,
-    backgroundColor: '#22C55E',
-    borderRadius: 20,
+    backgroundColor: '#D4A64A',
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 22,
     flexDirection: 'row',
     gap: 8,
   },
-
   buttonDisabled: {
     opacity: 0.65,
   },
-
   buttonText: {
-    color: '#06130B',
+    color: '#080808',
     fontSize: 16,
     fontWeight: '900',
   },
-
   link: {
-    color: '#22C55E',
+    color: '#D4A64A',
     textAlign: 'center',
     marginTop: 22,
     fontWeight: '900',
