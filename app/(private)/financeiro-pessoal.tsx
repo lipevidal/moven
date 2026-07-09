@@ -3551,7 +3551,7 @@ const styles = StyleSheet.create({
 
   root: { flex: 1, backgroundColor: "#050505" },
   container: { flex: 1, backgroundColor: "#050505" },
-  content: { paddingHorizontal: 18, paddingTop: 50, paddingBottom: 170 },
+  content: { paddingHorizontal: 18, paddingTop: 50, paddingBottom: 100 },
   header: {
     marginHorizontal: -18,
     marginTop: -50,

@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -245,7 +246,7 @@ export default function PublicProfileScreen() {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, name, full_name, username, city, avatar_url",
+          "id, name, full_name, username, city, region, avatar_url",
         )
         .eq("id", userId)
         .maybeSingle();
@@ -263,22 +264,7 @@ export default function PublicProfileScreen() {
     }
   }
 
-  async function loadProfileStats(targetUserId: string) {
-    const { data, error } = await supabase
-      .from("work_sessions")
-      .select(
-        "id, start_km, end_km, started_at, finished_at, total_paused_seconds",
-      )
-      .eq("user_id", targetUserId)
-      .eq("status", "finished");
-
-    if (error) {
-      console.log("Erro ao carregar estatísticas públicas:", error);
-      return;
-    }
-
-    const sessions = data ?? [];
-
+  function buildStatsFromSessions(sessions: any[]): ProfileStats {
     const totalKm = sessions.reduce((total: number, session: any) => {
       const startKm = Number(session.start_km ?? 0);
       const endKm = Number(session.end_km ?? 0);
@@ -361,7 +347,7 @@ export default function PublicProfileScreen() {
       sessions.length,
     );
 
-    setStats({
+    return {
       totalKm,
       totalHours,
       finishedSessions: sessions.length,
@@ -371,7 +357,83 @@ export default function PublicProfileScreen() {
       journeyProfileAverageHours,
       journeyProfileDays,
       journeyProfileType,
-    });
+    };
+  }
+
+  async function loadProfileStatsDirectly(targetUserId: string) {
+    const { data, error } = await supabase
+      .from("work_sessions")
+      .select(
+        "id, start_km, end_km, started_at, finished_at, total_paused_seconds",
+      )
+      .eq("user_id", targetUserId)
+      .eq("status", "finished");
+
+    if (error) {
+      console.log("Erro ao carregar estatísticas públicas direto:", error);
+      return;
+    }
+
+    setStats(buildStatsFromSessions(data ?? []));
+  }
+
+  async function loadProfileStats(targetUserId: string) {
+    /*
+      Para perfil público, buscar work_sessions direto pelo app pode ser
+      bloqueado pelo RLS quando o perfil  - de outro usuário.
+
+      A função get_public_profile_journey_stats roda no banco e retorna
+      somente estatísticas agregadas, respeitando show_public_stats e
+      share_statistics do perfil.
+    */
+    const { data: rpcStats, error: rpcError } = await supabase
+      .rpc("get_public_profile_journey_stats", {
+        target_user_id: targetUserId,
+      })
+      .maybeSingle();
+
+    if (!rpcError && rpcStats) {
+      const totalKm = Number((rpcStats as any).total_km ?? 0);
+      const totalHours = Number((rpcStats as any).total_hours ?? 0);
+      const finishedSessions = Number((rpcStats as any).finished_sessions ?? 0);
+      const workedDays = Number((rpcStats as any).worked_days ?? 0);
+      const averageKmPerDay = Number((rpcStats as any).average_km_per_day ?? 0);
+      const averageHoursPerDay = Number(
+        (rpcStats as any).average_hours_per_day ?? 0,
+      );
+      const journeyProfileAverageHours = Number(
+        (rpcStats as any).journey_profile_average_hours ?? 0,
+      );
+      const journeyProfileDays = Number(
+        (rpcStats as any).journey_profile_days ?? 0,
+      );
+
+      setStats({
+        totalKm,
+        totalHours,
+        finishedSessions,
+        workedDays,
+        averageKmPerDay,
+        averageHoursPerDay,
+        journeyProfileAverageHours,
+        journeyProfileDays,
+        journeyProfileType: getJourneyProfileType(
+          journeyProfileAverageHours,
+          finishedSessions,
+        ),
+      });
+
+      return;
+    }
+
+    if (rpcError) {
+      console.log(
+        "Erro ao carregar estatísticas públicas via RPC. Usando fallback direto:",
+        rpcError,
+      );
+    }
+
+    await loadProfileStatsDirectly(targetUserId);
   }
 
   function handleSendMessage() {
@@ -1003,3 +1065,5 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
 });
+
+

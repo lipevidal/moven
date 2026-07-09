@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
@@ -101,26 +102,26 @@ type PerformanceTargets = {
 };
 
 const expenseCategoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Manutenção: "build-outline",
+  "Manutenção": "build-outline",
   "Lavagem/Limpeza": "water-outline",
-  Borracharia: "disc-outline",
-  Alimentação: "restaurant-outline",
-  Combustível: "speedometer-outline",
-  Seguro: "shield-checkmark-outline",
-  Financiamento: "card-outline",
-  Carregamento: "battery-charging-outline",
-  Aluguel: "car-outline",
-  Imposto: "document-text-outline",
-  Multa: "alert-circle-outline",
-  Pedágio: "trail-sign-outline",
+  "Borracharia": "disc-outline",
+  "Alimentação": "restaurant-outline",
+  "Combustível": "speedometer-outline",
+  "Seguro": "shield-checkmark-outline",
+  "Financiamento": "card-outline",
+  "Carregamento": "battery-charging-outline",
+  "Aluguel": "car-outline",
+  "Imposto": "document-text-outline",
+  "Multa": "alert-circle-outline",
+  "Pedágio": "trail-sign-outline",
   "Plano de Internet": "wifi-outline",
-  Aplicativos: "phone-portrait-outline",
-  Estacionamento: "car-outline",
+  "Aplicativos": "phone-portrait-outline",
+  "Estacionamento": "car-outline",
   "Estoque de Produtos": "cube-outline",
   "Aluguel de Garagem": "business-outline",
-  INSS: "cash-outline",
+  "INSS": "cash-outline",
   "Imposto de Renda": "receipt-outline",
-  Outros: "ellipsis-horizontal-circle-outline",
+  "Outros": "ellipsis-horizontal-circle-outline",
 };
 
 
@@ -1619,7 +1620,7 @@ export default function DashboardScreen() {
 
       if (!platformBelongsToUser) {
         errors.platform =
-          "Essa plataforma não está nas suas plataformas. Toque em Gerenciar para adicionar.";
+          "Essa plataforma não est - nas suas plataformas. Toque em Gerenciar para adicionar.";
       }
     }
 
@@ -1715,7 +1716,7 @@ export default function DashboardScreen() {
   function handleDeleteEntry(entry: any) {
     Alert.alert(
       "Excluir entrada",
-      "Deseja realmente excluir esta entrada? Essa ação atualizará os totais do período e da jornada em tempo real.",
+      "Deseja realmente excluir esta entrada? Essa ação atualizar - os totais do período e da jornada em tempo real.",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -2853,7 +2854,7 @@ export default function DashboardScreen() {
                       </Text>
                       <Text style={styles.daySessionSubtitle} numberOfLines={1}>
                         {session.vehicle?.model ?? "Veículo"}
-                        {session.vehicle?.plate ? ` · ${session.vehicle.plate}` : ""}
+                        {session.vehicle?.plate ? `  - ${session.vehicle.plate}` : ""}
                       </Text>
                     </View>
 
@@ -3274,7 +3275,7 @@ export default function DashboardScreen() {
                   </Text>
 
                   <Text style={styles.periodExpenseMeta} numberOfLines={1}>
-                    {expense.category || "Sem categoria"} ·{" "}
+                    {expense.category || "Sem categoria"} - {" "}
                     {formatDate(expense.expense_date)}
                   </Text>
 
@@ -4045,7 +4046,7 @@ export default function DashboardScreen() {
                   </Text>
 
                   <Text style={styles.sessionDetailsMuted}>
-                    {formatHours(selectedSession.totalHours)} trabalhados ·{" "}
+                    {formatHours(selectedSession.totalHours)} trabalhados - {" "}
                     {formatNumber(selectedSession.totalKm)} km rodados
                   </Text>
 
@@ -7459,4 +7460,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+
 

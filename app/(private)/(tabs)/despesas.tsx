@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -114,26 +115,26 @@ const expenseCategories = [
 ];
 
 const expenseCategoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Manutenção: 'build-outline',
+  "Manutenção": 'build-outline',
   'Lavagem/Limpeza': 'water-outline',
-  Borracharia: 'disc-outline',
-  Alimentação: 'restaurant-outline',
-  Combustível: 'speedometer-outline',
-  Seguro: 'shield-checkmark-outline',
-  Financiamento: 'card-outline',
-  Carregamento: 'battery-charging-outline',
-  Aluguel: 'car-outline',
-  Imposto: 'document-text-outline',
-  Multa: 'alert-circle-outline',
-  Pedágio: 'trail-sign-outline',
+  "Borracharia": 'disc-outline',
+  "Alimentação": 'restaurant-outline',
+  "Combustível": 'speedometer-outline',
+  "Seguro": 'shield-checkmark-outline',
+  "Financiamento": 'card-outline',
+  "Carregamento": 'battery-charging-outline',
+  "Aluguel": 'car-outline',
+  "Imposto": 'document-text-outline',
+  "Multa": 'alert-circle-outline',
+  "Pedágio": 'trail-sign-outline',
   'Plano de Internet': 'wifi-outline',
-  Aplicativos: 'phone-portrait-outline',
-  Estacionamento: 'car-outline',
+  "Aplicativos": 'phone-portrait-outline',
+  "Estacionamento": 'car-outline',
   'Estoque de Produtos': 'cube-outline',
   'Aluguel de Garagem': 'business-outline',
-  INSS: 'cash-outline',
+  "INSS": 'cash-outline',
   'Imposto de Renda': 'receipt-outline',
-  Outros: 'ellipsis-horizontal-circle-outline',
+  "Outros": 'ellipsis-horizontal-circle-outline',
 };
 
 function formatCurrency(value: number) {
@@ -336,7 +337,7 @@ function getVehicleLabel(vehicle: any) {
 
   const name = [brand, model].filter(Boolean).join(' ') || 'Veículo';
 
-  return plate ? `${name} • ${plate}` : name;
+  return plate ? `${name}  - ${plate}` : name;
 }
 
 
@@ -1584,7 +1585,7 @@ export default function ExpensesScreen() {
                     </View>
 
                     <Text style={styles.chartValue}>
-                      R$ {formatCurrency(item.amount)} • {Math.round(item.percentage)}%
+                      R$ {formatCurrency(item.amount)}  - {Math.round(item.percentage)}%
                     </Text>
                   </View>
 
@@ -1719,7 +1720,7 @@ export default function ExpensesScreen() {
                   </Text>
 
                   <Text style={styles.expenseInfo} numberOfLines={1}>
-                    {expense.category} • {formatDate(expense.expense_date)}
+                    {expense.category}  - {formatDate(expense.expense_date)}
                   </Text>
                 </View>
 
@@ -4167,3 +4168,5 @@ const styles = StyleSheet.create({
     color: '#080808',
   },
 });
+
+

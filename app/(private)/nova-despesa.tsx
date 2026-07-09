@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 
 import {
@@ -33,15 +34,15 @@ const categories = [
 ];
 
 const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Combustível: 'car-sport-outline',
-  Manutenção: 'build-outline',
-  Lavagem: 'water-outline',
-  Alimentação: 'restaurant-outline',
-  Estacionamento: 'car-outline',
-  Multa: 'alert-circle-outline',
-  Imposto: 'document-text-outline',
-  Seguro: 'shield-checkmark-outline',
-  Outros: 'ellipsis-horizontal-circle-outline',
+  "Combustível": 'car-sport-outline',
+  "Manutenção": 'build-outline',
+  "Lavagem": 'water-outline',
+  "Alimentação": 'restaurant-outline',
+  "Estacionamento": 'car-outline',
+  "Multa": 'alert-circle-outline',
+  "Imposto": 'document-text-outline',
+  "Seguro": 'shield-checkmark-outline',
+  "Outros": 'ellipsis-horizontal-circle-outline',
 };
 
 function getVehicleImage(type?: string) {
@@ -613,3 +614,5 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+

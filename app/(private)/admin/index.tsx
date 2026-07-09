@@ -471,7 +471,9 @@ function SummaryCard({
         </View>
         <Text style={styles.summaryLabel}>{label}</Text>
       </View>
-      <Text style={styles.summaryValue}>{value}</Text>
+      <View style={{alignItems: 'center'}}>
+        <Text style={styles.summaryValue}>{value}</Text>
+      </View>
     </View>
   );
 }
@@ -664,7 +666,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   summaryLabel: { color: '#9B969B', fontSize: 12, fontWeight: '800' },
-  summaryValue: { color: '#F5F0E6', fontSize: 22, fontWeight: '900', marginTop: 4 },
+  summaryValue: { color: '#F5F0E6', fontSize: 22, fontWeight: '900', marginTop: 4,},
   statusTabs: { gap: 8, paddingBottom: 12 },
   statusTab: {
     minHeight: 42,
