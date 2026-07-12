@@ -143,7 +143,7 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
     return {
       title: "Jornada moderada",
       icon: "speedometer-outline" as const,
-      color: "#FACC15",
+      color: "#22C55E",
       backgroundColor: "rgba(212,166,74,0.10)",
       borderColor: "rgba(212,166,74,0.24)",
       description:
@@ -155,7 +155,7 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
     return {
       title: "Jornada leve",
       icon: "leaf-outline" as const,
-      color: "#22C55E",
+      color: "#FACC15",
       backgroundColor: "rgba(212,166,74,0.10)",
       borderColor: "rgba(212,166,74,0.24)",
       description:

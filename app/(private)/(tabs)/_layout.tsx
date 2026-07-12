@@ -1853,6 +1853,13 @@ export default function TabsLayout() {
             href: null,
           }}
         />
+
+        <Tabs.Screen
+          name="motoristas-cidade-lista"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
 
       {/* Menu radial/central de ações rápidas aberto pelo botão "+". */}
