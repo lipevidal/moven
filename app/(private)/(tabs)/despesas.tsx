@@ -1426,11 +1426,21 @@ export default function ExpensesScreen() {
         stickyHeaderIndices={[0]}
       >
         <View style={styles.topHeader}>
-          <View style={{flexDirection: 'row', alignItems: 'center'}}>
+          <View style={styles.topHeaderRow}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.headerBackButton}
+              onPress={() =>
+                router.replace("/(private)/(tabs)/dashboard" as never)
+              }
+            >
+              <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
+            </TouchableOpacity>
+
             <View style={{ flex: 1 }}>
               <Text style={styles.headerEyebrow}>PAINEL FINANCEIRO</Text>
               <Text style={styles.title}>Despesas</Text>
-              <Text style={styles.subtitle}>Controle seus custos por período, categoria e veículo.</Text>
+              {/*<Text style={styles.subtitle}>Controle seus custos por período, categoria e veículo.</Text>*/}
             </View>
 
             <TouchableOpacity
@@ -1438,7 +1448,7 @@ export default function ExpensesScreen() {
               style={styles.headerAddButton}
               onPress={openCreateExpenseModal}
             >
-              <Ionicons name="add" size={30} color="#080808" />
+              <Ionicons name="add" size={26} color="#080808" />
             </TouchableOpacity>
           </View>
         </View>
@@ -2761,6 +2771,21 @@ const styles = StyleSheet.create({
     zIndex: 20,
     elevation: 20,
   },
+  topHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerBackButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#18171D',
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   headerEyebrow: {
     color: '#D4A64A',
@@ -2771,10 +2796,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#F5F0E6',
-    fontSize: 27,
+    fontSize: 20,
     fontWeight: '900',
-    marginTop: 3,
-    letterSpacing: -0.6,
+    letterSpacing: 0.1,
   },
   subtitle: {
     color: '#9B969B',
@@ -2784,8 +2808,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   headerAddButton: {
-    width: 52,
-    height: 52,
+    width: 42,
+    height: 42,
     borderRadius: 12,
     backgroundColor: '#D4A64A',
     alignItems: 'center',

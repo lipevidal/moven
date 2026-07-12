@@ -1,3 +1,15 @@
+/*
+  Tela: Desempenho dos ganhos
+
+  Objetivo:
+  Exibir uma análise financeira do motorista/entregador com base em faturamento,
+  despesas, lucro, dias ativos, horas trabalhadas, km rodados, ganho por hora,
+  ganho por km e percentual de despesas sobre o faturamento.
+
+  Observação:
+  Os comentários abaixo explicam a lógica sem alterar o funcionamento da tela.
+*/
+
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,8 +25,9 @@ import { router, useFocusEffect } from 'expo-router';
 import {
   EarningsPerformanceAnalysis,
   getEarningsPerformanceAnalysis,
-} from '../../src/features/performance/services/getEarningsPerformanceAnalysis';
+} from '../../../src/features/performance/services/getEarningsPerformanceAnalysis';
 
+// Formata valores em moeda brasileira, sempre com 2 casas decimais.
 function formatCurrency(value: number) {
   return Number(value ?? 0).toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
@@ -22,12 +35,14 @@ function formatCurrency(value: number) {
   });
 }
 
+// Formata números inteiros no padrão brasileiro.
 function formatNumber(value: number) {
   return Number(value ?? 0).toLocaleString('pt-BR', {
     maximumFractionDigits: 0,
   });
 }
 
+// Formata uma métrica numérica controlando quantas casas decimais serão exibidas.
 function formatMetric(value: number, decimals = 2) {
   return Number(value ?? 0).toLocaleString('pt-BR', {
     minimumFractionDigits: decimals,
@@ -35,6 +50,7 @@ function formatMetric(value: number, decimals = 2) {
   });
 }
 
+// Converte horas decimais em HH:MM. Exemplo: 6.5 vira 06:30.
 function formatHours(value: number) {
   const totalMinutes = Math.round(Number(value ?? 0) * 60);
   const hours = Math.floor(totalMinutes / 60);
@@ -43,6 +59,7 @@ function formatHours(value: number) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
+// Converte uma data para o formato brasileiro ou retorna placeholder se for inválida.
 function formatDate(value?: string | null) {
   if (!value) return '--/--/----';
 
@@ -53,22 +70,27 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString('pt-BR');
 }
 
+// Retorna a cor que representa o status da métrica.
 function getStatusColor(status: string) {
   if (status === 'above') return '#22C55E';
   if (status === 'intermediate') return '#FACC15';
   if (status === 'below') return '#EF4444';
+  if (status === 'no_data') return '#A1A1AA';
 
   return '#A1A1AA';
 }
 
+// Retorna o ícone que representa o status da métrica.
 function getStatusIcon(status: string) {
   if (status === 'above') return 'arrow-up-circle-outline';
   if (status === 'intermediate') return 'remove-circle-outline';
   if (status === 'below') return 'arrow-down-circle-outline';
+  if (status === 'no_data') return 'help-circle-outline';
 
   return 'analytics-outline';
 }
 
+// Converte o status técnico em um texto amigável para o usuário.
 function getPointMetricStatusLabel(status: string) {
   if (status === 'above') return 'Bom';
   if (status === 'intermediate') return 'Intermediário';
@@ -77,6 +99,41 @@ function getPointMetricStatusLabel(status: string) {
   return 'Sem dados';
 }
 
+// Verifica se um valor numérico realmente possui dado útil.
+// Zero, null, undefined ou NaN são tratados como ausência de dados.
+function hasPositiveNumber(value?: number | null) {
+  return Number(value ?? 0) > 0;
+}
+
+// Existe dado para ganho por hora somente quando há faturamento e tempo trabalhado.
+function hasHourMetricData(analysis: EarningsPerformanceAnalysis) {
+  return hasPositiveNumber(analysis.revenue) && hasPositiveNumber(analysis.totalHours);
+}
+
+// Existe dado para ganho por km somente quando há faturamento e km rodado.
+function hasKmMetricData(analysis: EarningsPerformanceAnalysis) {
+  return hasPositiveNumber(analysis.revenue) && hasPositiveNumber(analysis.totalKm);
+}
+
+// Para despesas, zero não deve ser tratado como excelente automaticamente.
+// Se não houver despesa cadastrada, a tela mostra "Sem dados".
+function hasExpensesMetricData(analysis: EarningsPerformanceAnalysis) {
+  return hasPositiveNumber(analysis.revenue) && hasPositiveNumber(analysis.expenses);
+}
+
+// Verifica se existe pelo menos algum dado operacional para análise.
+function hasAnyPerformanceData(analysis: EarningsPerformanceAnalysis) {
+  return (
+    hasPositiveNumber(analysis.revenue) ||
+    hasPositiveNumber(analysis.expenses) ||
+    hasPositiveNumber(analysis.totalHours) ||
+    hasPositiveNumber(analysis.totalKm) ||
+    hasPositiveNumber(analysis.activeDays) ||
+    hasPositiveNumber(analysis.sessionCount)
+  );
+}
+
+// Transforma o status de ganho por hora/km em pontos para o score geral.
 function getMetricPoints(status: string) {
   if (status === 'above') return 100;
   if (status === 'intermediate') return 50;
@@ -85,6 +142,7 @@ function getMetricPoints(status: string) {
   return 0;
 }
 
+// Calcula os pontos das despesas: quanto menor o percentual, melhor a pontuação.
 function getExpensesPoints(expensesPercent: number) {
   const percent = Number(expensesPercent ?? 0);
 
@@ -92,14 +150,17 @@ function getExpensesPoints(expensesPercent: number) {
   if (percent <= 30) return 80;
   if (percent <= 40) return 50;
   if (percent <= 50) return 30;
+  if (percent <= 60) return 20;
+  if (percent <= 70) return 10;
 
-  return 10;
+  return 0;
 }
 
+// Define o rótulo textual das despesas com base no percentual do faturamento.
 function getExpensesPointLabel(expensesPercent: number) {
   const percent = Number(expensesPercent ?? 0);
 
-  if (percent <= 20) return 'Bom';
+  if (percent <= 20) return 'Excelente';
   if (percent <= 30) return 'Controlado';
   if (percent <= 40) return 'Intermediário';
   if (percent <= 50) return 'Atenção';
@@ -107,6 +168,7 @@ function getExpensesPointLabel(expensesPercent: number) {
   return 'Ruim';
 }
 
+// Define a cor das despesas de acordo com o nível de atenção necessário.
 function getExpensesPointColor(expensesPercent: number) {
   const percent = Number(expensesPercent ?? 0);
 
@@ -116,122 +178,203 @@ function getExpensesPointColor(expensesPercent: number) {
   return '#EF4444';
 }
 
-function getScoreLevel(totalPoints: number) {
-  if (totalPoints <= 100) return 'bad';
-  if (totalPoints <= 200) return 'intermediate';
+// Classifica o resultado final por percentual: crítico, ruim, intermediário, bom ou excelente.
+function getScoreLevel(progressPercent: number, hasData: boolean) {
+  if (!hasData) return 'no_data';
 
-  return 'good';
+  if (progressPercent <= 20) return 'critical';
+  if (progressPercent <= 40) return 'bad';
+  if (progressPercent <= 60) return 'intermediate';
+  if (progressPercent <= 80) return 'good';
+
+  return 'excellent';
 }
 
+// Define a cor principal do desempenho final conforme o nível calculado.
 function getScoreColor(level: string) {
-  if (level === 'good') return '#22C55E';
+  if (level === 'excellent') return '#22C55E';
+  if (level === 'good') return '#84CC16';
   if (level === 'intermediate') return '#FACC15';
+  if (level === 'no_data') return '#A1A1AA';
+  if (level === 'critical') return '#DC2626';
 
   return '#EF4444';
 }
 
+// Define o ícone principal do desempenho final.
 function getScoreIcon(level: string) {
+  if (level === 'excellent') return 'trophy-outline';
   if (level === 'good') return 'checkmark-circle-outline';
   if (level === 'intermediate') return 'alert-circle-outline';
+  if (level === 'no_data') return 'analytics-outline';
+  if (level === 'critical') return 'warning-outline';
 
-  return 'warning-outline';
+  return 'close-circle-outline';
 }
 
+// Define o texto curto exibido no badge do card principal.
 function getScoreBadge(level: string) {
+  if (level === 'excellent') return 'Excelente';
   if (level === 'good') return 'Bom';
   if (level === 'intermediate') return 'Intermediário';
+  if (level === 'critical') return 'Crítico';
+  if (level === 'no_data') return 'Sem dados';
 
   return 'Ruim';
 }
 
+// Monta a análise final da tela.
+// Aqui são calculados:
+// - pontos por ganho/hora;
+// - pontos por ganho/km;
+// - pontos por despesas;
+// - progresso geral;
+// - mensagens positivas;
+// - pontos de melhoria;
+// - recomendação final.
 function buildScorePerformanceInfo(analysis: EarningsPerformanceAnalysis) {
-  const hourPoints = getMetricPoints(analysis.hourStatus);
-  const kmPoints = getMetricPoints(analysis.kmStatus);
-  const expensesPoints = getExpensesPoints(analysis.expensesPercent);
-  const totalPoints = hourPoints + kmPoints + expensesPoints;
-  const progressPercent = Math.round((totalPoints / 300) * 100);
-  const level = getScoreLevel(totalPoints);
-  const color = getScoreColor(level);
-  const expenseColor = getExpensesPointColor(analysis.expensesPercent);
+  const hasHourData = hasHourMetricData(analysis);
+  const hasKmData = hasKmMetricData(analysis);
+  const hasExpensesData = hasExpensesMetricData(analysis);
+  const hasPerformanceData = hasAnyPerformanceData(analysis);
 
-  const hourLabel = getPointMetricStatusLabel(analysis.hourStatus);
-  const kmLabel = getPointMetricStatusLabel(analysis.kmStatus);
-  const expenseLabel = getExpensesPointLabel(analysis.expensesPercent);
+  const hourPoints = hasHourData ? getMetricPoints(analysis.hourStatus) : 0;
+  const kmPoints = hasKmData ? getMetricPoints(analysis.kmStatus) : 0;
+  const expensesPoints = hasExpensesData
+    ? getExpensesPoints(analysis.expensesPercent)
+    : 0;
+
+  // Soma somente os indicadores que possuem dados reais.
+  // Assim, ausência de dados não derruba o resultado como se fosse desempenho ruim.
+  const availableMetricsCount = [hasHourData, hasKmData, hasExpensesData].filter(
+    Boolean,
+  ).length;
+  const maxPoints = availableMetricsCount * 100;
+  const totalPoints = hourPoints + kmPoints + expensesPoints;
+  const progressPercent =
+    maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 0;
+
+  const level = getScoreLevel(progressPercent, maxPoints > 0);
+  const color = getScoreColor(level);
+  const expenseColor = hasExpensesData
+    ? getExpensesPointColor(analysis.expensesPercent)
+    : '#A1A1AA';
+
+  const hourLabel = hasHourData
+    ? getPointMetricStatusLabel(analysis.hourStatus)
+    : 'Sem dados';
+  const kmLabel = hasKmData
+    ? getPointMetricStatusLabel(analysis.kmStatus)
+    : 'Sem dados';
+  const expenseLabel = hasExpensesData
+    ? getExpensesPointLabel(analysis.expensesPercent)
+    : 'Sem dados';
+
+  const hourColor = hasHourData
+    ? getStatusColor(analysis.hourStatus)
+    : '#A1A1AA';
+  const kmColor = hasKmData ? getStatusColor(analysis.kmStatus) : '#A1A1AA';
 
   const positiveItems: string[] = [];
   const improvementItems: string[] = [];
 
-  if (analysis.hourStatus === 'above') {
-    positiveItems.push(
-      `Seu ganho por hora está bom: R$ ${formatCurrency(
-        analysis.revenuePerHour,
-      )}/h, dentro ou acima da meta definida por você.`,
-    );
-  } else if (analysis.hourStatus === 'intermediate') {
-    positiveItems.push(
-      `Seu ganho por hora está próximo do aceitável: R$ ${formatCurrency(
-        analysis.revenuePerHour,
-      )}/h.`,
-    );
+  if (hasHourData) {
+    if (analysis.hourStatus === 'above') {
+      positiveItems.push(
+        `Seu ganho por hora está bom: R$ ${formatCurrency(
+          analysis.revenuePerHour,
+        )}/h, dentro ou acima da meta definida por você.`,
+      );
+    } else if (analysis.hourStatus === 'intermediate') {
+      positiveItems.push(
+        `Seu ganho por hora está próximo do aceitável: R$ ${formatCurrency(
+          analysis.revenuePerHour,
+        )}/h.`,
+      );
+      improvementItems.push(
+        'Aumente o ganho por hora priorizando horários, regiões e plataformas que pagam melhor.',
+      );
+    } else if (analysis.hourStatus === 'below') {
+      improvementItems.push(
+        `Seu ganho por hora está ruim: R$ ${formatCurrency(
+          analysis.revenuePerHour,
+        )}/h. Reveja horários, regiões, tempo parado e corridas de baixo retorno.`,
+      );
+    }
+  }
+
+  if (hasKmData) {
+    if (analysis.kmStatus === 'above') {
+      positiveItems.push(
+        `Seu ganho por km está bom: R$ ${formatCurrency(
+          analysis.revenuePerKm,
+        )}/km, dentro ou acima da meta definida por você.`,
+      );
+    } else if (analysis.kmStatus === 'intermediate') {
+      positiveItems.push(
+        `Seu ganho por km está em uma faixa intermediária: R$ ${formatCurrency(
+          analysis.revenuePerKm,
+        )}/km.`,
+      );
+      improvementItems.push(
+        'Melhore o ganho por km evitando deslocamentos longos sem retorno e corridas que pagam pouco pela distância.',
+      );
+    } else if (analysis.kmStatus === 'below') {
+      improvementItems.push(
+        `Seu ganho por km está ruim: R$ ${formatCurrency(
+          analysis.revenuePerKm,
+        )}/km. Evite corridas longas com baixa tarifa e reduza deslocamentos vazios.`,
+      );
+    }
+  }
+
+  if (hasExpensesData) {
+    if (analysis.expensesPercent <= 20) {
+      positiveItems.push(
+        `Suas despesas estão muito bem controladas: ${analysis.expensesPercent}% do faturamento.`,
+      );
+    } else if (analysis.expensesPercent <= 30) {
+      positiveItems.push(
+        `Suas despesas ainda estão controladas: ${analysis.expensesPercent}% do faturamento.`,
+      );
+    } else if (analysis.expensesPercent <= 40) {
+      improvementItems.push(
+        `Suas despesas estão em nível intermediário: ${analysis.expensesPercent}% do faturamento. Acompanhe combustível, manutenção e custos fixos.`,
+      );
+    } else if (analysis.expensesPercent <= 50) {
+      improvementItems.push(
+        `Suas despesas estão altas: ${analysis.expensesPercent}% do faturamento. Reduza custos antes que o lucro fique comprometido.`,
+      );
+    } else {
+      improvementItems.push(
+        `Suas despesas estão muito altas: ${analysis.expensesPercent}% do faturamento. Essa deve ser uma das principais prioridades de melhoria.`,
+      );
+    }
+  }
+
+  if (!hasHourData) {
     improvementItems.push(
-      'Aumente o ganho por hora priorizando horários, regiões e plataformas que pagam melhor.',
-    );
-  } else {
-    improvementItems.push(
-      `Seu ganho por hora está ruim: R$ ${formatCurrency(
-        analysis.revenuePerHour,
-      )}/h. Reveja horários, regiões, tempo parado e corridas de baixo retorno.`,
+      'Ainda não há dados suficientes para avaliar ganho por hora. Cadastre jornadas com tempo trabalhado e faturamento.',
     );
   }
 
-  if (analysis.kmStatus === 'above') {
-    positiveItems.push(
-      `Seu ganho por km está bom: R$ ${formatCurrency(
-        analysis.revenuePerKm,
-      )}/km, dentro ou acima da meta definida por você.`,
-    );
-  } else if (analysis.kmStatus === 'intermediate') {
-    positiveItems.push(
-      `Seu ganho por km está em uma faixa intermediária: R$ ${formatCurrency(
-        analysis.revenuePerKm,
-      )}/km.`,
-    );
+  if (!hasKmData) {
     improvementItems.push(
-      'Melhore o ganho por km evitando deslocamentos longos sem retorno e corridas que pagam pouco pela distância.',
-    );
-  } else {
-    improvementItems.push(
-      `Seu ganho por km está ruim: R$ ${formatCurrency(
-        analysis.revenuePerKm,
-      )}/km. Evite corridas longas com baixa tarifa e reduza deslocamentos vazios.`,
+      'Ainda não há dados suficientes para avaliar ganho por km. Cadastre jornadas com km rodado e faturamento.',
     );
   }
 
-  if (analysis.expensesPercent <= 20) {
-    positiveItems.push(
-      `Suas despesas estão muito bem controladas: ${analysis.expensesPercent}% do faturamento.`,
-    );
-  } else if (analysis.expensesPercent <= 30) {
-    positiveItems.push(
-      `Suas despesas ainda estão controladas: ${analysis.expensesPercent}% do faturamento.`,
-    );
-  } else if (analysis.expensesPercent <= 40) {
+  if (!hasExpensesData) {
     improvementItems.push(
-      `Suas despesas estão em nível intermediário: ${analysis.expensesPercent}% do faturamento. Acompanhe combustível, manutenção e custos fixos.`,
-    );
-  } else if (analysis.expensesPercent <= 50) {
-    improvementItems.push(
-      `Suas despesas estão altas: ${analysis.expensesPercent}% do faturamento. Reduza custos antes que o lucro fique comprometido.`,
-    );
-  } else {
-    improvementItems.push(
-      `Suas despesas estão muito altas: ${analysis.expensesPercent}% do faturamento. Essa deve ser uma das principais prioridades de melhoria.`,
+      'Ainda não há dados suficientes de despesas. Cadastre despesas do período para saber quanto do faturamento está sendo consumido pelos custos.',
     );
   }
 
   if (positiveItems.length === 0) {
     positiveItems.push(
-      'Ainda não há pontos positivos suficientes na análise. O foco agora deve ser corrigir os indicadores mais fracos.',
+      hasPerformanceData
+        ? 'Ainda não há pontos positivos suficientes na análise. Cadastre mais dados para melhorar a leitura dos indicadores.'
+        : 'Ainda não há dados suficientes para gerar pontos positivos.',
     );
   }
 
@@ -242,29 +385,52 @@ function buildScorePerformanceInfo(analysis: EarningsPerformanceAnalysis) {
   }
 
   const title =
-    level === 'good'
-      ? 'Seu desempenho está bom'
-      : level === 'intermediate'
-        ? 'Seu desempenho está intermediário'
-        : 'Seu desempenho está ruim';
+    level === 'no_data'
+      ? 'Ainda não há dados suficientes'
+      : level === 'excellent'
+        ? 'Seu desempenho está excelente'
+        : level === 'good'
+          ? 'Seu desempenho está bom'
+          : level === 'intermediate'
+            ? 'Seu desempenho está intermediário'
+            : level === 'critical'
+              ? 'Seu desempenho está crítico'
+              : 'Seu desempenho está ruim';
 
   const message =
-    level === 'good'
-      ? `Seu progresso geral ficou em ${progressPercent}%. Os ganhos por hora, ganhos por km e despesas estão formando uma operação saudável.`
-      : level === 'intermediate'
-        ? `Seu progresso geral ficou em ${progressPercent}%. Existem pontos positivos, mas alguns indicadores ainda precisam de ajuste para a operação compensar melhor.`
-        : `Seu progresso geral ficou em ${progressPercent}%. A operação está em alerta e precisa de ajustes nos indicadores mais fracos.`;
+    level === 'no_data'
+      ? 'Cadastre jornadas, ganhos, km rodados e despesas para que o app consiga calcular seu desempenho com segurança.'
+      : level === 'excellent'
+        ? `Seu progresso geral ficou em ${progressPercent}%. Os indicadores disponíveis mostram uma operação muito forte e bem equilibrada.`
+        : level === 'good'
+          ? `Seu progresso geral ficou em ${progressPercent}%. Os indicadores disponíveis estão formando uma operação saudável.`
+          : level === 'intermediate'
+            ? `Seu progresso geral ficou em ${progressPercent}%. Existem pontos positivos, mas alguns indicadores ainda precisam de ajuste para a operação compensar melhor.`
+            : level === 'critical'
+              ? `Seu progresso geral ficou em ${progressPercent}%. A operação está em nível crítico e precisa de ajustes imediatos.`
+              : `Seu progresso geral ficou em ${progressPercent}%. A operação está ruim e precisa de correções nos indicadores mais fracos.`;
 
   const recommendation =
-    level === 'good'
-      ? 'Continue mantendo o controle dos custos e priorizando as corridas que fortalecem seu ganho por hora e por km.'
-      : level === 'intermediate'
-        ? 'Mantenha o que está funcionando, mas corrija os pontos de atenção para passar para uma operação realmente boa.'
-        : 'Priorize imediatamente os pontos de melhoria: ganho por hora, ganho por km e percentual de despesas sobre o faturamento.';
+    level === 'no_data'
+      ? 'Inclua mais informações do período para evitar uma análise incompleta ou injusta.'
+      : level === 'excellent'
+        ? 'Mantenha a estratégia atual, preserve o controle dos custos e continue priorizando corridas com alto retorno por hora e por km.'
+        : level === 'good'
+          ? 'Continue mantendo o controle dos custos e priorizando as corridas que fortalecem seu ganho por hora e por km.'
+          : level === 'intermediate'
+            ? 'Mantenha o que está funcionando, mas corrija os pontos de atenção para passar para uma operação realmente boa.'
+            : level === 'critical'
+              ? 'Reveja imediatamente horários, regiões, plataformas, custos e veículo. A prioridade é recuperar ganho por hora, ganho por km e reduzir despesas.'
+              : 'Priorize os pontos de melhoria: ganho por hora, ganho por km e percentual de despesas sobre o faturamento.';
 
-  const gainsMessage = `Ganho por hora: ${hourLabel}. Ganho por km: ${kmLabel}. Esses dois indicadores usam as metas de ganho bom e ganho ruim que você definiu nos parâmetros.`;
+  const gainsMessage =
+    !hasHourData && !hasKmData
+      ? 'Ainda não há dados suficientes para avaliar ganho por hora e ganho por km. Cadastre jornadas com tempo trabalhado, km rodado e faturamento.'
+      : `Ganho por hora: ${hourLabel}. Ganho por km: ${kmLabel}. Esses dois indicadores usam as metas de ganho bom e ganho ruim que você definiu nos parâmetros.`;
 
-  const expensesMessage = `Despesas sobre faturamento: ${expenseLabel}. Suas despesas representam ${analysis.expensesPercent}% do faturamento. Esse indicador mostra quanto do que você ganhou foi consumido pelos custos da operação e ajuda a entender se o lucro está sendo preservado ou se precisa de ajuste.`;
+  const expensesMessage = hasExpensesData
+    ? `Despesas sobre faturamento: ${expenseLabel}. Suas despesas representam ${analysis.expensesPercent}% do faturamento. Esse indicador mostra quanto do que você ganhou foi consumido pelos custos da operação e ajuda a entender se o lucro está sendo preservado ou se precisa de ajuste.`
+    : 'Sem dados de despesas para este período. Cadastre combustível, manutenção e outros custos para que o app consiga analisar o percentual de despesas sobre o faturamento.';
 
   return {
     totalPoints,
@@ -272,6 +438,8 @@ function buildScorePerformanceInfo(analysis: EarningsPerformanceAnalysis) {
     level,
     color,
     expenseColor,
+    hourColor,
+    kmColor,
     title,
     message,
     recommendation,
@@ -280,6 +448,9 @@ function buildScorePerformanceInfo(analysis: EarningsPerformanceAnalysis) {
     hourLabel,
     kmLabel,
     expenseLabel,
+    hasHourData,
+    hasKmData,
+    hasExpensesData,
     positiveItems,
     improvementItems,
     gainsMessage,
@@ -287,6 +458,7 @@ function buildScorePerformanceInfo(analysis: EarningsPerformanceAnalysis) {
   };
 }
 
+// Card reutilizável para exibir métricas resumidas, como faturamento, lucro e km.
 function MetricCard({
   icon,
   label,
@@ -313,6 +485,7 @@ function MetricCard({
   );
 }
 
+// Card reutilizável para exibir o status de uma métrica comparada à meta.
 function StatusCard({
   title,
   value,
@@ -347,6 +520,7 @@ function StatusCard({
   );
 }
 
+// Card reutilizável para listar textos, usado em pontos positivos e pontos de melhoria.
 function TextListCard({
   title,
   icon,
@@ -383,10 +557,13 @@ function TextListCard({
   );
 }
 
+// Tela principal de desempenho dos ganhos.
+// Controla carregamento, erro e renderização da análise.
 export default function EarningsPerformanceScreen() {
   const [analysis, setAnalysis] = useState<EarningsPerformanceAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Carrega a análise financeira a partir do serviço.
   async function loadAnalysis() {
     try {
       setLoading(true);
@@ -400,12 +577,14 @@ export default function EarningsPerformanceScreen() {
     }
   }
 
+  // Recarrega a análise sempre que a tela recebe foco.
   useFocusEffect(
     useCallback(() => {
       loadAnalysis();
     }, []),
   );
 
+  // Enquanto os dados são carregados, mostra uma tela de loading.
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -415,6 +594,7 @@ export default function EarningsPerformanceScreen() {
     );
   }
 
+  // Caso não existam dados ou aconteça erro, mostra uma tela de tentativa novamente.
   if (!analysis) {
     return (
       <View style={styles.loadingContainer}>
@@ -433,11 +613,12 @@ export default function EarningsPerformanceScreen() {
     );
   }
 
+  // Constrói textos, cores, ícones e pontuação usados na interface.
   const scoreInfo = buildScorePerformanceInfo(analysis);
   const hourStatusLabel = scoreInfo.hourLabel;
   const kmStatusLabel = scoreInfo.kmLabel;
-  const hourStatusColor = getStatusColor(analysis.hourStatus);
-  const kmStatusColor = getStatusColor(analysis.kmStatus);
+  const hourStatusColor = scoreInfo.hourColor;
+  const kmStatusColor = scoreInfo.kmColor;
 
   return (
     <View style={styles.screen}>
@@ -464,6 +645,7 @@ export default function EarningsPerformanceScreen() {
           </View>
         </View>
 
+        {/* Card principal com o resumo geral do desempenho. */}
         <View
           style={[
             styles.heroCard,
@@ -510,7 +692,7 @@ export default function EarningsPerformanceScreen() {
             </View>
 
             <Text style={styles.scoreProgressHint}>
-              Calculado por ganho/hora, ganho/km e despesas sobre o faturamento.
+              Calculado apenas com indicadores que possuem dados suficientes.
             </Text>
           </View>
 
@@ -522,6 +704,7 @@ export default function EarningsPerformanceScreen() {
           </View>
         </View>
 
+        {/* Card que informa o período usado para a análise. */}
         <View style={styles.periodCard}>
           <Ionicons name="calendar-outline" size={18} color="#D4A64A" />
           <Text style={styles.periodText}>
@@ -535,6 +718,7 @@ export default function EarningsPerformanceScreen() {
           </Text>
         </View>
 
+        {/* Grade com os principais números financeiros do período. */}
         <View style={styles.metricGrid}>
           <MetricCard
             icon="cash-outline"
@@ -546,9 +730,17 @@ export default function EarningsPerformanceScreen() {
           <MetricCard
             icon="receipt-outline"
             label="Despesas"
-            value={`R$ ${formatCurrency(analysis.expenses)}`}
-            subtitle={`${analysis.expensesPercent}% do faturamento`}
-            color={analysis.expensesPerformance.color}
+            value={
+              scoreInfo.hasExpensesData
+                ? `R$ ${formatCurrency(analysis.expenses)}`
+                : 'Sem dados'
+            }
+            subtitle={
+              scoreInfo.hasExpensesData
+                ? `${analysis.expensesPercent}% do faturamento`
+                : 'Cadastre despesas do período'
+            }
+            color={scoreInfo.expenseColor}
           />
           <MetricCard
             icon="wallet-outline"
@@ -566,23 +758,48 @@ export default function EarningsPerformanceScreen() {
           />
         </View>
 
+        {/* Cards de ganho por hora e ganho por km comparados com as metas. */}
         <View style={styles.statusGrid}>
           <StatusCard
             title="Ganho por hora"
-            value={`R$ ${formatCurrency(analysis.revenuePerHour)}/h`}
+            value={
+              scoreInfo.hasHourData
+                ? `R$ ${formatCurrency(analysis.revenuePerHour)}/h`
+                : 'Sem dados'
+            }
             status={hourStatusLabel}
-            target={`Meta: R$ ${formatCurrency(analysis.targets.goodGainPerHour)}/h • mínimo: R$ ${formatCurrency(analysis.targets.badGainPerHour)}/h`}
+            target={
+              scoreInfo.hasHourData
+                ? `Meta: R$ ${formatCurrency(analysis.targets.goodGainPerHour)}/h • mínimo: R$ ${formatCurrency(analysis.targets.badGainPerHour)}/h`
+                : 'Cadastre jornadas com tempo trabalhado e faturamento'
+            }
             color={hourStatusColor}
-            icon={getStatusIcon(analysis.hourStatus) as keyof typeof Ionicons.glyphMap}
+            icon={
+              getStatusIcon(
+                scoreInfo.hasHourData ? analysis.hourStatus : 'no_data',
+              ) as keyof typeof Ionicons.glyphMap
+            }
           />
 
           <StatusCard
             title="Ganho por km"
-            value={`R$ ${formatCurrency(analysis.revenuePerKm)}/km`}
+            value={
+              scoreInfo.hasKmData
+                ? `R$ ${formatCurrency(analysis.revenuePerKm)}/km`
+                : 'Sem dados'
+            }
             status={kmStatusLabel}
-            target={`Meta: R$ ${formatCurrency(analysis.targets.goodGainPerKm)}/km • mínimo: R$ ${formatCurrency(analysis.targets.badGainPerKm)}/km`}
+            target={
+              scoreInfo.hasKmData
+                ? `Meta: R$ ${formatCurrency(analysis.targets.goodGainPerKm)}/km • mínimo: R$ ${formatCurrency(analysis.targets.badGainPerKm)}/km`
+                : 'Cadastre jornadas com km rodado e faturamento'
+            }
             color={kmStatusColor}
-            icon={getStatusIcon(analysis.kmStatus) as keyof typeof Ionicons.glyphMap}
+            icon={
+              getStatusIcon(
+                scoreInfo.hasKmData ? analysis.kmStatus : 'no_data',
+              ) as keyof typeof Ionicons.glyphMap
+            }
           />
         </View>
 
@@ -661,6 +878,7 @@ export default function EarningsPerformanceScreen() {
           />
         </View>
 
+        {/* Lista de pontos positivos identificados automaticamente. */}
         <TextListCard
           title="Pontos positivos"
           icon="checkmark-circle-outline"
@@ -669,14 +887,22 @@ export default function EarningsPerformanceScreen() {
           empty="Ainda não encontrei pontos positivos suficientes. Cadastre mais jornadas e despesas para melhorar a análise."
         />
 
+        {/* Lista de pontos que precisam de ajuste. */}
         <TextListCard
           title="Pontos que precisam melhorar"
           icon="warning-outline"
-          color={scoreInfo.level === 'bad' ? '#EF4444' : '#FACC15'}
+          color={
+            scoreInfo.level === 'critical' || scoreInfo.level === 'bad'
+              ? '#EF4444'
+              : scoreInfo.level === 'no_data'
+                ? '#A1A1AA'
+                : '#FACC15'
+          }
           items={scoreInfo.improvementItems}
           empty="Nenhum ponto crítico encontrado nos dias analisados."
         />
 
+        {/* Explica resumidamente a lógica usada para calcular o resultado final. */}
         <View style={styles.logicCard}>
           <View style={styles.sectionHeaderRow}>
             <View style={[styles.sectionIconBox, { backgroundColor: 'rgba(96,165,250,0.15)', borderColor: 'rgba(96,165,250,0.32)' }]}>
@@ -716,6 +942,7 @@ export default function EarningsPerformanceScreen() {
   );
 }
 
+// Estilos visuais da tela.
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -815,17 +1042,17 @@ const styles = StyleSheet.create({
   },
   headerEyebrow: {
     color: '#D4A64A',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
+    letterSpacing: 1.7,
   },
   headerTitle: {
     flex: 1,
     color: '#F5F0E6',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
-    letterSpacing: -0.4,
+    letterSpacing: 0.1,
   },
   heroCard: {
     borderRadius: 18,

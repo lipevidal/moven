@@ -1725,53 +1725,26 @@ export default function PersonalFinanceScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
-        stickyHeaderIndices={[1]}
+        stickyHeaderIndices={[0]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.headerIconButton}
-              onPress={() =>
-                router.push("/(private)/(tabs)/dashboard" as never)
-              }
-            >
-              <Ionicons name="home-outline" size={22} color="#F5F0E6" />
-            </TouchableOpacity>
+        <View style={styles.fixedHeaderBlock}>
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.headerIconButton}
+                onPress={() =>
+                  router.push("/(private)/(tabs)/dashboard" as never)
+                }
+              >
+                <Ionicons name="home-outline" size={22} color="#F5F0E6" />
+              </TouchableOpacity>
 
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerEyebrow}>Controle pessoal</Text>
-              <Text style={styles.headerTitle}>Financeiro pessoal</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.fixedBlock}>
-          <View style={styles.balanceCard}>
-            <View style={styles.balanceTopRow}>
-              <View>
-                <Text style={styles.balanceLabel}>Saldo atual</Text>
-                <Text
-                  style={[
-                    styles.balanceValue,
-                    currentBalance < 0 && styles.balanceValueNegative,
-                  ]}
-                >
-                  R$ {formatCurrency(currentBalance)}
-                </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.headerEyebrow}>Controle pessoal</Text>
+                <Text style={styles.headerTitle}>Financeiro</Text>
               </View>
-
-              <View style={styles.balanceIconBox}>
-                <Ionicons name="wallet-outline" size={26} color="#D4A64A" />
-              </View>
-            </View>
-
-            <View style={styles.payableBox}>
-              <Ionicons name="alert-circle-outline" size={18} color="#F87171" />
-              <Text style={styles.payableText}>
-                A pagar: R$ {formatCurrency(payableTotal)}
-              </Text>
             </View>
           </View>
 
@@ -1798,6 +1771,33 @@ export default function PersonalFinanceScreen() {
             >
               <Ionicons name="chevron-forward" size={22} color="#F5F0E6" />
             </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.balanceCard}>
+          <View style={styles.balanceTopRow}>
+            <View>
+              <Text style={styles.balanceLabel}>Saldo atual</Text>
+              <Text
+                style={[
+                  styles.balanceValue,
+                  currentBalance < 0 && styles.balanceValueNegative,
+                ]}
+              >
+                R$ {formatCurrency(currentBalance)}
+              </Text>
+            </View>
+
+            <View style={styles.balanceIconBox}>
+              <Ionicons name="wallet-outline" size={26} color="#D4A64A" />
+            </View>
+          </View>
+
+          <View style={styles.payableBox}>
+            <Ionicons name="alert-circle-outline" size={18} color="#F87171" />
+            <Text style={styles.payableText}>
+              A pagar: R$ {formatCurrency(payableTotal)}
+            </Text>
           </View>
         </View>
 
@@ -3551,10 +3551,19 @@ const styles = StyleSheet.create({
 
   root: { flex: 1, backgroundColor: "#050505" },
   container: { flex: 1, backgroundColor: "#050505" },
-  content: { paddingHorizontal: 18, paddingTop: 50, paddingBottom: 100 },
+  content: { paddingHorizontal: 18, paddingTop: 0, paddingBottom: 100 },
+  fixedHeaderBlock: {
+    backgroundColor: "#050505",
+    paddingBottom: 12,
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(42,40,48,0.6)",
+    zIndex: 50,
+    elevation: 50,
+  },
   header: {
     marginHorizontal: -18,
-    marginTop: -50,
+    marginTop: 0,
     marginBottom: 14,
     paddingTop: 50,
     paddingBottom: 18,
@@ -3576,16 +3585,17 @@ const styles = StyleSheet.create({
   },
   headerEyebrow: {
     color: "#D4A64A",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 1.5,
+    letterSpacing: 1.7,
   },
   headerTitle: {
     color: "#F5F0E6",
-    fontSize: 23,
+    fontSize: 20,
     fontWeight: "900",
-    marginTop: 2,
+    marginTop: 0.1
+    ,
   },
   fixedBlock: {
     marginHorizontal: -18,
@@ -3603,7 +3613,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#2A2830",
     padding: 16,
-    marginBottom: 10,
+    marginBottom: 14,
   },
   balanceTopRow: {
     flexDirection: "row",

@@ -406,16 +406,15 @@ const styles = StyleSheet.create({
   },
   headerEyebrow: {
     color: "#D4A64A",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 1.5,
   },
   headerTitle: {
     color: "#F5F0E6",
-    fontSize: 27,
+    fontSize: 20,
     fontWeight: "900",
-    marginTop: 3,
     letterSpacing: -0.6,
   },
   listContent: {

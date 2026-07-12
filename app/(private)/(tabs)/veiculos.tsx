@@ -307,17 +307,26 @@ export default function VehiclesScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Veículos</Text>
+          <TouchableOpacity
+            activeOpacity={0.88}
+            style={styles.backButton}
+            onPress={() =>
+              router.replace('/(private)/(tabs)/dashboard' as never)
+            }
+          >
+            <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
+          </TouchableOpacity>
 
-            <Text style={styles.subtitle}>Gerencie seus veículos.</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerEyebrow}>GERENCIE SEUS VEÍCULOS</Text>
+            <Text style={styles.title}>Veículos</Text>
           </View>
 
           <TouchableOpacity
             style={styles.addButton}
             onPress={openCreateVehicleModal}
           >
-            <Ionicons name="add" size={26} color="#F5F0E6" />
+            <Ionicons name="add" size={26} color="#080808" />
           </TouchableOpacity>
         </View>
 
@@ -723,11 +732,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#211D16',
   },
+  headerEyebrow: {
+    color: '#D4A64A',
+    fontSize: 9,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.7,
+  },
   title: {
     color: '#F5F0E6',
-    fontSize: 27,
+    fontSize: 20,
     fontWeight: '900',
-    letterSpacing: -0.6,
+    letterSpacing: 0.1,
   },
   subtitle: {
     color: '#9B969B',
@@ -735,9 +751,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#18171D',
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
   addButton: {
-    width: 50,
-    height: 50,
+    width: 42,
+    height: 42,
     borderRadius: 14,
     backgroundColor: '#D4A64A',
     alignItems: 'center',

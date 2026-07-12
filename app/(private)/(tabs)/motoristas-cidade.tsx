@@ -568,7 +568,7 @@ export default function CityDriversScreen() {
     if (!userId) return;
 
     router.push({
-      pathname: '/perfil-publico/[userId]',
+      pathname: '/perfil-publico',
       params: { userId },
     } as never);
   }
@@ -583,8 +583,8 @@ export default function CityDriversScreen() {
 
   /**
    * Renderização da tela:
-   * - Header fixo;
-   * - Card de resumo da cidade;
+   * - Header separado normal;
+   * - Card de resumo da cidade fixo durante a rolagem;
    * - Aviso se não houver cidade definida;
    * - Loading;
    * - Empty state;
@@ -613,7 +613,9 @@ export default function CityDriversScreen() {
 
             <View style={styles.headerTextContent}>
               <Text style={styles.headerEyebrow}>Comunidade local</Text>
-              <Text style={styles.headerTitle}>Motoristas da cidade</Text>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {profileCity || 'Motoristas da cidade'}
+              </Text>
             </View>
           </View>
         </View>
@@ -621,31 +623,22 @@ export default function CityDriversScreen() {
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroIconBox}>
-              <Ionicons name="people-outline" size={28} color="#D4A64A" />
+              <Ionicons name="people-outline" size={22} color="#D4A64A" />
             </View>
 
-            {/*<View style={styles.heroBadge}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.heroBadgeText}>
-                {visibleDrivers.length}{' '}
-                {visibleDrivers.length === 1 ? 'usuário' : 'usuários'}
+            <View>
+              <Text style={styles.heroTextOnly}>
+                Veja quem está na comunidade local
               </Text>
-            </View>*/}
+            </View>
           </View>
-
-          <Text style={styles.heroTitle}>
-            {profileCity || 'Cidade do usuário'}
-          </Text>
-          <Text style={styles.heroText}>
-            Veja todos os perfis da sua cidade
-          </Text>
 
           {visibleDrivers.length > 0 ? (
             <View style={styles.countRow}>
               <View style={styles.countPill}>
                 <Ionicons name="people-outline" size={14} color="#D4A64A" />
                 <Text style={styles.countPillText}>
-                  {visibleDrivers.length} na cidade
+                  {visibleDrivers.length} perfis
                 </Text>
               </View>
 
@@ -812,8 +805,8 @@ const styles = StyleSheet.create({
   // Container do ScrollView.
   container: { flex: 1, backgroundColor: '#050505' },
   // Espaçamento interno do conteúdo.
-  content: { paddingHorizontal: 18, paddingTop: 48, paddingBottom: 150 },
-  // Header fixo no topo da lista.
+  content: { paddingHorizontal: 18, paddingTop: 48, paddingBottom: 110 },
+  // Header fixo da página.
   header: {
     marginHorizontal: -18,
     marginTop: -48,
@@ -824,8 +817,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#070707',
     borderBottomWidth: 1,
     borderBottomColor: '#211D16',
-    zIndex: 20,
-    elevation: 20,
+    zIndex: 50,
+    elevation: 50,
   },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   // Botão de voltar.
@@ -842,17 +835,16 @@ const styles = StyleSheet.create({
   headerTextContent: { flex: 1, minWidth: 0 },
   headerEyebrow: {
     color: '#D4A64A',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
   },
   headerTitle: {
     color: '#F5F0E6',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
     letterSpacing: -0.4,
-    marginTop: 2,
   },
   // Card de resumo com cidade e contadores.
   heroCard: {
@@ -862,22 +854,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#101014',
     padding: 18,
     marginBottom: 14,
+    elevation: 10,
     shadowColor: '#D4A64A',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.07,
     shadowRadius: 22,
-    elevation: 8,
   },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    gap: 10,
+    marginBottom: 12,
   },
   heroIconBox: {
-    width: 58,
-    height: 58,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 13,
     backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(212,166,74,0.24)',
@@ -909,7 +901,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 20,
-    marginTop: 8,
+  },
+  heroTextOnly: {
+    color: '#F5F0E6',
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 21,
+    flexShrink: 1,
   },
   countRow: { flexDirection: 'row', gap: 8, marginTop: 14, flexWrap: 'wrap' },
   countPill: {
@@ -1042,7 +1040,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  driverList: { gap: 10 },
+  driverList: {
+    gap: 10,
+    width: '100%',
+    alignSelf: 'center',
+  },
   // Card individual do motorista.
   driverCard: {
     borderRadius: 16,

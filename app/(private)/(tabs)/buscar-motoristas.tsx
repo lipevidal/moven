@@ -15,9 +15,9 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "../../src/database/supabase";
+import { supabase } from "../../../src/database/supabase";
 
-const VISITED_PROFILES_STORAGE_KEY = "@movenapp:visited-driver-profiles";
+const VISITED_PROFILES_STORAGE_KEY_PREFIX = "@movenapp:visited-driver-profiles";
 const MAX_VISITED_PROFILES = 8;
 
 type DriverProfile = {
@@ -40,13 +40,14 @@ function getDriverMeta(driver: DriverProfile) {
 }
 
 export default function SearchDriversScreen() {
+  const [currentUserId, setCurrentUserId] = useState("");
   const [search, setSearch] = useState("");
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
   const [visitedProfiles, setVisitedProfiles] = useState<DriverProfile[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadVisitedProfiles();
+    loadCurrentUserAndVisitedProfiles();
   }, []);
 
   useEffect(() => {
@@ -57,34 +58,84 @@ export default function SearchDriversScreen() {
     return () => clearTimeout(timeout);
   }, [search]);
 
-  async function loadVisitedProfiles() {
-    try {
-      const storedProfiles = await AsyncStorage.getItem(
-        VISITED_PROFILES_STORAGE_KEY,
-      );
+  function getVisitedProfilesStorageKey(userId: string) {
+    return `${VISITED_PROFILES_STORAGE_KEY_PREFIX}:${userId}`;
+  }
 
-      if (!storedProfiles) return;
+  async function getAuthenticatedUserId() {
+    if (currentUserId) return currentUserId;
+
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error) {
+      console.log("Erro ao buscar usuário autenticado:", error);
+      return "";
+    }
+
+    const userId = user?.id ?? "";
+
+    if (userId) {
+      setCurrentUserId(userId);
+    }
+
+    return userId;
+  }
+
+  async function loadCurrentUserAndVisitedProfiles() {
+    const userId = await getAuthenticatedUserId();
+
+    if (!userId) {
+      setVisitedProfiles([]);
+      return;
+    }
+
+    await loadVisitedProfiles(userId);
+  }
+
+  async function loadVisitedProfiles(userId: string) {
+    try {
+      const storageKey = getVisitedProfilesStorageKey(userId);
+      const storedProfiles = await AsyncStorage.getItem(storageKey);
+
+      if (!storedProfiles) {
+        setVisitedProfiles([]);
+        return;
+      }
 
       const parsedProfiles = JSON.parse(storedProfiles);
 
       if (Array.isArray(parsedProfiles)) {
         setVisitedProfiles(
           parsedProfiles
-            .filter((item) => item?.id)
+            .filter((item) => item?.id && String(item.id) !== String(userId))
             .slice(0, MAX_VISITED_PROFILES),
         );
+        return;
       }
+
+      setVisitedProfiles([]);
     } catch (error) {
       console.log("Erro ao carregar perfis visitados:", error);
+      setVisitedProfiles([]);
     }
   }
 
   async function persistVisitedProfiles(nextProfiles: DriverProfile[]) {
     try {
+      const userId = await getAuthenticatedUserId();
+
+      if (!userId) {
+        setVisitedProfiles([]);
+        return;
+      }
+
       setVisitedProfiles(nextProfiles);
 
       await AsyncStorage.setItem(
-        VISITED_PROFILES_STORAGE_KEY,
+        getVisitedProfilesStorageKey(userId),
         JSON.stringify(nextProfiles),
       );
     } catch (error) {
@@ -94,6 +145,10 @@ export default function SearchDriversScreen() {
 
   async function addVisitedProfile(driver: DriverProfile) {
     if (!driver?.id) return;
+
+    const userId = await getAuthenticatedUserId();
+
+    if (String(driver.id) === String(userId)) return;
 
     const nextProfiles = [
       driver,
@@ -137,7 +192,13 @@ export default function SearchDriversScreen() {
 
       if (error) throw error;
 
-      setDrivers((data ?? []) as DriverProfile[]);
+      const userId = await getAuthenticatedUserId();
+
+      const filteredDrivers = ((data ?? []) as DriverProfile[]).filter(
+        (driver) => String(driver.id) !== String(userId),
+      );
+
+      setDrivers(filteredDrivers);
     } catch (error) {
       console.log("Erro ao buscar motoristas:", error);
       setDrivers([]);
@@ -158,10 +219,14 @@ export default function SearchDriversScreen() {
   async function openPublicProfile(driver: DriverProfile) {
     if (!driver?.id) return;
 
+    const userId = await getAuthenticatedUserId();
+
+    if (String(driver.id) === String(userId)) return;
+
     await addVisitedProfile(driver);
 
     router.push({
-      pathname: "/perfil-publico/[userId]",
+      pathname: "/perfil-publico",
       params: { userId: driver.id },
     } as never);
   }
@@ -290,14 +355,14 @@ export default function SearchDriversScreen() {
             <TouchableOpacity
               activeOpacity={0.85}
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => router.replace("/perfil" as never)}
             >
               <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
             </TouchableOpacity>
 
             <View style={{ flex: 1 }}>
               <Text style={styles.headerEyebrow}>Comunidade</Text>
-              <Text style={styles.headerTitle}>Buscar motoristas</Text>
+              <Text style={styles.headerTitle}>Buscar perfis</Text>
             </View>
           </View>
 
@@ -429,17 +494,16 @@ const styles = StyleSheet.create({
   },
   headerEyebrow: {
     color: "#D4A64A",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 1.5,
+    letterSpacing: 1.7,
   },
   headerTitle: {
     color: "#F5F0E6",
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: "900",
-    letterSpacing: -0.5,
-    marginTop: 2,
+    letterSpacing: 0.1,
   },
   searchCard: {
     minHeight: 96,

@@ -1817,6 +1817,42 @@ export default function TabsLayout() {
             href: null,
           }}
         />
+      
+
+        <Tabs.Screen
+          name="perfil-publico"
+          options={{
+            href: null,
+          }}
+        />
+
+        <Tabs.Screen
+          name="editar-perfil"
+          options={{
+            href: null,
+          }}
+        />
+
+        <Tabs.Screen
+          name="configuracoes"
+          options={{
+            href: null,
+          }}
+        />
+
+        <Tabs.Screen
+          name="buscar-motoristas"
+          options={{
+            href: null,
+          }}
+        />
+
+        <Tabs.Screen
+          name="earnings-performance"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
 
       {/* Menu radial/central de ações rápidas aberto pelo botão "+". */}

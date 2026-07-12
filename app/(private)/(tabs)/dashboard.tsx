@@ -101,6 +101,29 @@ type PerformanceTargets = {
   good_gain_per_km: number | string | null;
 };
 
+type DashboardSubscriptionAccess = {
+  user_id?: string;
+  status?: "trial" | "active" | "inactive" | "deleted" | string;
+  can_create?: boolean;
+  monthly_price?: number | string | null;
+  current_period_end?: string | null;
+  days_until_due?: number | null;
+  days_inactive?: number | null;
+  days_until_deletion?: number | null;
+  show_payment_alert?: boolean;
+  show_deletion_warning?: boolean;
+  alert_title?: string | null;
+  alert_message?: string | null;
+};
+
+type DashboardSubscriptionBannerInfo = {
+  title: string;
+  message: string;
+  buttonText: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  variant: "warning" | "danger";
+};
+
 const expenseCategoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   "Manutenção": "build-outline",
   "Lavagem/Limpeza": "water-outline",
@@ -153,26 +176,104 @@ function getDashboardPerformanceExpensesPoints(expensesPercent?: number | null) 
 }
 
 function getDashboardPerformanceScoreInfo(summary: any) {
+  const noDataInfo = {
+    level: "no_data",
+    icon: "analytics-outline" as keyof typeof Ionicons.glyphMap,
+    color: "#A1A1AA",
+    backgroundColor: "rgba(161,161,170,0.12)",
+    borderColor: "rgba(161,161,170,0.28)",
+  };
+
   if (!summary) {
-    return null;
+    return noDataInfo;
+  }
+
+  const hasRevenue = Number(summary.revenue ?? 0) > 0;
+  const hasExpenses = Number(summary.expenses ?? 0) > 0;
+  const hasHours = Number(summary.totalHours ?? 0) > 0;
+  const hasKm = Number(summary.totalKm ?? 0) > 0;
+  const hasActiveDays = Number(summary.activeDays ?? 0) > 0;
+  const hasSessions = Number(summary.sessionCount ?? 0) > 0;
+
+  const hasHourStatus =
+    summary.hourStatus === "above" ||
+    summary.hourStatus === "intermediate" ||
+    summary.hourStatus === "below";
+
+  const hasKmStatus =
+    summary.kmStatus === "above" ||
+    summary.kmStatus === "intermediate" ||
+    summary.kmStatus === "below";
+
+  const hasExpensesPercent =
+    hasRevenue && hasExpenses && Number.isFinite(Number(summary.expensesPercent));
+
+  const hasAnyPerformanceData =
+    hasRevenue ||
+    hasExpenses ||
+    hasHours ||
+    hasKm ||
+    hasActiveDays ||
+    hasSessions ||
+    hasHourStatus ||
+    hasKmStatus;
+
+  if (!hasAnyPerformanceData) {
+    return noDataInfo;
+  }
+
+  const hasHourMetric = hasHourStatus && hasRevenue && hasHours;
+  const hasKmMetric = hasKmStatus && hasRevenue && hasKm;
+  const hasExpensesMetric = hasExpensesPercent;
+
+  const availableMetrics = [
+    hasHourMetric,
+    hasKmMetric,
+    hasExpensesMetric,
+  ].filter(Boolean).length;
+
+  if (availableMetrics === 0) {
+    return noDataInfo;
   }
 
   const totalPoints =
-    getDashboardPerformanceMetricPoints(summary.hourStatus) +
-    getDashboardPerformanceMetricPoints(summary.kmStatus) +
-    getDashboardPerformanceExpensesPoints(summary.expensesPercent);
+    (hasHourMetric ? getDashboardPerformanceMetricPoints(summary.hourStatus) : 0) +
+    (hasKmMetric ? getDashboardPerformanceMetricPoints(summary.kmStatus) : 0) +
+    (hasExpensesMetric
+      ? getDashboardPerformanceExpensesPoints(summary.expensesPercent)
+      : 0);
 
-  if (totalPoints <= 100) {
+  const progressPercent = Math.round((totalPoints / (availableMetrics * 100)) * 100);
+
+  /*
+    Mesma regra da tela de Desempenho:
+    - <= 20%: Crítico
+    - > 20% e <= 40%: Ruim
+    - > 40% e <= 60%: Intermediário
+    - > 60% e <= 80%: Bom
+    - > 80%: Excelente
+  */
+  if (progressPercent <= 20) {
+    return {
+      level: "critical",
+      icon: "warning-outline" as keyof typeof Ionicons.glyphMap,
+      color: "#DC2626",
+      backgroundColor: "rgba(220,38,38,0.12)",
+      borderColor: "rgba(220,38,38,0.34)",
+    };
+  }
+
+  if (progressPercent <= 40) {
     return {
       level: "bad",
-      icon: "warning-outline" as keyof typeof Ionicons.glyphMap,
+      icon: "close-circle-outline" as keyof typeof Ionicons.glyphMap,
       color: "#EF4444",
       backgroundColor: "rgba(239,68,68,0.12)",
       borderColor: "rgba(239,68,68,0.32)",
     };
   }
 
-  if (totalPoints <= 200) {
+  if (progressPercent <= 60) {
     return {
       level: "intermediate",
       icon: "alert-circle-outline" as keyof typeof Ionicons.glyphMap,
@@ -182,14 +283,75 @@ function getDashboardPerformanceScoreInfo(summary: any) {
     };
   }
 
+  if (progressPercent <= 80) {
+    return {
+      level: "good",
+      icon: "checkmark-circle-outline" as keyof typeof Ionicons.glyphMap,
+      color: "#84CC16",
+      backgroundColor: "rgba(132,204,22,0.12)",
+      borderColor: "rgba(132,204,22,0.32)",
+    };
+  }
+
   return {
-    level: "good",
-    icon: "checkmark-circle-outline" as keyof typeof Ionicons.glyphMap,
+    level: "excellent",
+    icon: "trophy-outline" as keyof typeof Ionicons.glyphMap,
     color: "#22C55E",
     backgroundColor: "rgba(34,197,94,0.12)",
     borderColor: "rgba(34,197,94,0.32)",
   };
 }
+
+function getDashboardSubscriptionBannerInfo(
+  access?: DashboardSubscriptionAccess | null,
+): DashboardSubscriptionBannerInfo | null {
+  if (!access) return null;
+
+  const status = String(access.status ?? "").toLowerCase();
+  const daysUntilDeletion = Number(access.days_until_deletion ?? 0);
+  const daysInactive = Number(access.days_inactive ?? 0);
+  const daysUntilDue = Number(access.days_until_due ?? 0);
+  const monthlyPrice = Number(access.monthly_price ?? 0);
+
+  if (access.show_deletion_warning || status === "deleted") {
+    return {
+      title: access.alert_title || "Sua conta pode ser deletada",
+      message:
+        access.alert_message ||
+        `Sua conta está inativa há ${daysInactive} dias. Ative sua assinatura em até ${daysUntilDeletion} dias para evitar exclusão automática.`,
+      buttonText: "Ativar assinatura",
+      icon: "warning-outline",
+      variant: "danger",
+    };
+  }
+
+  if (status === "inactive" || access.can_create === false) {
+    return {
+      title: access.alert_title || "Assinatura inativa",
+      message:
+        access.alert_message ||
+        "Sua assinatura venceu. Você pode visualizar seus dados, mas não pode cadastrar novas jornadas, ganhos, despesas ou veículos até ativar sua assinatura.",
+      buttonText: "Ativar assinatura",
+      icon: "lock-closed-outline",
+      variant: "danger",
+    };
+  }
+
+  if (access.show_payment_alert) {
+    return {
+      title: access.alert_title || "Sua assinatura está perto do vencimento",
+      message:
+        access.alert_message ||
+        `Sua assinatura vence em ${daysUntilDue} dia(s). Ative por R$ ${formatCurrency(monthlyPrice)} para continuar usando todos os recursos.`,
+      buttonText: status === "trial" ? "Assinar agora" : "Renovar assinatura",
+      icon: "notifications-outline",
+      variant: "warning",
+    };
+  }
+
+  return null;
+}
+
 
 const platformVisualConfig: Record<
   string,
@@ -500,7 +662,14 @@ function getMonthWeeks(referenceDate: Date) {
   const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
   const firstWeek = getWeekRange(monthStart);
-  const weeks = [];
+  const weeks: {
+    index: number;
+    start: Date;
+    end: Date;
+    visibleStart: Date;
+    visibleEnd: Date;
+    label: string;
+  }[] = [];
   let cursor = new Date(firstWeek.start);
   let index = 1;
 
@@ -779,6 +948,8 @@ export default function DashboardScreen() {
   const [currentGoal, setCurrentGoal] = useState<any>(null);
   const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
+  const [subscriptionAccess, setSubscriptionAccess] =
+    useState<DashboardSubscriptionAccess | null>(null);
   const [yearChartSemester, setYearChartSemester] = useState<"first" | "second">(
     new Date().getMonth() < 6 ? "first" : "second",
   );
@@ -971,6 +1142,18 @@ export default function DashboardScreen() {
             await loadPerformanceTargets(loggedUser.id);
           },
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "user_subscriptions",
+            filter: `user_id=eq.${loggedUser.id}`,
+          },
+          async () => {
+            await loadSubscriptionAccess();
+          },
+        )
         .subscribe();
     }
 
@@ -985,6 +1168,23 @@ export default function DashboardScreen() {
     };
   }, [period, referenceDate]);
 
+
+  async function loadSubscriptionAccess() {
+    try {
+      const { data: response, error } = await (supabase as any).rpc(
+        "get_my_subscription_access",
+      );
+
+      if (error) throw error;
+
+      const access = Array.isArray(response) ? response[0] : response;
+
+      setSubscriptionAccess(access ?? null);
+    } catch (error) {
+      console.log("Erro ao carregar alerta de assinatura:", error);
+      setSubscriptionAccess(null);
+    }
+  }
 
   async function refreshDashboardGoal() {
     try {
@@ -1233,6 +1433,7 @@ export default function DashboardScreen() {
         loadPeriodEntries(response?.startDate, response?.endDate),
         loadDashboardPlatforms(),
         loadEarningsPerformanceSummary(),
+        loadSubscriptionAccess(),
       ]);
 
       const loggedUser = response?.user ?? null;
@@ -2447,13 +2648,16 @@ export default function DashboardScreen() {
   const dashboardPerformanceScoreInfo =
     getDashboardPerformanceScoreInfo(earningsPerformanceSummary);
 
+  const subscriptionBannerInfo =
+    getDashboardSubscriptionBannerInfo(subscriptionAccess);
+
   return (
     <>
       <ScrollView
         style={[styles.container, { backgroundColor: theme.background }]}
         contentContainerStyle={styles.modernContent}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[1]}
+        stickyHeaderIndices={[2]}
       >
         <View style={styles.modernHeader}>
           <View style={styles.modernUserRow}>
@@ -2474,7 +2678,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
 
             <View>
-              <Text style={[styles.modernGreeting, { color: theme.muted }]}>
+              <Text style={[styles.modernGreeting,]}>
                 PAINEL OPERACIONAL
               </Text>
               <Text style={[styles.modernTitle, { color: theme.text }]} numberOfLines={1}>
@@ -2497,6 +2701,73 @@ export default function DashboardScreen() {
               <Ionicons name="menu-outline" size={26} color="#D4A64A" />
             </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={styles.subscriptionBannerSlot}>
+          {subscriptionBannerInfo ? (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[
+                styles.subscriptionBanner,
+                subscriptionBannerInfo.variant === "danger"
+                  ? styles.subscriptionBannerDanger
+                  : styles.subscriptionBannerWarning,
+              ]}
+              onPress={() =>
+                router.push("/(private)/(tabs)/configuracoes?aba=assinaturas" as never)
+              }
+            >
+              <View
+                style={[
+                  styles.subscriptionBannerIcon,
+                  subscriptionBannerInfo.variant === "danger"
+                    ? styles.subscriptionBannerIconDanger
+                    : styles.subscriptionBannerIconWarning,
+                ]}
+              >
+                <Ionicons
+                  name={subscriptionBannerInfo.icon}
+                  size={23}
+                  color={
+                    subscriptionBannerInfo.variant === "danger"
+                      ? "#FCA5A5"
+                      : "#D4A64A"
+                  }
+                />
+              </View>
+
+              <View style={styles.subscriptionBannerContent}>
+                <Text style={styles.subscriptionBannerTitle}>
+                  {subscriptionBannerInfo.title}
+                </Text>
+                <Text style={styles.subscriptionBannerText}>
+                  {subscriptionBannerInfo.message}
+                </Text>
+
+                <View style={styles.subscriptionBannerAction}>
+                  <Text
+                    style={[
+                      styles.subscriptionBannerActionText,
+                      subscriptionBannerInfo.variant === "danger"
+                        ? styles.subscriptionBannerActionTextDanger
+                        : styles.subscriptionBannerActionTextWarning,
+                    ]}
+                  >
+                    {subscriptionBannerInfo.buttonText}
+                  </Text>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={16}
+                    color={
+                      subscriptionBannerInfo.variant === "danger"
+                        ? "#FCA5A5"
+                        : "#D4A64A"
+                    }
+                  />
+                </View>
+              </View>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.stickyPeriodHeader}>
@@ -6382,9 +6653,8 @@ const styles = StyleSheet.create({
   },
   modernTitle: {
     color: "#F5F0E6",
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "900",
-    marginTop: 4,
     letterSpacing: 0.1,
   },
   modernHeaderActions: {
@@ -7459,7 +7729,84 @@ const styles = StyleSheet.create({
   sessionEditField: {
     flex: 1,
   },
+
+  subscriptionBannerSlot: {
+    marginTop: 5,
+    marginBottom: 5,
+  },
+  subscriptionBanner: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    padding: 14,
+    flexDirection: "row",
+    gap: 12,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  subscriptionBannerWarning: {
+    backgroundColor: "rgba(212,166,74,0.11)",
+    borderColor: "rgba(212,166,74,0.26)",
+    borderLeftColor: "#D4A64A",
+  },
+  subscriptionBannerDanger: {
+    backgroundColor: "rgba(239,68,68,0.12)",
+    borderColor: "rgba(239,68,68,0.28)",
+    borderLeftColor: "#EF4444",
+  },
+  subscriptionBannerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  subscriptionBannerIconWarning: {
+    backgroundColor: "rgba(212,166,74,0.14)",
+    borderColor: "rgba(212,166,74,0.25)",
+  },
+  subscriptionBannerIconDanger: {
+    backgroundColor: "rgba(239,68,68,0.14)",
+    borderColor: "rgba(239,68,68,0.25)",
+  },
+  subscriptionBannerContent: {
+    flex: 1,
+  },
+  subscriptionBannerTitle: {
+    color: "#F5F0E6",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  subscriptionBannerText: {
+    color: "#B8B1B8",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  subscriptionBannerAction: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+  },
+  subscriptionBannerActionText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  subscriptionBannerActionTextWarning: {
+    color: "#D4A64A",
+  },
+  subscriptionBannerActionTextDanger: {
+    color: "#FCA5A5",
+  },
 });
+
 
 
 

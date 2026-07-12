@@ -401,22 +401,37 @@ export default function SocialProfileScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      stickyHeaderIndices={[0]}
     >
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerEyebrow}>Minha conta</Text>
-          <Text style={styles.headerTitle}>Perfil</Text>
-        </View>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.headerIconButton}
+            onPress={() =>
+              router.replace("/(private)/(tabs)/dashboard" as never)
+            }
+          >
+            <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          activeOpacity={0.85}
-          style={styles.headerIconButton}
-          onPress={() =>
-            router.push("/(private)/perfil/configuracoes" as never)
-          }
-        >
-          <Ionicons name="settings-outline" size={22} color="#F5F0E6" />
-        </TouchableOpacity>
+          <View style={styles.headerTitleBlock}>
+            <Text style={styles.headerEyebrow}>Minha conta</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {profile?.username ? `@${profile.username}` : "Perfil"}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.headerIconButton}
+            onPress={() =>
+              router.push("/configuracoes" as never)
+            }
+          >
+            <Ionicons name="settings-outline" size={22} color="#F5F0E6" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.profileHero}>
@@ -449,7 +464,7 @@ export default function SocialProfileScreen() {
             activeOpacity={0.88}
             style={styles.editButton}
             onPress={() =>
-              router.push("/(private)/perfil/minha-conta" as never)
+              router.push("/editar-perfil" as never)
             }
           >
             <Ionicons name="create-outline" size={18} color="#080808" />
@@ -616,7 +631,7 @@ export default function SocialProfileScreen() {
           icon="person-outline"
           title="Informações pessoais"
           description="Nome, cidade, foto, e-mail e senha"
-          onPress={() => router.push("/(private)/perfil/minha-conta" as never)}
+          onPress={() => router.push("/editar-perfil" as never)}
         />
 
         <ProfileMenuItem
@@ -625,7 +640,7 @@ export default function SocialProfileScreen() {
           description="Plano atual, pagamentos e cobrança"
           onPress={() =>
             router.push(
-              "/(private)/perfil/configuracoes?aba=assinaturas" as never,
+              "/configuracoes?aba=assinaturas" as never,
             )
           }
         />
@@ -636,7 +651,7 @@ export default function SocialProfileScreen() {
           description="Controle quem pode ver e falar com você"
           onPress={() =>
             router.push(
-              "/(private)/perfil/configuracoes?aba=privacidade" as never,
+              "/configuracoes?aba=privacidade" as never,
             )
           }
         />
@@ -646,7 +661,7 @@ export default function SocialProfileScreen() {
           title="Central de ajuda"
           description="Suporte, erros, sugestões e documentos"
           onPress={() =>
-            router.push("/(private)/perfil/configuracoes?aba=ajuda" as never)
+            router.push("/configuracoes?aba=ajuda" as never)
           }
         />
 
@@ -655,7 +670,7 @@ export default function SocialProfileScreen() {
           title="Sobre o MovenApp"
           description="Versão, redes sociais e informações do aplicativo"
           onPress={() =>
-            router.push("/(private)/perfil/configuracoes?aba=sobre" as never)
+            router.push("/configuracoes?aba=sobre" as never)
           }
         />
 
@@ -752,7 +767,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingTop: 48,
-    paddingBottom: 150,
+    paddingBottom: 110,
     backgroundColor: "#050505",
   },
   loadingContainer: {
@@ -778,9 +793,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     marginHorizontal: -18,
     marginTop: -48,
     marginBottom: 16,
@@ -790,6 +802,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#070707",
     borderBottomWidth: 1,
     borderBottomColor: "#211D16",
+    zIndex: 40,
+    elevation: 40,
+  },
+  headerContent: {
+    width: "100%",
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 12,
+    justifyContent: "center",
   },
   headerEyebrow: {
     color: "#D4A64A",
@@ -800,9 +826,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: "#F5F0E6",
-    fontSize: 27,
+    fontSize: 20,
     fontWeight: "900",
-    marginTop: 3,
     letterSpacing: -0.6,
   },
   headerIconButton: {

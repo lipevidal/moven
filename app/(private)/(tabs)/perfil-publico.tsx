@@ -132,8 +132,8 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
       title: "Jornada intensiva",
       icon: "flame-outline" as const,
       color: "#F97316",
-      backgroundColor: "#18171D",
-      borderColor: "#2A2830",
+      backgroundColor: "rgba(212,166,74,0.10)",
+      borderColor: "rgba(212,166,74,0.24)",
       description:
         "Mantém uma rotina forte, com média diária de 8h ou mais.",
     };
@@ -144,8 +144,8 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
       title: "Jornada moderada",
       icon: "speedometer-outline" as const,
       color: "#FACC15",
-      backgroundColor: "#18171D",
-      borderColor: "#2A2830",
+      backgroundColor: "rgba(212,166,74,0.10)",
+      borderColor: "rgba(212,166,74,0.24)",
       description:
         "Mantém uma rotina equilibrada, com média diária entre 5h e 8h.",
     };
@@ -156,8 +156,8 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
       title: "Jornada leve",
       icon: "leaf-outline" as const,
       color: "#22C55E",
-      backgroundColor: "#18171D",
-      borderColor: "#2A2830",
+      backgroundColor: "rgba(212,166,74,0.10)",
+      borderColor: "rgba(212,166,74,0.24)",
       description:
         "Tem média diária abaixo de 5h nos dias analisados.",
     };
@@ -176,7 +176,7 @@ function getJourneyProfileInfo(type: JourneyProfileType) {
 
 function getDisplayCity(profile: PublicProfile) {
   if (profile.city && profile.region) {
-    return `${profile.city} - ${profile.region}`;
+    return `${profile.city}`;
   }
 
   if (profile.city) {
@@ -474,7 +474,7 @@ export default function PublicProfileScreen() {
         <TouchableOpacity
           activeOpacity={0.88}
           style={styles.backToSearchButton}
-          onPress={() => router.back()}
+          onPress={() => router.replace('/motoristas-cidade' as never)}
         >
           <Ionicons name="chevron-back" size={18} color="#080808" />
           <Text style={styles.backToSearchText}>Voltar</Text>
@@ -490,19 +490,24 @@ export default function PublicProfileScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      stickyHeaderIndices={[0]}
     >
       <View style={styles.header}>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          style={styles.headerIconButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
-        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.headerIconButton}
+            onPress={() => router.replace('/motoristas-cidade' as never)}
+          >
+            <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
+          </TouchableOpacity>
 
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>Perfil público</Text>
-          <Text style={styles.headerTitle}>Motorista</Text>
+          <View style={styles.headerTitleBlock}>
+            <Text style={styles.headerEyebrow}>Perfil público</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {profile.username ? `@${profile.username}` : "Motorista"}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -528,12 +533,6 @@ export default function PublicProfileScreen() {
                 {getDisplayCity(profile)}
               </Text>
             </View>
-
-            {!!profile.username && (
-              <View style={styles.usernameBadge}>
-                <Text style={styles.usernameText}>@{profile.username}</Text>
-              </View>
-            )}
           </View>
         </View>
 
@@ -709,7 +708,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingTop: 48,
-    paddingBottom: 150,
+    paddingBottom: 100,
     backgroundColor: "#050505",
   },
   loadingContainer: {
@@ -764,9 +763,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
     marginHorizontal: -18,
     marginTop: -48,
     marginBottom: 16,
@@ -776,6 +772,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#070707",
     borderBottomWidth: 1,
     borderBottomColor: "#211D16",
+    zIndex: 50,
+    elevation: 50,
+  },
+  headerContent: {
+    width: "100%",
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  headerTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
   },
   headerIconButton: {
     width: 44,
@@ -796,9 +806,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: "#F5F0E6",
-    fontSize: 27,
+    fontSize: 20,
     fontWeight: "900",
-    marginTop: 3,
     letterSpacing: -0.6,
   },
   profileHero: {
@@ -842,21 +851,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     flex: 1,
   },
-  usernameBadge: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    backgroundColor: "rgba(212,166,74,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(212,166,74,0.24)",
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    marginTop: 8,
-  },
-  usernameText: {
-    color: "#D4A64A",
-    fontSize: 11,
-    fontWeight: "900",
-  },
   profileActions: { flexDirection: "row", gap: 10, marginTop: 18 },
   messageButton: {
     flex: 1,
@@ -874,6 +868,8 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   journeyProfileCard: {
+    width: '100%',
+    alignSelf: 'center',
     borderRadius: 18,
     borderWidth: 1,
     padding: 16,
@@ -894,22 +890,22 @@ const styles = StyleSheet.create({
   },
   journeyProfileEyebrow: {
     color: "#9B969B",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 1.2,
+    letterSpacing: 1.1,
   },
   journeyProfileTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "900",
     marginTop: 3,
   },
   journeyProfileAverageBox: {
     minWidth: 82,
     borderRadius: 13,
-    backgroundColor: "rgba(5,5,5,0.34)",
+    backgroundColor: "rgba(212,166,74,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(212,166,74,0.14)",
+    borderColor: "rgba(212,166,74,0.22)",
     paddingHorizontal: 10,
     paddingVertical: 9,
     alignItems: "center",
@@ -935,9 +931,9 @@ const styles = StyleSheet.create({
   journeyProfileFooter: {
     minHeight: 36,
     borderRadius: 12,
-    backgroundColor: "rgba(5,5,5,0.26)",
+    backgroundColor: "rgba(212,166,74,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(212,166,74,0.12)",
+    borderColor: "rgba(212,166,74,0.18)",
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginTop: 12,
@@ -952,7 +948,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 16,
   },
-  statsGrid: { flexDirection: "row", gap: 12, marginBottom: 14 },
+  statsGrid: {
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 14,
+  },
   statCardLarge: {
     flex: 1,
     minHeight: 112,
@@ -1029,6 +1031,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   summaryCard: {
+    width: '100%',
+    alignSelf: 'center',
     minHeight: 78,
     borderRadius: 16,
     backgroundColor: "#18171D",

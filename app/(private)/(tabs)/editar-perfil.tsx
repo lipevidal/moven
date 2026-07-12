@@ -563,13 +563,13 @@ export default function MyAccountScreen() {
             <TouchableOpacity
               activeOpacity={0.85}
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => router.replace("/perfil" as never)}
             >
               <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
             </TouchableOpacity>
             <View>
               <Text style={styles.headerEyebrow}>Perfil</Text>
-              <Text style={styles.headerTitle}>Minha conta</Text>
+              <Text style={styles.headerTitle}>Editar Perfil</Text>
             </View>
           </View>
         </View>
@@ -846,7 +846,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingTop: 48,
-    paddingBottom: 50,
+    paddingBottom: 110,
     backgroundColor: "#050505",
   },
   loadingContainer: {
@@ -900,9 +900,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: "#F5F0E6",
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "900",
-    marginTop: 3,
     letterSpacing: -0.5,
   },
   avatarCard: {
