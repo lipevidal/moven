@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Image,
   Alert,
+  Linking,
 } from "react-native";
 
 import { router, useFocusEffect } from "expo-router";
@@ -116,6 +117,199 @@ function getJourneyProfileType(
   return "light";
 }
 
+function normalizeProfileText(value?: string | null) {
+  return String(value ?? "").trim();
+}
+
+function getFirstAndSecondName(value?: string | null) {
+  const parts = normalizeProfileText(value)
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 2) return parts.join(" ");
+
+  return parts.slice(0, 2).join(" ");
+}
+
+function normalizeComparableText(value?: string | null) {
+  return normalizeProfileText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function getUfFromStateName(value?: string | null) {
+  const state = normalizeComparableText(value);
+
+  const states: Record<string, string> = {
+    acre: "AC",
+    alagoas: "AL",
+    amapa: "AP",
+    amazonas: "AM",
+    bahia: "BA",
+    ceara: "CE",
+    "distrito federal": "DF",
+    "espirito santo": "ES",
+    goias: "GO",
+    maranhao: "MA",
+    "mato grosso": "MT",
+    "mato grosso do sul": "MS",
+    "minas gerais": "MG",
+    para: "PA",
+    paraiba: "PB",
+    parana: "PR",
+    pernambuco: "PE",
+    piaui: "PI",
+    "rio de janeiro": "RJ",
+    "rio grande do norte": "RN",
+    "rio grande do sul": "RS",
+    rondonia: "RO",
+    roraima: "RR",
+    "santa catarina": "SC",
+    "sao paulo": "SP",
+    sergipe: "SE",
+    tocantins: "TO",
+  };
+
+  return states[state] ?? "";
+}
+
+function getProfileStateUf(profile: any) {
+  const directUf = normalizeProfileText(
+    profile?.estado_uf ||
+      profile?.uf ||
+      profile?.state_uf ||
+      profile?.sigla_uf ||
+      profile?.sigla_estado ||
+      profile?.user_metadata?.estado_uf ||
+      profile?.user_metadata?.uf ||
+      profile?.user_metadata?.state_uf ||
+      profile?.user_metadata?.sigla_uf ||
+      profile?.user_metadata?.sigla_estado,
+  ).toUpperCase();
+
+  if (directUf.length === 2) return directUf;
+
+  return getUfFromStateName(
+    profile?.estado ||
+      profile?.state_name ||
+      profile?.nome_estado ||
+      profile?.user_metadata?.estado ||
+      profile?.user_metadata?.state_name ||
+      profile?.user_metadata?.nome_estado,
+  );
+}
+
+function getProfileCityDisplay(profile: any) {
+  const city = normalizeProfileText(profile?.city);
+  const uf = getProfileStateUf(profile);
+
+  if (!city) return "Cidade não informada";
+
+  return uf ? `${city} ${uf}` : city;
+}
+
+function getProfileImmediateRegion(profile: any) {
+  return normalizeProfileText(
+    profile?.regiao_imediata ||
+      profile?.immediate_region ||
+      profile?.region ||
+      profile?.user_metadata?.regiao_imediata ||
+      profile?.user_metadata?.immediate_region,
+  );
+}
+
+function shouldShowImmediateRegion(profile: any) {
+  const city = normalizeComparableText(profile?.city);
+  const region = normalizeComparableText(getProfileImmediateRegion(profile));
+
+  return Boolean(region && city && region !== city);
+}
+
+function getProfileSocialValue(profile: any, key: string) {
+  return normalizeProfileText(profile?.[key] || profile?.user_metadata?.[key]);
+}
+
+function buildInstagramUrl(value: string) {
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const username = value.replace("@", "").trim();
+  return `https://instagram.com/${username}`;
+}
+
+function buildTiktokUrl(value: string) {
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const username = value.replace("@", "").trim();
+  return `https://www.tiktok.com/@${username}`;
+}
+
+function buildWhatsappUrl(value: string) {
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const digits = value.replace(/\D/g, "");
+  const phone = digits.startsWith("55") ? digits : `55${digits}`;
+
+  return `https://wa.me/${phone}`;
+}
+
+function buildYoutubeUrl(value: string) {
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const cleanValue = value.trim();
+  if (cleanValue.startsWith("@")) return `https://www.youtube.com/${cleanValue}`;
+
+  return `https://www.youtube.com/@${cleanValue}`;
+}
+
+function getPublicSocialLinks(profile: any) {
+  const instagram = getProfileSocialValue(profile, "instagram");
+  const tiktok = getProfileSocialValue(profile, "tiktok");
+  const whatsapp = getProfileSocialValue(profile, "whatsapp");
+  const youtube = getProfileSocialValue(profile, "youtube");
+
+  return [
+    instagram
+      ? {
+          key: "instagram",
+          icon: "logo-instagram" as const,
+          color: "#E1306C",
+          url: buildInstagramUrl(instagram),
+        }
+      : null,
+    tiktok
+      ? {
+          key: "tiktok",
+          icon: "logo-tiktok" as const,
+          color: "#F5F0E6",
+          url: buildTiktokUrl(tiktok),
+        }
+      : null,
+    whatsapp
+      ? {
+          key: "whatsapp",
+          icon: "logo-whatsapp" as const,
+          color: "#22C55E",
+          url: buildWhatsappUrl(whatsapp),
+        }
+      : null,
+    youtube
+      ? {
+          key: "youtube",
+          icon: "logo-youtube" as const,
+          color: "#EF4444",
+          url: buildYoutubeUrl(youtube),
+        }
+      : null,
+  ].filter(Boolean) as {
+    key: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    color: string;
+    url: string;
+  }[];
+}
+
 function getJourneyProfileInfo(type: JourneyProfileType) {
   if (type === "intensive") {
     return {
@@ -215,10 +409,31 @@ export default function SocialProfileScreen() {
 
       const response = await getProfile();
 
-      setProfile(response);
+      let nextProfile = response;
 
       if (response?.id) {
-        await loadProfileStats(response.id);
+        const { data: profileDetails, error: profileDetailsError } = await supabase
+          .from("profiles")
+          .select(
+            "id, city, estado, estado_uf, uf, state_uf, sigla_uf, sigla_estado, regiao_imediata, region, instagram, tiktok, whatsapp, youtube",
+          )
+          .eq("id", response.id)
+          .maybeSingle();
+
+        if (!profileDetailsError && profileDetails) {
+          nextProfile = {
+            ...response,
+            ...profileDetails,
+          };
+        } else if (profileDetailsError) {
+          console.log("Erro ao carregar dados públicos do perfil:", profileDetailsError);
+        }
+      }
+
+      setProfile(nextProfile);
+
+      if (nextProfile?.id) {
+        await loadProfileStats(nextProfile.id);
       }
     } catch (error) {
       console.log("Erro ao carregar perfil:", error);
@@ -370,6 +585,15 @@ export default function SocialProfileScreen() {
     );
   }
 
+  async function openSocialUrl(url: string) {
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      console.log("Erro ao abrir rede social:", error);
+      Alert.alert("Erro", "Não foi possível abrir essa rede social.");
+    }
+  }
+
   const avatarUrl = useMemo(() => {
     return (
       profile?.avatar_url ||
@@ -395,6 +619,13 @@ export default function SocialProfileScreen() {
   if (!profile) return null;
 
   const journeyProfile = getJourneyProfileInfo(stats.journeyProfileType);
+  const cityDisplay = getProfileCityDisplay(profile);
+  const immediateRegion = getProfileImmediateRegion(profile);
+  const showImmediateRegion = shouldShowImmediateRegion(profile);
+  const publicSocialLinks = getPublicSocialLinks(profile);
+  const publicDisplayName = getFirstAndSecondName(
+    profile.full_name || profile.name || "Motorista",
+  );
 
   return (
     <ScrollView
@@ -447,15 +678,39 @@ export default function SocialProfileScreen() {
           <View style={styles.profileInfo}>
             <PublicProfileNameLine
               userId={profile.id}
-              name={profile.full_name || profile.name || "Motorista"}
+              name={publicDisplayName || "Motorista"}
             />
 
             <View style={styles.cityRow}>
               <Ionicons name="location-outline" size={16} color="#D4A64A" />
               <Text style={styles.cityText} numberOfLines={1}>
-                {profile.city || "Cidade não informada"}
+                {cityDisplay}
               </Text>
             </View>
+
+            {showImmediateRegion ? (
+              <View style={styles.regionRow}>
+                <Ionicons name="map-outline" size={15} color="#8F8A91" />
+                <Text style={styles.regionText} numberOfLines={1}>
+                  Região: {immediateRegion}
+                </Text>
+              </View>
+            ) : null}
+
+            {publicSocialLinks.length > 0 ? (
+              <View style={styles.socialLinksRow}>
+                {publicSocialLinks.map((item) => (
+                  <TouchableOpacity
+                    key={item.key}
+                    activeOpacity={0.86}
+                    style={styles.socialLinkButton}
+                    onPress={() => openSocialUrl(item.url)}
+                  >
+                    <Ionicons name={item.icon} size={18} color={item.color} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -880,6 +1135,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     flex: 1,
+  },
+  regionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 5,
+    gap: 5,
+  },
+  regionText: {
+    color: "#8F8A91",
+    fontSize: 12,
+    fontWeight: "800",
+    flex: 1,
+  },
+  socialLinksRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  socialLinkButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "rgba(245,240,230,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(245,240,230,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileActions: { flexDirection: "row", gap: 10, marginTop: 18 },
   journeyProfileCard: {

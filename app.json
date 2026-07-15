@@ -10,7 +10,11 @@
     "android": {
       "package": "com.lipevidal.moven",
       "softwareKeyboardLayoutMode": "pan",
-      "edgeToEdgeEnabled": false
+      "edgeToEdgeEnabled": false,
+      "navigationBar": {
+        "backgroundColor": "#050505",
+        "barStyle": "light-content"
+      }
     },
     "plugins": [
       "expo-router",

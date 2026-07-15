@@ -1,22 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Keyboard,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Image,
-  Keyboard,
   View,
-  ActivityIndicator,
 } from 'react-native';
 
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 import { supabase } from '../../src/database/supabase';
 
@@ -25,25 +24,82 @@ type LoginErrors = {
   password?: string;
 };
 
+const LOGO_SOURCE = require('../../assets/images/movenapp-logo.png');
+
+const ROUTES = {
+  dashboard: '/(private)/(tabs)/dashboard',
+  forgotPassword: '/(auth)/forgot-password',
+  register: '/(auth)/cadastro',
+} as const;
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
+}
+
+function getLoginErrorMessage(message?: string) {
+  const normalizedMessage = String(message ?? '').toLowerCase();
+
+  if (
+    normalizedMessage.includes('invalid login credentials') ||
+    normalizedMessage.includes('invalid credentials')
+  ) {
+    return 'E-mail ou senha incorretos. Verifique os dados e tente novamente.';
+  }
+
+  if (
+    normalizedMessage.includes('email not confirmed') ||
+    normalizedMessage.includes('email_not_confirmed')
+  ) {
+    return 'Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.';
+  }
+
+  if (
+    normalizedMessage.includes('too many requests') ||
+    normalizedMessage.includes('rate limit')
+  ) {
+    return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.';
+  }
+
+  if (
+    normalizedMessage.includes('network') ||
+    normalizedMessage.includes('fetch')
+  ) {
+    return 'Não foi possível conectar. Verifique sua internet e tente novamente.';
+  }
+
+  return 'Não foi possível entrar. Verifique seus dados e tente novamente.';
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+/**
+ * Tela de login.
+ *
+ * Correção aplicada para teclado:
+ * - Removido KeyboardAvoidingView, que no Android/Expo pode causar faixa branca.
+ * - A tela agora usa View + ScrollView com fundo preto em todos os níveis.
+ * - Quando o teclado abre, o conteúdo deixa de ficar centralizado e passa para o topo.
+ * - A tela rola automaticamente para o fim, liberando acesso ao botão Entrar.
+ * - Ao fechar o teclado, volta para o topo e remove o espaço extra inferior.
+ */
 export default function LoginScreen() {
-  // Estados principais do formulário.
+  const scrollRef = useRef<any>(null);
+  const loginRequestRef = useRef(false);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Controla se a senha ficará visível ou escondida.
   const [showPassword, setShowPassword] = useState(false);
-
-  // Evita múltiplos cliques no botão enquanto o login está sendo processado.
   const [loading, setLoading] = useState(false);
 
-  // Controla o layout quando o teclado aparece, principalmente no iOS.
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-
-  // Guarda mensagens de erro por campo para exibir em português abaixo dos inputs.
   const [errors, setErrors] = useState<LoginErrors>({});
 
   useEffect(() => {
-    // No iOS usamos eventos "will" para animar antes do teclado terminar de abrir.
     const showEvent =
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
 
@@ -52,10 +108,18 @@ export default function LoginScreen() {
 
     const showSubscription = Keyboard.addListener(showEvent, () => {
       setKeyboardVisible(true);
+
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 180);
     });
 
     const hideSubscription = Keyboard.addListener(hideEvent, () => {
       setKeyboardVisible(false);
+
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      }, 80);
     });
 
     return () => {
@@ -64,61 +128,20 @@ export default function LoginScreen() {
     };
   }, []);
 
-  // Remove a mensagem de erro de um campo assim que o usuário começa a corrigir.
-  function clearFieldError(field: keyof LoginErrors) {
+  const clearFieldError = useCallback((field: keyof LoginErrors) => {
     setErrors((current) => ({
       ...current,
       [field]: undefined,
     }));
-  }
+  }, []);
 
-  // Validação simples de e-mail antes de chamar o Supabase.
-  function isValidEmail(value: string) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
-  }
-
-  // Traduz mensagens comuns do Supabase para português.
-  function getLoginErrorMessage(message?: string) {
-    const normalizedMessage = String(message ?? '').toLowerCase();
-
-    if (
-      normalizedMessage.includes('invalid login credentials') ||
-      normalizedMessage.includes('invalid credentials')
-    ) {
-      return 'E-mail ou senha incorretos. Verifique os dados e tente novamente.';
-    }
-
-    if (
-      normalizedMessage.includes('email not confirmed') ||
-      normalizedMessage.includes('email_not_confirmed')
-    ) {
-      return 'Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.';
-    }
-
-    if (
-      normalizedMessage.includes('too many requests') ||
-      normalizedMessage.includes('rate limit')
-    ) {
-      return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.';
-    }
-
-    if (
-      normalizedMessage.includes('network') ||
-      normalizedMessage.includes('fetch')
-    ) {
-      return 'Não foi possível conectar. Verifique sua internet e tente novamente.';
-    }
-
-    return 'Não foi possível entrar. Verifique seus dados e tente novamente.';
-  }
-
-  // Valida todos os campos e exibe mensagens em português sem depender de Alert.
-  function validateFields() {
+  const validateFields = useCallback(() => {
     const nextErrors: LoginErrors = {};
+    const cleanEmail = email.trim();
 
-    if (!email.trim()) {
+    if (!cleanEmail) {
       nextErrors.email = 'Informe seu e-mail.';
-    } else if (!isValidEmail(email)) {
+    } else if (!isValidEmail(cleanEmail)) {
       nextErrors.email = 'Informe um e-mail válido.';
     }
 
@@ -131,14 +154,37 @@ export default function LoginScreen() {
     setErrors(nextErrors);
 
     return Object.keys(nextErrors).length === 0;
-  }
+  }, [email, password]);
 
-  // Faz login usando e-mail e senha no Supabase.
-  async function handleLogin() {
+  const handleLogin = useCallback(async () => {
     try {
+      /**
+       * Evita duplo clique, inclusive durante o pequeno intervalo usado
+       * para fechar o teclado antes de iniciar o processamento.
+       */
+      if (loading || loginRequestRef.current) return;
+
+      loginRequestRef.current = true;
+
+      /**
+       * Primeiro fecha o teclado.
+       * Só depois a validação/loading/requisição começam.
+       */
+      Keyboard.dismiss();
+
+      /**
+       * Pequena pausa para dar tempo do teclado iniciar o fechamento
+       * antes de mudar layout, exibir loading ou chamar o Supabase.
+       */
+      await wait(140);
+
       const valid = validateFields();
 
       if (!valid) {
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+
         return;
       }
 
@@ -157,11 +203,15 @@ export default function LoginScreen() {
           password: translatedMessage,
         }));
 
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+
         Alert.alert('Não foi possível entrar', translatedMessage);
         return;
       }
 
-      router.replace('/(private)/(tabs)/dashboard' as never);
+      router.replace(ROUTES.dashboard as never);
     } catch (error: any) {
       const translatedMessage = getLoginErrorMessage(error?.message);
 
@@ -170,19 +220,39 @@ export default function LoginScreen() {
         password: translatedMessage,
       }));
 
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+
       Alert.alert('Não foi possível entrar', translatedMessage);
     } finally {
       setLoading(false);
+      loginRequestRef.current = false;
     }
-  }
+  }, [email, loading, password, validateFields]);
+
+  const openForgotPassword = useCallback(() => {
+    router.push(ROUTES.forgotPassword as never);
+  }, []);
+
+  const openRegister = useCallback(() => {
+    router.push(ROUTES.register as never);
+  }, []);
+
+  const toggleShowPassword = useCallback(() => {
+    setShowPassword((current) => !current);
+  }, []);
+
+  const scrollToButtons = useCallback(() => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  }, []);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.keyboardView}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
+    <View style={styles.screen}>
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
         contentContainerStyle={[
           styles.scrollContent,
@@ -191,15 +261,20 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets
-        contentInsetAdjustmentBehavior="always"
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        automaticallyAdjustKeyboardInsets={false}
+        overScrollMode="never"
+        bounces={false}
       >
-        {/* Área superior com logo e chamada principal do app. */}
         <View style={styles.heroCard}>
           <View style={styles.logoShell}>
             <Image
-              source={require('../../assets/images/movenapp-logo.png')}
-              style={[styles.logo, keyboardVisible && styles.logoKeyboard]}
+              source={LOGO_SOURCE}
+              style={[
+                styles.logo,
+                keyboardVisible && styles.logoKeyboard,
+              ]}
               resizeMode="contain"
             />
           </View>
@@ -209,17 +284,21 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>
             Controle sua rotina financeira
           </Text>
+
           <Text style={styles.subtitle}>
             Motoristas de aplicativos e entregadores.
           </Text>
         </View>
 
-        {/* Card do formulário de login. */}
         <View style={styles.formCard}>
-          {/* Campo de e-mail usado para autenticação. */}
           <Text style={styles.label}>E-mail</Text>
 
-          <View style={[styles.inputContainer, errors.email && styles.inputContainerError]}>
+          <View
+            style={[
+              styles.inputContainer,
+              errors.email && styles.inputContainerError,
+            ]}
+          >
             <Ionicons name="mail-outline" size={20} color="#9B969B" />
 
             <TextInput
@@ -240,12 +319,18 @@ export default function LoginScreen() {
             />
           </View>
 
-          {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+          {errors.email ? (
+            <Text style={styles.errorText}>{errors.email}</Text>
+          ) : null}
 
-          {/* Campo de senha com botão para mostrar ou ocultar. */}
           <Text style={styles.label}>Senha</Text>
 
-          <View style={[styles.inputContainer, errors.password && styles.inputContainerError]}>
+          <View
+            style={[
+              styles.inputContainer,
+              errors.password && styles.inputContainerError,
+            ]}
+          >
             <Ionicons name="lock-closed-outline" size={20} color="#9B969B" />
 
             <TextInput
@@ -263,12 +348,13 @@ export default function LoginScreen() {
               textContentType="password"
               autoComplete="current-password"
               style={styles.input}
+              onFocus={scrollToButtons}
               onSubmitEditing={handleLogin}
             />
 
             <TouchableOpacity
               style={styles.passwordIconButton}
-              onPress={() => setShowPassword((current) => !current)}
+              onPress={toggleShowPassword}
               activeOpacity={0.8}
             >
               <Ionicons
@@ -287,16 +373,14 @@ export default function LoginScreen() {
             </Text>
           )}
 
-          {/* Atalho para recuperação de senha. */}
           <TouchableOpacity
             style={styles.forgotButton}
-            onPress={() => router.push('/(auth)/forgot-password' as never)}
+            onPress={openForgotPassword}
             activeOpacity={0.85}
           >
             <Text style={styles.forgotButtonText}>Esqueci minha senha</Text>
           </TouchableOpacity>
 
-          {/* Botão principal de login. */}
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
@@ -314,103 +398,86 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Link para a tela de cadastro. */}
-        <TouchableOpacity
-          onPress={() => router.push('/(auth)/cadastro' as never)}
-          activeOpacity={0.85}
-        >
+        <TouchableOpacity onPress={openRegister} activeOpacity={0.85}>
           <Text style={styles.link}>Criar conta</Text>
         </TouchableOpacity>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: {
+  screen: {
     flex: 1,
     backgroundColor: '#050505',
   },
+
   container: {
     flex: 1,
     backgroundColor: '#050505',
   },
+
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 36,
-    paddingBottom: 70,
+    paddingTop: 24,
+    paddingBottom: 44,
     justifyContent: 'center',
     backgroundColor: '#050505',
   },
+
   scrollContentKeyboard: {
     justifyContent: 'flex-start',
-    paddingTop: 18,
-    paddingBottom: 220,
+    paddingTop: 12,
+    paddingBottom: 260,
   },
+
   logoShell: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
-    paddingVertical: 8,
+    marginBottom: 6,
+    paddingVertical: 6,
   },
+
   logo: {
-    width: 220,
-    height: 116,
+    width: 190,
+    height: 92,
   },
+
   logoKeyboard: {
-    width: 160,
-    height: 70,
+    width: 150,
+    height: 62,
   },
+
   heroCard: {
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#2A2830',
     backgroundColor: '#101014',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#D4A64A',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.08,
-    shadowRadius: 22,
-    elevation: 10,
+    marginBottom: 14,
   },
-  heroIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: 'rgba(212,166,74,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,166,74,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  eyebrow: {
-    color: '#D4A64A',
-    fontSize: 12,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
-  },
+
   title: {
     color: '#F5F0E6',
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '900',
-    marginTop: 5,
-    marginBottom: 10,
+    marginTop: 4,
+    marginBottom: 9,
     textAlign: 'center',
     letterSpacing: -0.6,
   },
+
   subtitle: {
     color: '#9B969B',
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 20,
     textAlign: 'center',
     fontWeight: '700',
   },
+
   formCard: {
     backgroundColor: '#101014',
     borderRadius: 18,
@@ -418,6 +485,7 @@ const styles = StyleSheet.create({
     borderColor: '#2A2830',
     padding: 18,
   },
+
   label: {
     color: '#F5F0E6',
     fontSize: 13,
@@ -426,8 +494,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4,
   },
+
   inputContainer: {
-    minHeight: 58,
+    minHeight: 56,
     backgroundColor: '#18171D',
     borderRadius: 14,
     borderWidth: 1,
@@ -438,18 +507,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+
   inputContainerError: {
     borderColor: '#EF4444',
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
+
   input: {
     flex: 1,
-    height: 56,
+    height: 54,
     color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '700',
     paddingVertical: 0,
   },
+
   passwordIconButton: {
     width: 44,
     height: 44,
@@ -457,6 +529,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   helperText: {
     color: '#8F8A91',
     fontSize: 12,
@@ -464,6 +537,7 @@ const styles = StyleSheet.create({
     marginTop: 7,
     marginLeft: 4,
   },
+
   errorText: {
     color: '#F87171',
     fontSize: 12,
@@ -472,18 +546,21 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     lineHeight: 17,
   },
+
   forgotButton: {
     alignSelf: 'flex-end',
     marginTop: 12,
     marginBottom: 4,
   },
+
   forgotButtonText: {
     color: '#D4A64A',
     fontSize: 13,
     fontWeight: '900',
   },
+
   button: {
-    height: 60,
+    height: 58,
     backgroundColor: '#D4A64A',
     borderRadius: 14,
     alignItems: 'center',
@@ -492,14 +569,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+
   buttonDisabled: {
     opacity: 0.65,
   },
+
   buttonText: {
     color: '#080808',
     fontSize: 16,
     fontWeight: '900',
   },
+
   link: {
     color: '#D4A64A',
     textAlign: 'center',

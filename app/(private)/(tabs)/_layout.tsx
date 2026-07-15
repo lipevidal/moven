@@ -19,10 +19,16 @@
  * A ideia deste arquivo é funcionar como uma "camada global" das tabs.
  * Por isso, além da navegação, ele também gerencia elementos que precisam
  * aparecer independentemente da tela aberta.
+ *
+ * Otimizações aplicadas nesta versão:
+ * - refresh da jornada ativa com debounce;
+ * - proteção contra consultas simultâneas ao Supabase;
+ * - cache simples para plataformas e parâmetros de desempenho;
+ * - timer de 1 segundo ativo somente quando existe corrida em andamento.
  */
 
 // Hooks principais do React usados para estado, efeitos e callbacks memorizados.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 // Componentes nativos do React Native usados na interface da tab, modais e cards.
 import {
   View,
@@ -317,6 +323,35 @@ function toLocalISOString(date: Date) {
 }
 
 /**
+ * Remove canais realtime antigos com o mesmo nome antes de criar um novo.
+ *
+ * Isso evita o erro:
+ * "cannot add postgres_changes callbacks ... after subscribe()"
+ *
+ * Esse erro costuma acontecer no Expo/React Native em recarregamentos rápidos,
+ * hot reload ou navegação, quando um canal antigo continua inscrito e o app
+ * tenta reaproveitar/adicionar callbacks no mesmo tópico já inscrito.
+ */
+function removeExistingRealtimeChannels(channelName: string) {
+  const realtimeTopic = `realtime:${channelName}`;
+
+  supabase.getChannels().forEach((channel: any) => {
+    if (channel?.topic === realtimeTopic || channel?.topic === channelName) {
+      supabase.removeChannel(channel);
+    }
+  });
+}
+
+/**
+ * Remove um canal realtime com segurança.
+ */
+function removeRealtimeChannel(channel?: ReturnType<typeof supabase.channel> | null) {
+  if (!channel) return;
+
+  supabase.removeChannel(channel);
+}
+
+/**
  * Componente principal das tabs.
  *
  * Além de renderizar a navegação inferior, ele gerencia:
@@ -329,6 +364,19 @@ function toLocalISOString(date: Date) {
  * - Realtime com Supabase.
  */
 export default function TabsLayout() {
+  /**
+   * Refs de performance.
+   *
+   * Esses refs não causam re-render quando mudam. Por isso são melhores para
+   * controlar carregamentos, cache simples e debounce de eventos globais.
+   */
+  const loadingActiveSessionRef = useRef(false);
+  const pendingActiveSessionRefreshRef = useRef(false);
+  const activeSessionRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const platformsLoadedRef = useRef(false);
+  const performanceTargetsLoadedRef = useRef(false);
+  const performanceTargetsRef = useRef<PerformanceTargets | null>(null);
+
   // Indica se o usuário possui uma jornada ativa ou pausada.
   const [hasActiveSession, setHasActiveSession] = useState(false);
   // Guarda os dados da jornada ativa/pausada encontrada no banco.
@@ -360,7 +408,7 @@ export default function TabsLayout() {
   const [savingStartWaitingRide, setSavingStartWaitingRide] = useState(false);
   const [savingGlobalRideEdit, setSavingGlobalRideEdit] = useState(false);
   const [savingGlobalRideFinish, setSavingGlobalRideFinish] = useState(false);
-  const [nowTick, setNowTick] = useState(Date.now());
+  const [, setNowTick] = useState(Date.now());
   // Controla a abertura do menu de ações rápidas do botão central '+'.
   const [quickActionsVisible, setQuickActionsVisible] = useState(false);
 
@@ -410,18 +458,50 @@ export default function TabsLayout() {
     useState(false);
 
   /**
-   * Sempre que o layout das tabs ganha foco, recarrega:
-   * - jornada ativa;
-   * - plataformas;
-   * - parâmetros de desempenho.
+   * Sempre que o layout das tabs ganha foco, recarrega o essencial.
+   *
+   * Otimização:
+   * - jornada ativa sempre pode mudar, então é recarregada;
+   * - plataformas e parâmetros usam cache simples por ref para evitar chamadas
+   *   repetidas ao Supabase toda vez que o usuário alterna de aba.
    */
   useFocusEffect(
     useCallback(() => {
-      loadActiveSession();
+      scheduleActiveSessionRefresh(0);
       loadPlatforms();
       loadPerformanceTargets();
     }, []),
   );
+
+  /**
+   * Agenda o recarregamento da jornada ativa com debounce.
+   *
+   * Antes, vários eventos/realtime podiam chamar loadActiveSession ao mesmo tempo.
+   * Agora as chamadas próximas são agrupadas em uma só, deixando a navegação
+   * global mais leve.
+   */
+  function scheduleActiveSessionRefresh(delay = 120) {
+    if (activeSessionRefreshTimeoutRef.current) {
+      clearTimeout(activeSessionRefreshTimeoutRef.current);
+    }
+
+    activeSessionRefreshTimeoutRef.current = setTimeout(() => {
+      activeSessionRefreshTimeoutRef.current = null;
+      loadActiveSession();
+    }, delay);
+  }
+
+  /**
+   * Limpa qualquer refresh agendado ao desmontar o layout.
+   */
+  useEffect(() => {
+    return () => {
+      if (activeSessionRefreshTimeoutRef.current) {
+        clearTimeout(activeSessionRefreshTimeoutRef.current);
+        activeSessionRefreshTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   /**
    * Avisa outros componentes quando o menu de ações rápidas está aberto.
@@ -439,17 +519,25 @@ export default function TabsLayout() {
   }, [quickActionsVisible]);
 
   /**
-   * Atualiza um contador a cada segundo.
-   * Mesmo que nowTick não apareça diretamente em todos os cálculos,
-   * ele força re-renderizações periódicas para manter timers vivos.
+   * Atualiza o timer somente quando existe corrida ativa.
+   *
+   * Antes este intervalo rodava a cada segundo sempre que o usuário estava logado,
+   * mesmo sem corrida em andamento. Isso fazia o layout inteiro das tabs
+   * re-renderizar sem necessidade.
    */
   useEffect(() => {
+    const hasActiveRideTimer = activeSessionRides.some(
+      (ride) => ride.status === 'active',
+    );
+
+    if (!hasActiveRideTimer) return;
+
     const interval = setInterval(() => {
       setNowTick(Date.now());
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [activeSessionRides]);
 
   /**
    * Escuta eventos internos do app para recarregar a jornada ativa.
@@ -458,7 +546,7 @@ export default function TabsLayout() {
    */
   useEffect(() => {
     const refreshActiveSession = () => {
-      loadActiveSession();
+      scheduleActiveSessionRefresh();
     };
 
     const activeSessionRefreshSubscription = DeviceEventEmitter.addListener(
@@ -481,8 +569,14 @@ export default function TabsLayout() {
    * Realtime da tabela work_sessions.
    * Sempre que a jornada do usuário muda no Supabase, este layout recarrega
    * a jornada ativa automaticamente.
+   *
+   * Correção importante:
+   * - o canal é sempre montado com .on(...) antes do .subscribe();
+   * - canais antigos com o mesmo nome são removidos antes de criar outro;
+   * - se o componente desmontar antes do auth.getUser() terminar, o canal não é criado.
    */
   useEffect(() => {
+    let isMounted = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     async function startRealtime() {
@@ -490,10 +584,16 @@ export default function TabsLayout() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!isMounted || !user?.id) return;
+
+      const channelName = `tabs-active-session-${user.id}`;
+
+      removeExistingRealtimeChannels(channelName);
+
+      if (!isMounted) return;
 
       channel = supabase
-        .channel(`tabs-active-session-${user.id}`)
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -503,7 +603,7 @@ export default function TabsLayout() {
             filter: `user_id=eq.${user.id}`,
           },
           () => {
-            loadActiveSession();
+            scheduleActiveSessionRefresh();
           },
         )
         .subscribe();
@@ -512,9 +612,9 @@ export default function TabsLayout() {
     startRealtime();
 
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      isMounted = false;
+      removeRealtimeChannel(channel);
+      channel = null;
     };
   }, []);
 
@@ -522,12 +622,18 @@ export default function TabsLayout() {
    * Realtime da tabela rides para a jornada ativa.
    * Atualiza cards e dashboard quando uma corrida é criada, editada,
    * iniciada, finalizada ou excluída.
+   *
+   * Também remove canal antigo com o mesmo nome antes de assinar novamente.
    */
   useEffect(() => {
     if (!activeSession?.id) return;
 
+    const channelName = `tabs-active-session-rides-${activeSession.id}`;
+
+    removeExistingRealtimeChannels(channelName);
+
     const channel = supabase
-      .channel(`tabs-active-session-rides-${activeSession.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -537,26 +643,32 @@ export default function TabsLayout() {
           filter: `session_id=eq.${activeSession.id}`,
         },
         () => {
-          loadActiveSession();
+          scheduleActiveSessionRefresh();
           DeviceEventEmitter.emit('movenapp:dashboard-refresh');
         },
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [activeSession?.id]);
 
   /**
    * Realtime da tabela earnings para a jornada ativa.
    * Quando ganhos vinculados à jornada mudam, a jornada e o dashboard são atualizados.
+   *
+   * Também remove canal antigo com o mesmo nome antes de assinar novamente.
    */
   useEffect(() => {
     if (!activeSession?.id) return;
 
+    const channelName = `tabs-active-session-earnings-${activeSession.id}`;
+
+    removeExistingRealtimeChannels(channelName);
+
     const channel = supabase
-      .channel(`tabs-active-session-earnings-${activeSession.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -566,7 +678,7 @@ export default function TabsLayout() {
           filter: `session_id=eq.${activeSession.id}`,
         },
         () => {
-          loadActiveSession();
+          scheduleActiveSessionRefresh();
           DeviceEventEmitter.emit('movenapp:active-session-refresh');
           DeviceEventEmitter.emit('movenapp:dashboard-refresh');
         },
@@ -574,7 +686,7 @@ export default function TabsLayout() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [activeSession?.id]);
 
@@ -583,60 +695,92 @@ export default function TabsLayout() {
    * Também carrega as corridas vinculadas a essa jornada.
    */
   async function loadActiveSession() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setHasActiveSession(false);
-      setActiveSession(null);
-      setActiveSessionRides([]);
+    /**
+     * Evita várias consultas simultâneas quando realtime, dashboard e eventos
+     * internos disparam ao mesmo tempo.
+     */
+    if (loadingActiveSessionRef.current) {
+      pendingActiveSessionRefreshRef.current = true;
       return;
     }
 
-    const { data, error } = await supabase
-      .from('work_sessions')
-      .select('id, status, vehicle_id, start_km, end_km, started_at')
-      .eq('user_id', user.id)
-      .in('status', ['active', 'paused'])
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    loadingActiveSessionRef.current = true;
 
-    if (error) {
-      console.log('Erro ao carregar jornada ativa nas tabs:', error);
-      setHasActiveSession(false);
-      setActiveSession(null);
-      setActiveSessionRides([]);
-      return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setHasActiveSession(false);
+        setActiveSession(null);
+        setActiveSessionRides([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('work_sessions')
+        .select('id, status, vehicle_id, start_km, end_km, started_at')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'paused'])
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.log('Erro ao carregar jornada ativa nas tabs:', error);
+        setHasActiveSession(false);
+        setActiveSession(null);
+        setActiveSessionRides([]);
+        return;
+      }
+
+      setHasActiveSession(!!data);
+      setActiveSession(data ?? null);
+
+      if (!data?.id) {
+        setActiveSessionRides([]);
+        return;
+      }
+
+      const { data: ridesData, error: ridesError } = await supabase
+        .from('rides')
+        .select('id, status, platform, amount, start_km, started_at')
+        .eq('session_id', data.id);
+
+      if (ridesError) {
+        console.log('Erro ao carregar corridas da jornada nas tabs:', ridesError);
+        setActiveSessionRides([]);
+        return;
+      }
+
+      setActiveSessionRides(ridesData ?? []);
+    } finally {
+      loadingActiveSessionRef.current = false;
+
+      /**
+       * Se algum evento pediu refresh enquanto a consulta estava rodando,
+       * executa mais uma vez depois, também com debounce.
+       */
+      if (pendingActiveSessionRefreshRef.current) {
+        pendingActiveSessionRefreshRef.current = false;
+        scheduleActiveSessionRefresh(80);
+      }
     }
-
-    setHasActiveSession(!!data);
-    setActiveSession(data ?? null);
-
-    if (!data?.id) {
-      setActiveSessionRides([]);
-      return;
-    }
-
-    const { data: ridesData, error: ridesError } = await supabase
-      .from('rides')
-      .select('id, status, platform, amount, start_km, started_at')
-      .eq('session_id', data.id);
-
-    if (ridesError) {
-      console.log('Erro ao carregar corridas da jornada nas tabs:', ridesError);
-      setActiveSessionRides([]);
-      return;
-    }
-
-    setActiveSessionRides(ridesData ?? []);
   }
 
   /**
    * Carrega todas as plataformas do sistema e as plataformas selecionadas pelo usuário.
    */
-  async function loadPlatforms() {
+  async function loadPlatforms(force = false) {
+    /**
+     * Evita recarregar plataformas em toda troca de aba.
+     *
+     * Quando o usuário salva alterações no drawer, usamos force=true para
+     * buscar os dados atualizados.
+     */
+    if (platformsLoadedRef.current && !force) return;
+
     try {
       const [allPlatforms, selectedPlatforms] = await Promise.all([
         getPlatforms(),
@@ -648,6 +792,7 @@ export default function TabsLayout() {
       setSelectedPlatformIds(
         (selectedPlatforms ?? []).map((item: any) => item.platform_id),
       );
+      platformsLoadedRef.current = true;
     } catch (error) {
       console.log('Erro ao carregar plataformas:', error);
     }
@@ -713,13 +858,24 @@ export default function TabsLayout() {
   /**
    * Busca os parâmetros de desempenho do usuário no Supabase.
    */
-  async function loadPerformanceTargets() {
+  async function loadPerformanceTargets(force = false) {
+    /**
+     * Evita buscar parâmetros repetidamente no Supabase.
+     *
+     * Eles só mudam quando o próprio usuário salva o modal de parâmetros,
+     * então podemos reaproveitar o valor em memória durante a sessão atual.
+     */
+    if (performanceTargetsLoadedRef.current && !force) {
+      return performanceTargetsRef.current;
+    }
+
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
 
     if (userError || !user?.id) {
+      performanceTargetsRef.current = null;
       setPerformanceTargets(null);
       return null;
     }
@@ -734,12 +890,15 @@ export default function TabsLayout() {
 
     if (error) {
       console.log('Erro ao carregar parâmetros de desempenho:', error);
+      performanceTargetsRef.current = null;
       setPerformanceTargets(null);
       return null;
     }
 
     const targets = mapPerformanceTargetsFromDatabase(data);
 
+    performanceTargetsRef.current = targets;
+    performanceTargetsLoadedRef.current = true;
     setPerformanceTargets(targets);
 
     if (targets) {
@@ -829,6 +988,8 @@ export default function TabsLayout() {
 
       const targets = mapPerformanceTargetsFromDatabase(data);
 
+      performanceTargetsRef.current = targets;
+      performanceTargetsLoadedRef.current = true;
       setPerformanceTargets(targets);
       setPerformanceTargetsModalVisible(false);
 
@@ -1571,7 +1732,10 @@ export default function TabsLayout() {
         await toggleUserPlatform(platform.id, selected);
       }
 
-      await loadPlatforms();
+      /**
+       * Recarrega forçando, porque o usuário acabou de alterar suas plataformas.
+       */
+      await loadPlatforms(true);
       closePlatformDrawerAndReturn();
     } catch (error) {
       console.log('Erro ao salvar plataformas:', error);
@@ -1769,7 +1933,7 @@ export default function TabsLayout() {
                   quickActionsVisible && styles.centerButtonOpen,
                 ]}
                 onPress={() => {
-                  loadActiveSession();
+                  scheduleActiveSessionRefresh(0);
                   setQuickActionsVisible((current) => !current);
                 }}
               >
@@ -1856,6 +2020,33 @@ export default function TabsLayout() {
 
         <Tabs.Screen
           name="motoristas-cidade-lista"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="motoristas-cidade-feed"
+          options={{
+            href: null,
+          }}
+        />
+
+        <Tabs.Screen
+          name="motoristas-cidade-meus-posts"
+          options={{
+            href: null,
+          }}
+        />
+
+        <Tabs.Screen
+          name="ibge-localidades"
+          options={{
+            href: null,
+          }}
+        />
+
+        <Tabs.Screen
+          name="motoristas-cidade-resultado-detalhes"
           options={{
             href: null,
           }}

@@ -1,5 +1,16 @@
-
-import { useCallback, useEffect, useMemo, useState } from "react";
+/**
+ * Arquivo: app/(private)/(tabs)/dashboard.tsx
+ *
+ * Tela principal do Dashboard do MovenApp.
+ *
+ * Esta versão foi comentada e otimizada para reduzir processamento:
+ * - usa cache simples para listas que mudam pouco, como plataformas;
+ * - evita várias chamadas simultâneas de loadDashboard;
+ * - usa debounce nos eventos realtime do Supabase;
+ * - evita chamadas extras ao auth.getUser quando o usuário já veio do dashboard;
+ * - mantém a tela sincronizada sem recarregar tudo a cada evento isolado.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { PieChart } from "react-native-gifted-charts";
@@ -93,6 +104,41 @@ const periodOptions: { label: string; value: DashboardPeriod }[] = [
   { label: "Mês", value: "month" },
   { label: "Ano", value: "year" },
 ];
+
+/**
+ * Delay usado para agrupar várias atualizações do Realtime em uma única
+ * recarga do dashboard.
+ *
+ * Sem esse debounce, uma alteração em earnings, expenses e work_sessions
+ * pode disparar várias chamadas ao Supabase quase ao mesmo tempo.
+ */
+const DASHBOARD_REFRESH_DEBOUNCE_MS = 450;
+
+/**
+ * Delay usado para agrupar atualizações da meta.
+ */
+const GOAL_REFRESH_DEBOUNCE_MS = 350;
+
+/**
+ * Intervalo de fallback enquanto o modal de meta está aberto.
+ *
+ * Foi aumentado para reduzir processamento. O Realtime continua sendo o
+ * caminho principal; este intervalo é só uma segurança.
+ */
+const GOAL_MODAL_FALLBACK_REFRESH_MS = 2500;
+
+type LoadDashboardOptions = {
+  /**
+   * Quando true, usa o loading global da tela.
+   * Quando false, atualiza em silêncio, ideal para realtime.
+   */
+  useGlobalLoader?: boolean;
+
+  /**
+   * Quando true, força recarregar plataformas mesmo se já houver cache.
+   */
+  forcePlatformsRefresh?: boolean;
+};
 
 type PerformanceTargets = {
   bad_gain_per_hour: number | string | null;
@@ -997,9 +1043,58 @@ export default function DashboardScreen() {
   const [earningsPerformanceSummary, setEarningsPerformanceSummary] =
     useState<any>(null);
 
+  /**
+   * Evita atualizar estado quando a tela já saiu da navegação.
+   */
+  const mountedRef = useRef(true);
+
+  /**
+   * Impede chamadas simultâneas de loadDashboard.
+   *
+   * Se o realtime disparar várias vezes seguidas, uma chamada fica em andamento
+   * e as próximas são agrupadas pelo debounce.
+   */
+  const dashboardLoadingRef = useRef(false);
+
+  /**
+   * Guarda o timeout do debounce do dashboard.
+   */
+  const dashboardRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Guarda o timeout do debounce da meta.
+   */
+  const goalRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Cache simples das plataformas do sistema.
+   *
+   * As plataformas mudam pouco, então não precisamos buscar todas a cada
+   * recarregamento do dashboard.
+   */
+  const allDashboardPlatformsCacheRef = useRef<any[] | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+
+      if (dashboardRefreshTimeoutRef.current) {
+        clearTimeout(dashboardRefreshTimeoutRef.current);
+      }
+
+      if (goalRefreshTimeoutRef.current) {
+        clearTimeout(goalRefreshTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      loadDashboard();
+      loadDashboard({
+        useGlobalLoader: true,
+      });
     }, [period, referenceDate]),
   );
 
@@ -1032,8 +1127,8 @@ export default function DashboardScreen() {
             table: "user_goals",
             filter: `user_id=eq.${loggedUser.id}`,
           },
-          async () => {
-            await refreshDashboardGoal();
+          () => {
+            scheduleGoalRefresh();
           },
         )
         .subscribe();
@@ -1058,8 +1153,8 @@ export default function DashboardScreen() {
     refreshDashboardGoal();
 
     const interval = setInterval(() => {
-      refreshDashboardGoal();
-    }, 900);
+      scheduleGoalRefresh();
+    }, GOAL_MODAL_FALLBACK_REFRESH_MS);
 
     return () => clearInterval(interval);
   }, [goalModalVisible, period, referenceDate]);
@@ -1087,8 +1182,8 @@ export default function DashboardScreen() {
             table: "expenses",
             filter: `user_id=eq.${loggedUser.id}`,
           },
-          async () => {
-            await loadDashboard();
+          () => {
+            scheduleDashboardRefresh();
           },
         )
         .on(
@@ -1099,8 +1194,8 @@ export default function DashboardScreen() {
             table: "earnings",
             filter: `user_id=eq.${loggedUser.id}`,
           },
-          async () => {
-            await loadDashboard();
+          () => {
+            scheduleDashboardRefresh();
           },
         )
         .on(
@@ -1111,8 +1206,8 @@ export default function DashboardScreen() {
             table: "work_sessions",
             filter: `user_id=eq.${loggedUser.id}`,
           },
-          async () => {
-            await loadDashboard();
+          () => {
+            scheduleDashboardRefresh();
           },
         )
         .on(
@@ -1263,14 +1358,31 @@ export default function DashboardScreen() {
     }
   }
 
-  async function loadDashboardPlatforms() {
+  /**
+   * Carrega plataformas do sistema e plataformas escolhidas pelo usuário.
+   *
+   * Otimização:
+   * - as plataformas gerais são mantidas em cache;
+   * - apenas as plataformas do usuário são recarregadas com frequência;
+   * - isso reduz chamadas ao Supabase em recargas do dashboard e realtime.
+   */
+  async function loadDashboardPlatforms(options: { force?: boolean } = {}) {
     try {
+      const allPlatformsPromise =
+        !options.force && allDashboardPlatformsCacheRef.current
+          ? Promise.resolve(allDashboardPlatformsCacheRef.current)
+          : getPlatforms();
+
       const [allPlatforms, selectedPlatforms] = await Promise.all([
-        getPlatforms(),
+        allPlatformsPromise,
         getUserPlatforms(),
       ]);
 
-      setAllDashboardPlatforms(allPlatforms ?? []);
+      const normalizedAllPlatforms = allPlatforms ?? [];
+
+      allDashboardPlatformsCacheRef.current = normalizedAllPlatforms;
+
+      setAllDashboardPlatforms(normalizedAllPlatforms);
       setSelectedPlatformIds(
         (selectedPlatforms ?? []).map((item: any) => item.platform_id),
       );
@@ -1325,13 +1437,15 @@ export default function DashboardScreen() {
 
   async function handleSaveUserPlatforms() {
     try {
-      for (const platform of allDashboardPlatforms) {
-        const selected = selectedPlatformIds.includes(platform.id);
+      await Promise.all(
+        allDashboardPlatforms.map((platform) => {
+          const selected = selectedPlatformIds.includes(platform.id);
 
-        await toggleUserPlatform(platform.id, selected);
-      }
+          return toggleUserPlatform(platform.id, selected);
+        }),
+      );
 
-      await loadDashboardPlatforms();
+      await loadDashboardPlatforms({ force: true });
       closePlatformDrawerAndReturn();
     } catch (error) {
       console.log("Erro ao salvar plataformas do usuário:", error);
@@ -1339,7 +1453,18 @@ export default function DashboardScreen() {
     }
   }
 
-  async function loadPeriodEntries(startDate?: string | Date, endDate?: string | Date) {
+  /**
+   * Carrega os ganhos avulsos do período.
+   *
+   * Otimização:
+   * - aceita userId opcional para evitar uma chamada extra ao auth.getUser
+   *   quando o usuário já foi carregado pelo getDashboardData.
+   */
+  async function loadPeriodEntries(
+    startDate?: string | Date,
+    endDate?: string | Date,
+    userId?: string,
+  ) {
     try {
       if (!startDate || !endDate) {
         setPeriodEntries([]);
@@ -1347,11 +1472,17 @@ export default function DashboardScreen() {
         return;
       }
 
-      const {
-        data: { user: loggedUser },
-      } = await supabase.auth.getUser();
+      let loggedUserId = userId;
 
-      if (!loggedUser?.id) {
+      if (!loggedUserId) {
+        const {
+          data: { user: loggedUser },
+        } = await supabase.auth.getUser();
+
+        loggedUserId = loggedUser?.id;
+      }
+
+      if (!loggedUserId) {
         setPeriodEntries([]);
         setPeriodEntriesReady(true);
         return;
@@ -1368,7 +1499,7 @@ export default function DashboardScreen() {
       const { data: entriesResponse, error } = await supabase
         .from("earnings")
         .select("id, user_id, session_id, platform, description, amount, earning_date, created_at")
-        .eq("user_id", loggedUser.id)
+        .eq("user_id", loggedUserId)
         .is("session_id", null)
         .gte("earning_date", start)
         .lte("earning_date", end)
@@ -1385,18 +1516,35 @@ export default function DashboardScreen() {
     }
   }
 
-  async function loadPeriodExpenses(startDate?: string | Date, endDate?: string | Date) {
+  /**
+   * Carrega despesas do período.
+   *
+   * Otimização:
+   * - aceita userId opcional para evitar auth.getUser duplicado durante
+   *   a carga principal do dashboard.
+   */
+  async function loadPeriodExpenses(
+    startDate?: string | Date,
+    endDate?: string | Date,
+    userId?: string,
+  ) {
     try {
       if (!startDate || !endDate) {
         setPeriodExpenses([]);
         return;
       }
 
-      const {
-        data: { user: loggedUser },
-      } = await supabase.auth.getUser();
+      let loggedUserId = userId;
 
-      if (!loggedUser?.id) {
+      if (!loggedUserId) {
+        const {
+          data: { user: loggedUser },
+        } = await supabase.auth.getUser();
+
+        loggedUserId = loggedUser?.id;
+      }
+
+      if (!loggedUserId) {
         setPeriodExpenses([]);
         return;
       }
@@ -1407,7 +1555,7 @@ export default function DashboardScreen() {
       const { data: expensesResponse, error } = await supabase
         .from("expenses")
         .select("id, description, amount, category, expense_date, location, vehicle_id")
-        .eq("user_id", loggedUser.id)
+        .eq("user_id", loggedUserId)
         .gte("expense_date", start)
         .lte("expense_date", end)
         .order("expense_date", { ascending: false });
@@ -1421,50 +1569,115 @@ export default function DashboardScreen() {
     }
   }
 
-  async function loadDashboard() {
-    await withLoading(async () => {
-    try {
-      const response = await getDashboardData(period, referenceDate);
-
-      setData(response);
-
-      await Promise.all([
-        loadPeriodExpenses(response?.startDate, response?.endDate),
-        loadPeriodEntries(response?.startDate, response?.endDate),
-        loadDashboardPlatforms(),
-        loadEarningsPerformanceSummary(),
-        loadSubscriptionAccess(),
-      ]);
-
-      const loggedUser = response?.user ?? null;
-
-      setUser(loggedUser);
-
-      if (loggedUser?.id) {
-        await Promise.all([
-          loadProfileAvatar(loggedUser.id),
-          loadAdminStatus(loggedUser.id),
-          loadPerformanceTargets(loggedUser.id),
-        ]);
-      } else {
-        setProfileAvatarUrl(null);
-        setIsSystemAdmin(false);
-        setPerformanceTargets(null);
-      }
-
-      if (period === "day") {
-        const sessions = await getDayWorkSessions(referenceDate);
-        setDaySessions(sessions);
-      } else {
-        setDaySessions([]);
-      }
-
-      await refreshDashboardGoal();
-    } catch (error) {
-      console.log(error);
+  /**
+   * Agenda uma recarga silenciosa do dashboard.
+   *
+   * Usado principalmente pelo Realtime do Supabase.
+   *
+   * Vantagem:
+   * - se earnings, expenses e work_sessions mudarem quase ao mesmo tempo,
+   *   o app faz apenas uma recarga após o debounce.
+   */
+  function scheduleDashboardRefresh() {
+    if (dashboardRefreshTimeoutRef.current) {
+      clearTimeout(dashboardRefreshTimeoutRef.current);
     }
-  
-    });
+
+    dashboardRefreshTimeoutRef.current = setTimeout(() => {
+      loadDashboard({
+        useGlobalLoader: false,
+      });
+    }, DASHBOARD_REFRESH_DEBOUNCE_MS);
+  }
+
+  /**
+   * Agenda uma recarga leve da meta.
+   */
+  function scheduleGoalRefresh() {
+    if (goalRefreshTimeoutRef.current) {
+      clearTimeout(goalRefreshTimeoutRef.current);
+    }
+
+    goalRefreshTimeoutRef.current = setTimeout(() => {
+      refreshDashboardGoal();
+    }, GOAL_REFRESH_DEBOUNCE_MS);
+  }
+
+  /**
+   * Carrega os dados principais do dashboard.
+   *
+   * Otimizações:
+   * - evita execução simultânea;
+   * - permite recarga silenciosa para eventos realtime;
+   * - reaproveita o usuário retornado pelo getDashboardData para evitar
+   *   auth.getUser duplicado em despesas e ganhos;
+   * - carrega dados independentes em Promise.all.
+   */
+  async function loadDashboard(options: LoadDashboardOptions = {}) {
+    const useGlobalLoader = options.useGlobalLoader ?? true;
+
+    if (dashboardLoadingRef.current) {
+      scheduleDashboardRefresh();
+      return;
+    }
+
+    dashboardLoadingRef.current = true;
+
+    const runner = async () => {
+      try {
+        const response = await getDashboardData(period, referenceDate);
+
+        if (!mountedRef.current) return;
+
+        setData(response);
+
+        const loggedUser = response?.user ?? null;
+        const loggedUserId = loggedUser?.id;
+
+        setUser(loggedUser);
+
+        await Promise.all([
+          loadPeriodExpenses(response?.startDate, response?.endDate, loggedUserId),
+          loadPeriodEntries(response?.startDate, response?.endDate, loggedUserId),
+          loadDashboardPlatforms({ force: options.forcePlatformsRefresh }),
+          loadEarningsPerformanceSummary(),
+          loadSubscriptionAccess(),
+        ]);
+
+        if (loggedUserId) {
+          await Promise.all([
+            loadProfileAvatar(loggedUserId),
+            loadAdminStatus(loggedUserId),
+            loadPerformanceTargets(loggedUserId),
+          ]);
+        } else {
+          setProfileAvatarUrl(null);
+          setIsSystemAdmin(false);
+          setPerformanceTargets(null);
+        }
+
+        if (period === "day") {
+          const sessions = await getDayWorkSessions(referenceDate);
+          setDaySessions(sessions);
+        } else {
+          setDaySessions([]);
+        }
+
+        await refreshDashboardGoal();
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    try {
+      if (useGlobalLoader) {
+        await withLoading(runner);
+      } else {
+        await runner();
+      }
+    } finally {
+      dashboardLoadingRef.current = false;
+    }
   }
 
   async function closeGoalModal() {
@@ -4002,6 +4215,26 @@ export default function DashboardScreen() {
               <View style={styles.headerMenuItemTextBox}>
                 <Text style={styles.headerMenuItemTitle}>Desempenho</Text>
                 <Text style={styles.headerMenuItemSubtitle}>Ganhos, metas e eficiência</Text>
+              </View>
+
+              <Ionicons name="chevron-forward" size={18} color="#8F8A91" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.headerMenuItem}
+              onPress={() => {
+                setHeaderMenuVisible(false);
+                router.push("/(private)/(tabs)/ibge-localidades" as never);
+              }}
+            >
+              <View style={[styles.headerMenuItemIcon, styles.headerMenuItemIconGold]}>
+                <Ionicons name="map-outline" size={21} color="#D4A64A" />
+              </View>
+
+              <View style={styles.headerMenuItemTextBox}>
+                <Text style={styles.headerMenuItemTitle}>Filtro IBGE</Text>
+                <Text style={styles.headerMenuItemSubtitle}>UF, regiões e municípios</Text>
               </View>
 
               <Ionicons name="chevron-forward" size={18} color="#8F8A91" />

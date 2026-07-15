@@ -1,29 +1,15 @@
 /**
- * Página: Motoristas da cidade
+ * Página: Membros da comunidade da região
  *
  * Caminho esperado no projeto:
  * app/(private)/(tabs)/motoristas-cidade-lista.tsx
  *
  * Objetivo:
- * Exibir todos os motoristas/entregadores que possuem profiles.city igual
- * ao profiles.city do usuário logado.
- *
- * Regra importante:
- * A lista principal vem da tabela profiles.
- * O próprio usuário logado é removido apenas na renderização.
- * A tabela work_sessions é usada somente para descobrir o status:
- * active, paused ou offline.
- *
- * Ordem da lista:
- * 1. Quem está rodando agora aparece primeiro;
- * 2. Entre quem está rodando, aparece primeiro quem está rodando há mais tempo;
- * 3. Quem não está rodando fica no final, em ordem alfabética.
+ * Exibir todos os motoristas/entregadores que possuem profiles.regiao_imediata
+ * igual à regiao_imediata do usuário logado.
  */
 
-// Hooks do React usados para estado, cálculo memorizado e callback estável.
 import { useCallback, useMemo, useState } from 'react';
-
-// Componentes visuais do React Native usados na tela.
 import {
   ActivityIndicator,
   Image,
@@ -34,28 +20,26 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-// Ícones utilizados nos botões, cards, badges e mensagens da tela.
 import { Ionicons } from '@expo/vector-icons';
-// router faz navegação programática.
-// useFocusEffect recarrega os dados sempre que a tela volta ao foco.
 import { router, useFocusEffect } from 'expo-router';
 
-// Cliente Supabase usado para autenticação e consultas no banco.
 import { supabase } from '../../../src/database/supabase';
+import { PublicUserProfileModal } from '../../../src/features/profile/components/PublicUserProfileModal';
 
-/**
- * Normaliza a cidade recebida.
- * Converte null/undefined para string vazia e remove espaços extras.
- */
-function normalizeCity(value?: string | null) {
+type IconName = keyof typeof Ionicons.glyphMap;
+
+type DriverStatusInfo = {
+  label: string;
+  icon: IconName;
+  color: string;
+  backgroundColor: string;
+  borderColor: string;
+};
+
+function normalizeText(value?: string | null) {
   return String(value ?? '').trim();
 }
 
-/**
- * Retorna a URL da imagem do usuário.
- * Como o app pode salvar foto em campos diferentes, esta função testa várias opções.
- */
 function getUserAvatarUrl(user: any) {
   return (
     user?.avatar_url ||
@@ -67,50 +51,36 @@ function getUserAvatarUrl(user: any) {
   );
 }
 
-/**
- * Retorna o nome que será exibido no card do motorista.
- * Se nenhum nome existir, usa "Motorista" como fallback.
- */
 function getUserDisplayName(user: any) {
-  return (
+  const fullName = String(
     user?.full_name ||
-    user?.name ||
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    'Motorista'
-  );
+      user?.name ||
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      'Motorista',
+  ).trim();
+
+  const nameParts = fullName.split(/\s+/).filter(Boolean);
+
+  if (nameParts.length <= 2) {
+    return nameParts.join(' ') || 'Motorista';
+  }
+
+  return `${nameParts[0]} ${nameParts[1]}`;
 }
 
-/**
- * Retorna o ID do motorista.
- * O objeto pode vir como profile puro ou como objeto enriquecido com user_id/profile.
- */
 function getDriverUserId(driver: any) {
   return driver?.user_id || driver?.id || driver?.profile?.user_id || driver?.profile?.id || null;
 }
 
-/**
- * Retorna o ID usado para relacionar profile com work_sessions.user_id.
- *
- * Em alguns bancos, profiles.id é igual ao auth.users.id.
- * Em outros, profiles possui uma coluna user_id.
- */
 function getProfileAuthUserId(profile: any) {
   return profile?.user_id || profile?.id || null;
 }
 
-/**
- * Retorna a jornada ativa/pausada associada ao motorista.
- * Se não houver jornada, retorna null.
- */
 function getDriverSession(driver: any) {
   return driver?.active_session || driver?.session || null;
 }
 
-/**
- * Retorna o primeiro número válido entre vários possíveis campos.
- * Isso deixa o cálculo compatível com nomes diferentes de colunas/propriedades.
- */
 function getNumberValue(...values: any[]) {
   for (const value of values) {
     const numberValue = Number(value);
@@ -123,25 +93,12 @@ function getNumberValue(...values: any[]) {
   return null;
 }
 
-/**
- * Retorna a data/hora em que a jornada começou.
- * Aceita tanto started_at quanto startedAt.
- */
 function getDriverStartedAt(driver: any) {
   const session = getDriverSession(driver);
 
   return session?.started_at || session?.startedAt || null;
 }
 
-/**
- * Calcula o tempo de jornada em segundos.
- *
- * Fluxo:
- * - Se existir um campo pronto de segundos, usa esse valor;
- * - Caso contrário, calcula a diferença entre agora e started_at;
- * - Se a jornada estiver pausada, calcula até paused_at;
- * - Desconta segundos pausados quando esses campos existirem.
- */
 function getDriverChronometerSeconds(driver: any) {
   const session = getDriverSession(driver);
 
@@ -186,8 +143,7 @@ function getDriverChronometerSeconds(driver: any) {
 
       if (!Number.isNaN(pausedAt.getTime())) {
         return Math.max(
-          Math.floor((pausedAt.getTime() - startedAt.getTime()) / 1000) -
-            pausedSeconds,
+          Math.floor((pausedAt.getTime() - startedAt.getTime()) / 1000) - pausedSeconds,
           0,
         );
       }
@@ -200,14 +156,6 @@ function getDriverChronometerSeconds(driver: any) {
   );
 }
 
-/**
- * Formata o tempo rodando em texto amigável.
- * Exemplos:
- * - começou agora
- * - rodando há 15min
- * - rodando há 2h
- * - rodando há 2h 30min
- */
 function formatRunningTime(driver: any) {
   const seconds = getDriverChronometerSeconds(driver);
   const hours = Math.floor(seconds / 3600);
@@ -220,10 +168,6 @@ function formatRunningTime(driver: any) {
   return `rodando há ${hours}h ${minutes}min`;
 }
 
-/**
- * Define se o motorista está rodando agora.
- * Nesta tela, rodando significa status === "active".
- */
 function isDriverRunning(driver: any) {
   const session = getDriverSession(driver);
   const status = String(session?.status ?? '').toLowerCase();
@@ -231,76 +175,48 @@ function isDriverRunning(driver: any) {
   return status === 'active';
 }
 
-/**
- * Monta as informações visuais do status do motorista.
- * Retorna label, ícone, cor, background e borda.
- */
-function getDriverStatus(driver: any) {
+function getDriverStatus(driver: any): DriverStatusInfo {
   const session = getDriverSession(driver);
   const status = String(session?.status ?? '').toLowerCase();
 
   if (status === 'active') {
     return {
       label: 'Rodando agora',
-      icon: 'radio-outline' as keyof typeof Ionicons.glyphMap,
+      icon: 'radio-outline',
       color: '#22C55E',
       backgroundColor: 'rgba(34,197,94,0.12)',
-      borderColor: 'rgba(34,197,94,0.24)',
+      borderColor: 'rgba(34,197,94,0.26)',
     };
   }
 
   if (status === 'paused') {
     return {
       label: 'Pausado',
-      icon: 'pause-circle-outline' as keyof typeof Ionicons.glyphMap,
+      icon: 'pause-circle-outline',
       color: '#FACC15',
       backgroundColor: 'rgba(250,204,21,0.12)',
-      borderColor: 'rgba(250,204,21,0.24)',
+      borderColor: 'rgba(250,204,21,0.26)',
     };
   }
 
   return {
     label: 'Offline',
-    icon: 'ellipse-outline' as keyof typeof Ionicons.glyphMap,
+    icon: 'ellipse-outline',
     color: '#8F8A91',
     backgroundColor: 'rgba(143,138,145,0.10)',
     borderColor: 'rgba(143,138,145,0.22)',
   };
 }
 
-/**
- * Componente principal da página.
- *
- * Responsabilidades:
- * - Buscar cidade do usuário logado;
- * - Buscar todos os perfis da mesma cidade;
- * - Anexar status de jornada;
- * - Ordenar a lista;
- * - Renderizar loading, empty state e cards;
- * - Abrir perfil público do motorista.
- */
 export default function CityDriversListScreen() {
-  // ID do usuário logado. Usado para remover o próprio usuário da lista.
   const [currentUserId, setCurrentUserId] = useState('');
-  // Cidade do usuário logado, carregada de profiles.city.
   const [profileCity, setProfileCity] = useState('');
-  // Lista de profiles da mesma cidade, enriquecida com status de jornada.
+  const [profileImmediateRegion, setProfileImmediateRegion] = useState('');
   const [drivers, setDrivers] = useState<any[]>([]);
-  // Loading inicial da tela.
+  const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  // Loading do pull-to-refresh.
   const [refreshing, setRefreshing] = useState(false);
 
-  /**
-   * Lista que realmente será exibida.
-   *
-   * Regras:
-   * - Remove apenas o perfil do usuário logado;
-   * - Mantém todos os outros perfis da mesma cidade;
-   * - Coloca motoristas ativos primeiro;
-   * - Entre os ativos, ordena por maior tempo rodando;
-   * - Quem não está rodando fica no final em ordem alfabética.
-   */
   const visibleDrivers = useMemo(
     () =>
       drivers
@@ -328,144 +244,127 @@ export default function CityDriversListScreen() {
     [drivers, currentUserId],
   );
 
-  /**
-   * Quantidade de motoristas com status active.
-   * Exibido no card superior.
-   */
+  const totalMembersCount = drivers.length;
+
   const runningDriversCount = useMemo(
-    () => visibleDrivers.filter((driver) => isDriverRunning(driver)).length,
-    [visibleDrivers],
+    () => drivers.filter((driver) => isDriverRunning(driver)).length,
+    [drivers],
   );
 
-  /**
-   * Busca o usuário autenticado e consulta a cidade dele na tabela profiles.
-   * Retorna a cidade normalizada.
-   */
-  async function getLoggedUserCity() {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError) throw userError;
-
-  const userId = user?.id ?? '';
-
-  setCurrentUserId(userId);
-
-  if (!userId) return '';
-
-  /**
-   * Primeiro tenta o padrão:
-   * profiles.id = auth.users.id
-   */
-  const { data: profileById, error: profileByIdError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (profileByIdError) {
-    console.log('Erro ao buscar profile por id:', profileByIdError);
-  }
-
-  if (profileById?.city) {
-    return normalizeCity(profileById.city);
-  }
-
-  /**
-   * Fallback:
-   * profiles.user_id = auth.users.id
-   *
-   * Se a coluna user_id não existir, o erro será mostrado no console,
-   * mas a tela continuará tentando os próximos fallbacks.
-   */
-  const { data: profileByUserId, error: profileByUserIdError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (profileByUserIdError) {
-    console.log('Fallback profiles.user_id não disponível:', profileByUserIdError);
-  }
-
-  if (profileByUserId?.city) {
-    return normalizeCity(profileByUserId.city);
-  }
-
-  /**
-   * Último fallback:
-   * cidade salva no metadata do usuário autenticado.
-   */
-  return normalizeCity(
-    user?.user_metadata?.city ||
-      user?.user_metadata?.profile_city ||
-      user?.user_metadata?.municipality,
+  const offlineDriversCount = useMemo(
+    () => Math.max(totalMembersCount - runningDriversCount, 0),
+    [totalMembersCount, runningDriversCount],
   );
-}
 
-  /**
-   * Busca todos os profiles com city igual à cidade do usuário logado.
-   *
-   * Esta função é a base da tela.
-   * Ela não consulta work_sessions e não filtra por quem está rodando.
-   */
-  async function getAllProfilesFromSameCity(city: string) {
-  const cleanCity = normalizeCity(city);
+  async function getLoggedUserRegion() {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  if (!cleanCity) return [];
+    if (userError) throw userError;
 
-  /**
-   * Busca principal:
-   * profiles.city igual ao city do usuário logado.
-   */
-  const { data: exactData, error: exactError } = await supabase
-    .from('profiles')
-    .select('*')
-    .ilike('city', cleanCity)
-    .order('full_name', { ascending: true });
+    const userId = user?.id ?? '';
 
-  if (exactError) {
-    console.log('Erro ao buscar profiles por city exata:', exactError);
-    throw exactError;
+    setCurrentUserId(userId);
+
+    if (!userId) {
+      return {
+        city: '',
+        immediateRegion: '',
+      };
+    }
+
+    const { data: profileById, error: profileByIdError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileByIdError) {
+      console.log('Erro ao buscar profile por id:', profileByIdError);
+    }
+
+    if (profileById) {
+      return {
+        city: normalizeText(profileById.city),
+        immediateRegion: normalizeText(profileById.regiao_imediata || profileById.region),
+      };
+    }
+
+    const { data: profileByUserId, error: profileByUserIdError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileByUserIdError) {
+      console.log('Fallback profiles.user_id não disponível:', profileByUserIdError);
+    }
+
+    if (profileByUserId) {
+      return {
+        city: normalizeText(profileByUserId.city),
+        immediateRegion: normalizeText(profileByUserId.regiao_imediata || profileByUserId.region),
+      };
+    }
+
+    return {
+      city: normalizeText(
+        user?.user_metadata?.city ||
+          user?.user_metadata?.profile_city ||
+          user?.user_metadata?.municipality,
+      ),
+      immediateRegion: normalizeText(
+        user?.user_metadata?.regiao_imediata ||
+          user?.user_metadata?.immediate_region ||
+          user?.user_metadata?.region,
+      ),
+    };
   }
 
-  if ((exactData ?? []).length > 0) {
-    return exactData ?? [];
+  async function getAllProfilesFromSameRegion(immediateRegion: string, fallbackCity: string) {
+    const cleanRegion = normalizeText(immediateRegion);
+    const cleanCity = normalizeText(fallbackCity);
+
+    if (cleanRegion) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('regiao_imediata', cleanRegion)
+        .order('full_name', { ascending: true });
+
+      if (error) {
+        console.log('Erro ao buscar profiles por regiao_imediata:', error);
+        throw error;
+      }
+
+      return data ?? [];
+    }
+
+    if (cleanCity) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('city', cleanCity)
+        .order('full_name', { ascending: true });
+
+      if (error) {
+        console.log('Erro ao buscar profiles por city:', error);
+        throw error;
+      }
+
+      return data ?? [];
+    }
+
+    return [];
   }
 
-  /**
-   * Fallback para casos em que city esteja salvo com espaço/complemento:
-   * "Belo Horizonte ", "Belo Horizonte/MG", "Belo Horizonte - MG".
-   */
-  const { data: partialData, error: partialError } = await supabase
-    .from('profiles')
-    .select('*')
-    .ilike('city', `%${cleanCity}%`)
-    .order('full_name', { ascending: true });
-
-  if (partialError) {
-    console.log('Erro ao buscar profiles por city parcial:', partialError);
-    throw partialError;
-  }
-
-  return partialData ?? [];
-}
-
-  /**
-   * Busca jornadas active/paused dos usuários encontrados.
-   *
-   * Importante:
-   * Esta função serve apenas para marcar status.
-   * Usuários sem jornada continuam aparecendo como offline.
-   */
   async function getActiveOrPausedSessionsByUserId(userIds: string[]) {
     if (userIds.length === 0) return {};
 
     const { data, error } = await supabase
       .from('work_sessions')
-      // Busca sessões apenas para descobrir quem está active/paused.
       .select('*')
       .in('user_id', userIds)
       .in('status', ['active', 'paused'])
@@ -487,16 +386,6 @@ export default function CityDriversListScreen() {
     return sessionsByUserId;
   }
 
-  /**
-   * Carrega a lista completa.
-   *
-   * Passo a passo:
-   * 1. Busca profiles.city do usuário logado;
-   * 2. Busca todos os profiles da mesma cidade;
-   * 3. Busca jornadas active/paused desses usuários;
-   * 4. Junta cada profile com sua jornada, se existir;
-   * 5. Atualiza o estado drivers.
-   */
   async function loadDrivers(showRefresh = false) {
     try {
       if (showRefresh) {
@@ -505,19 +394,21 @@ export default function CityDriversListScreen() {
         setLoading(true);
       }
 
-      const city = await getLoggedUserCity();
+      const { city, immediateRegion } = await getLoggedUserRegion();
 
       setProfileCity(city);
+      setProfileImmediateRegion(immediateRegion);
 
-      if (!city) {
+      if (!immediateRegion && !city) {
         setDrivers([]);
         return;
       }
 
-      const profilesFromSameCity = await getAllProfilesFromSameCity(city);
+      const profilesFromSameRegion = await getAllProfilesFromSameRegion(immediateRegion, city);
+
       const userIds = Array.from(
         new Set(
-          profilesFromSameCity
+          profilesFromSameRegion
             .map((profile) => String(getProfileAuthUserId(profile) ?? ''))
             .filter(Boolean),
         ),
@@ -525,7 +416,7 @@ export default function CityDriversListScreen() {
 
       const sessionsByUserId = await getActiveOrPausedSessionsByUserId(userIds);
 
-      const profilesWithSessionStatus = profilesFromSameCity.map((profile) => {
+      const profilesWithSessionStatus = profilesFromSameRegion.map((profile) => {
         const profileAuthUserId = getProfileAuthUserId(profile);
         const session = profileAuthUserId ? sessionsByUserId[profileAuthUserId] ?? null : null;
 
@@ -542,7 +433,7 @@ export default function CityDriversListScreen() {
 
       setDrivers(profilesWithSessionStatus);
     } catch (error) {
-      console.log('Erro ao carregar todos os motoristas da mesma cidade:', error);
+      console.log('Erro ao carregar membros da região:', error);
       setDrivers([]);
     } finally {
       setLoading(false);
@@ -550,46 +441,34 @@ export default function CityDriversListScreen() {
     }
   }
 
-  /**
-   * Recarrega a lista sempre que esta página volta ao foco.
-   */
   useFocusEffect(
     useCallback(() => {
       loadDrivers();
     }, []),
   );
 
-  /**
-   * Abre o perfil público do motorista selecionado.
-   */
   function openDriverProfile(driver: any) {
     const userId = getDriverUserId(driver);
 
     if (!userId) return;
 
-    router.push({
-      pathname: '/perfil-publico',
-      params: { userId },
-    } as never);
+    setSelectedProfile(driver);
   }
 
-  /**
-   * Abre a tela Minha conta.
-   * Usada quando o usuário precisa preencher ou conferir a cidade do perfil.
-   */
+  function closeDriverProfileModal() {
+    setSelectedProfile(null);
+  }
+
+  function openCommunityAreas() {
+    router.replace('/(private)/(tabs)/motoristas-cidade' as never);
+  }
+
   function openMyAccount() {
     router.push('/(private)/(tabs)/minha-conta' as never);
   }
 
-  /**
-   * Renderização da tela:
-   * - Header separado normal;
-   * - Card de resumo da cidade fixo durante a rolagem;
-   * - Aviso se não houver cidade definida;
-   * - Loading;
-   * - Empty state;
-   * - Lista de motoristas.
-   */
+  const communityRegion = profileImmediateRegion || profileCity || 'sua região';
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -607,133 +486,167 @@ export default function CityDriversListScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity
+              activeOpacity={0.86}
+              style={styles.backButton}
+              onPress={openCommunityAreas}
+            >
               <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
             </TouchableOpacity>
 
             <View style={styles.headerTextContent}>
-              <Text style={styles.headerEyebrow}>Comunidade local</Text>
+              <Text style={styles.headerEyebrow}>Comunidade</Text>
               <Text style={styles.headerTitle} numberOfLines={1}>
-                Motoristas da cidade
+                Membros da região
               </Text>
             </View>
 
             <TouchableOpacity
               activeOpacity={0.86}
               style={styles.feedButton}
-              onPress={() => router.replace('/(private)/(tabs)/motoristas-cidade' as never)}
+              onPress={openCommunityAreas}
             >
-              <Ionicons name="chatbubbles-outline" size={21} color="#D4A64A" />
+              <Ionicons name="grid-outline" size={21} color="#D4A64A" />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.heroCard}>
+          <View style={styles.heroGlowOne} />
+          <View style={styles.heroGlowTwo} />
+
           <View style={styles.heroTopRow}>
             <View style={styles.heroIconBox}>
-              <Ionicons name="people-outline" size={22} color="#D4A64A" />
+              <Ionicons name="people-circle-outline" size={30} color="#D4A64A" />
             </View>
 
-            <View>
-              <Text style={styles.heroTextOnly}>
-                Veja quem está na comunidade local
+            <View style={styles.heroTitleContent}>
+              <Text style={styles.heroEyebrow}>Membros da regiao de</Text>
+              <Text style={styles.heroTitle} numberOfLines={2}>
+                {communityRegion}
               </Text>
             </View>
           </View>
 
-          {visibleDrivers.length > 0 ? (
-            <View style={styles.countRow}>
-              <View style={styles.countPill}>
-                <Ionicons name="people-outline" size={14} color="#D4A64A" />
-                <Text style={styles.countPillText}>
-                  {visibleDrivers.length} perfis
-                </Text>
-              </View>
+          <Text style={styles.heroDescription}>
+            Motoristas e entregadores próximos da sua região imediata. Veja quem está rodando,
+            acompanhe perfis públicos e encontre pessoas da comunidade.
+          </Text>
 
-              <View style={styles.countPillGreen}>
-                <Ionicons name="radio-outline" size={14} color="#22C55E" />
-                <Text style={styles.countPillGreenText}>
-                  {runningDriversCount} rodando
-                </Text>
-              </View>
+          <View style={styles.statsPanel}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{totalMembersCount}</Text>
+              <Text style={styles.statLabel}>membros</Text>
             </View>
-          ) : null}
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, styles.statValueGreen]}>{runningDriversCount}</Text>
+              <Text style={styles.statLabel}>rodando</Text>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statItem}>
+              <Text style={styles.statValueMuted}>{offlineDriversCount}</Text>
+              <Text style={styles.statLabel}>offline</Text>
+            </View>
+          </View>
         </View>
 
-        {!profileCity && !loading ? (
-          <View style={styles.warningCard}>
-            <View style={styles.warningIconBox}>
-              <Ionicons name="location-outline" size={22} color="#FACC15" />
-            </View>
+        {!communityRegion || communityRegion === 'sua região' ? (
+          !loading ? (
+            <>
+              <View style={styles.warningCard}>
+                <View style={styles.warningIconBox}>
+                  <Ionicons name="location-outline" size={22} color="#FACC15" />
+                </View>
 
-            <View style={{ flex: 1 }}>
-              <Text style={styles.warningTitle}>Cidade não definida</Text>
-              <Text style={styles.warningText}>
-                Preencha o campo city do seu perfil para encontrar motoristas e entregadores da sua cidade.
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {!profileCity && !loading ? (
-          <View style={styles.actionGrid}>
-            <TouchableOpacity
-              activeOpacity={0.88}
-              style={styles.actionCard}
-              onPress={openMyAccount}
-            >
-              <View style={styles.actionIconBox}>
-                <Ionicons name="person-outline" size={20} color="#D4A64A" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.warningTitle}>Região não definida</Text>
+                  <Text style={styles.warningText}>
+                    Atualize sua cidade onde mora para o app identificar sua região imediata.
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.actionTitle}>Minha conta</Text>
-              <Text style={styles.actionText}>Conferir cidade do perfil</Text>
-            </TouchableOpacity>
-          </View>
+
+              <TouchableOpacity activeOpacity={0.88} style={styles.accountCard} onPress={openMyAccount}>
+                <View style={styles.accountIconBox}>
+                  <Ionicons name="person-outline" size={20} color="#D4A64A" />
+                </View>
+
+                <View style={styles.accountInfo}>
+                  <Text style={styles.accountTitle}>Minha conta</Text>
+                  <Text style={styles.accountText}>Conferir dados de cidade e região</Text>
+                </View>
+
+                <Ionicons name="chevron-forward" size={18} color="#D4A64A" />
+              </TouchableOpacity>
+            </>
+          ) : null
         ) : null}
+
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionEyebrow}>Lista</Text>
+            <Text style={styles.sectionTitle}>Membros da comunidade</Text>
+          </View>
+        </View>
 
         {loading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator color="#D4A64A" />
-            <Text style={styles.loadingText}>Carregando todos da cidade...</Text>
+            <Text style={styles.loadingText}>Carregando membros da região...</Text>
           </View>
-        ) : visibleDrivers.length === 0 && profileCity ? (
+        ) : visibleDrivers.length === 0 && communityRegion !== 'sua região' ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconBox}>
               <Ionicons name="people-outline" size={36} color="#8F8A91" />
             </View>
-            <Text style={styles.emptyTitle}>Nenhum perfil encontrado</Text>
+
+            <Text style={styles.emptyTitle}>Nenhum membro encontrado</Text>
             <Text style={styles.emptyText}>
-              Não encontrei outros perfis com profile.city igual a {profileCity}.
+              Ainda não encontrei outros perfis cadastrados na região de {communityRegion}.
             </Text>
           </View>
         ) : (
           <View style={styles.driverList}>
             {visibleDrivers.map((driver) => {
-              // Prepara os dados necessários para renderizar o card do motorista.
               const avatarUrl = getUserAvatarUrl(driver);
               const displayName = getUserDisplayName(driver);
               const userId = getDriverUserId(driver);
               const username = String(driver?.username ?? '').trim();
               const status = getDriverStatus(driver);
               const running = isDriverRunning(driver);
+              const driverCity = normalizeText(driver?.city);
 
               return (
                 <TouchableOpacity
                   key={String(userId)}
                   activeOpacity={0.88}
-                  style={styles.driverCard}
+                  style={[
+                    styles.driverCard,
+                    running && styles.driverCardRunning,
+                  ]}
                   onPress={() => openDriverProfile(driver)}
                 >
+                  <View style={styles.driverGlow} />
+
                   <View style={styles.driverMainRow}>
-                    {avatarUrl ? (
-                      <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-                    ) : (
-                      <View style={styles.avatarFallback}>
-                        <Text style={styles.avatarFallbackText}>
-                          {displayName.slice(0, 1).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
+                    <View style={styles.avatarWrap}>
+                      {avatarUrl ? (
+                        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                      ) : (
+                        <View style={styles.avatarFallback}>
+                          <Text style={styles.avatarFallbackText}>
+                            {displayName.slice(0, 1).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+
+                      {running ? <View style={styles.liveDot} /> : null}
+                    </View>
 
                     <View style={styles.driverInfo}>
                       <Text style={styles.driverName} numberOfLines={1}>
@@ -741,7 +654,7 @@ export default function CityDriversListScreen() {
                       </Text>
 
                       <Text style={styles.driverSubtitle} numberOfLines={1}>
-                        {username ? `@${username}` : driver.city || 'Motorista da cidade'}
+                        {username ? `@${username}` : driverCity || 'Motorista da região'}
                       </Text>
                     </View>
 
@@ -761,29 +674,36 @@ export default function CityDriversListScreen() {
                     </View>
                   </View>
 
-                  <View style={styles.driverFooter}>
+                  <View style={styles.driverMetaRow}>
+                    {driverCity ? (
+                      <View style={styles.metaPill}>
+                        <Ionicons name="business-outline" size={14} color="#D4A64A" />
+                        <Text style={styles.metaPillText} numberOfLines={1}>
+                          {driverCity}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.metaPill}>
+                        <Ionicons name="business-outline" size={14} color="#D4A64A" />
+                        <Text style={styles.metaPillText} numberOfLines={1}>
+                          Cidade não informada
+                        </Text>
+                      </View>
+                    )}
+
                     <View style={running ? styles.runningTimePill : styles.offlineTimePill}>
                       <Ionicons
                         name={running ? 'time-outline' : 'moon-outline'}
                         size={14}
                         color={running ? '#D4A64A' : '#8F8A91'}
                       />
-                      <Text
-                        style={
-                          running
-                            ? styles.runningTimeText
-                            : styles.offlineTimeText
-                        }
-                      >
-                        {running
-                          ? formatRunningTime(driver)
-                          : 'não está rodando agora'}
-                      </Text>
-                    </View>
 
-                    <View style={styles.openProfileRow}>
-                      <Text style={styles.openProfileText}>Ver perfil</Text>
-                      <Ionicons name="chevron-forward" size={17} color="#D4A64A" />
+                      <Text
+                        style={running ? styles.runningTimeText : styles.offlineTimeText}
+                        numberOfLines={1}
+                      >
+                        {running ? formatRunningTime(driver) : 'não está rodando'}
+                      </Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -792,29 +712,34 @@ export default function CityDriversListScreen() {
           </View>
         )}
       </ScrollView>
+
+      <PublicUserProfileModal
+        visible={Boolean(selectedProfile)}
+        profile={selectedProfile}
+        userId={getDriverUserId(selectedProfile)}
+        onClose={closeDriverProfileModal}
+      />
     </View>
   );
 }
 
-/**
- * Estilos da página.
- *
- * Paleta:
- * - Fundo escuro;
- * - Cards escuros;
- * - Dourado como cor principal;
- * - Verde para rodando;
- * - Amarelo para pausado;
- * - Cinza para offline.
- */
 const styles = StyleSheet.create({
-  // Fundo principal da página.
-  screen: { flex: 1, backgroundColor: '#050505' },
-  // Container do ScrollView.
-  container: { flex: 1, backgroundColor: '#050505' },
-  // Espaçamento interno do conteúdo.
-  content: { paddingHorizontal: 18, paddingTop: 48, paddingBottom: 110 },
-  // Header fixo da página.
+  screen: {
+    flex: 1,
+    backgroundColor: '#050505',
+  },
+
+  container: {
+    flex: 1,
+    backgroundColor: '#050505',
+  },
+
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 48,
+    paddingBottom: 116,
+  },
+
   header: {
     marginHorizontal: -18,
     marginTop: -48,
@@ -828,29 +753,40 @@ const styles = StyleSheet.create({
     zIndex: 50,
     elevation: 50,
   },
-  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  // Botão de voltar.
+
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: '#18171D',
     borderWidth: 1,
     borderColor: '#2A2830',
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   feedButton: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(212,166,74,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTextContent: { flex: 1, minWidth: 0 },
+
+  headerTextContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+
   headerEyebrow: {
     color: '#D4A64A',
     fontSize: 9,
@@ -858,103 +794,140 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.5,
   },
+
   headerTitle: {
     color: '#F5F0E6',
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: -0.4,
   },
-  // Card de resumo com cidade e contadores.
+
   heroCard: {
-    borderRadius: 18,
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 26,
     borderWidth: 1,
-    borderColor: '#2A2830',
+    borderColor: 'rgba(212,166,74,0.30)',
     backgroundColor: '#101014',
     padding: 18,
     marginBottom: 14,
-    elevation: 10,
-    shadowColor: '#D4A64A',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.07,
-    shadowRadius: 22,
   },
+
+  heroGlowOne: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: 'rgba(212,166,74,0.17)',
+    right: -75,
+    top: -80,
+  },
+
+  heroGlowTwo: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: 'rgba(34,197,94,0.08)',
+    left: -60,
+    bottom: -70,
+  },
+
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
+    gap: 13,
   },
+
   heroIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    backgroundColor: 'rgba(212,166,74,0.12)',
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: 'rgba(212,166,74,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(212,166,74,0.24)',
+    borderColor: 'rgba(212,166,74,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Badge com total de usuários encontrados.
-  heroBadge: {
-    minHeight: 34,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.24)',
-    backgroundColor: 'rgba(34,197,94,0.12)',
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
+
+  heroTitleContent: {
+    flex: 1,
+    minWidth: 0,
   },
-  onlineDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: '#22C55E' },
-  heroBadgeText: { color: '#86EFAC', fontSize: 12, fontWeight: '900' },
+
+  heroEyebrow: {
+    color: '#D4A64A',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+
   heroTitle: {
     color: '#F5F0E6',
     fontSize: 23,
     fontWeight: '900',
-    letterSpacing: -0.3,
+    letterSpacing: -0.55,
+    marginTop: 3,
   },
-  heroText: {
-    color: '#9B969B',
+
+  heroDescription: {
+    color: '#BDB5A7',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 20,
+    marginTop: 14,
   },
-  heroTextOnly: {
+
+  statsPanel: {
+    minHeight: 68,
+    borderRadius: 20,
+    backgroundColor: 'rgba(5,5,5,0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,240,230,0.08)',
+    marginTop: 16,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  statValue: {
     color: '#F5F0E6',
-    fontSize: 15,
+    fontSize: 21,
+    fontWeight: '900',
+  },
+
+  statValueGreen: {
+    color: '#86EFAC',
+  },
+
+  statValueMuted: {
+    color: '#D8D1C4',
+    fontSize: 21,
+    fontWeight: '900',
+  },
+
+  statLabel: {
+    color: '#8F8A91',
+    fontSize: 11,
     fontWeight: '800',
-    lineHeight: 21,
-    flexShrink: 1,
+    marginTop: 2,
   },
-  countRow: { flexDirection: 'row', gap: 8, marginTop: 14, flexWrap: 'wrap' },
-  countPill: {
-    minHeight: 32,
-    borderRadius: 999,
-    backgroundColor: 'rgba(212,166,74,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,166,74,0.20)',
-    paddingHorizontal: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+
+  statDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: 'rgba(245,240,230,0.10)',
   },
-  countPillText: { color: '#E8D49B', fontSize: 11, fontWeight: '900' },
-  countPillGreen: {
-    minHeight: 32,
-    borderRadius: 999,
-    backgroundColor: 'rgba(34,197,94,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.20)',
-    paddingHorizontal: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  countPillGreenText: { color: '#86EFAC', fontSize: 11, fontWeight: '900' },
-  // Aviso quando profile.city não está preenchido.
+
   warningCard: {
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(250,204,21,0.24)',
     backgroundColor: 'rgba(250,204,21,0.08)',
@@ -964,17 +937,24 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14,
   },
+
   warningIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: 'rgba(250,204,21,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(250,204,21,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  warningTitle: { color: '#F5F0E6', fontSize: 14, fontWeight: '900' },
+
+  warningTitle: {
+    color: '#F5F0E6',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
   warningText: {
     color: '#D8D1C4',
     fontSize: 12,
@@ -982,38 +962,71 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 4,
   },
-  actionGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  actionCard: {
-    flex: 1,
-    borderRadius: 16,
+
+  accountCard: {
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#2A2830',
     backgroundColor: '#101014',
-    padding: 13,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
   },
-  actionIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+
+  accountIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(212,166,74,0.20)',
+    borderColor: 'rgba(212,166,74,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
   },
-  actionTitle: { color: '#F5F0E6', fontSize: 13, fontWeight: '900' },
-  actionText: {
+
+  accountInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  accountTitle: {
+    color: '#F5F0E6',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  accountText: {
     color: '#9B969B',
-    fontSize: 11,
-    fontWeight: '800',
-    lineHeight: 16,
-    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
   },
-  // Caixa de carregamento.
+
+  sectionHeader: {
+    marginTop: 4,
+    marginBottom: 12,
+  },
+
+  sectionEyebrow: {
+    color: '#D4A64A',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.4,
+  },
+
+  sectionTitle: {
+    color: '#F5F0E6',
+    fontSize: 19,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
   loadingBox: {
     minHeight: 220,
-    borderRadius: 16,
+    borderRadius: 18,
     backgroundColor: '#101014',
     borderWidth: 1,
     borderColor: '#2A2830',
@@ -1021,11 +1034,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
-  loadingText: { color: '#9B969B', fontSize: 13, fontWeight: '800', marginTop: 12 },
-  // Estado vazio quando não há outros perfis na cidade.
+
+  loadingText: {
+    color: '#9B969B',
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 12,
+  },
+
   emptyState: {
-    minHeight: 250,
-    borderRadius: 16,
+    minHeight: 260,
+    borderRadius: 20,
     backgroundColor: '#101014',
     borderWidth: 1,
     borderColor: '#2A2830',
@@ -1033,10 +1052,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
+
   emptyIconBox: {
-    width: 70,
-    height: 70,
-    borderRadius: 18,
+    width: 74,
+    height: 74,
+    borderRadius: 22,
     backgroundColor: '#18171D',
     borderWidth: 1,
     borderColor: '#2A2830',
@@ -1044,12 +1064,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 14,
   },
+
   emptyTitle: {
     color: '#F5F0E6',
     fontSize: 17,
     fontWeight: '900',
     textAlign: 'center',
   },
+
   emptyText: {
     color: '#9B969B',
     fontSize: 13,
@@ -1058,45 +1080,103 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
+
   driverList: {
-    gap: 10,
+    gap: 12,
     width: '100%',
     alignSelf: 'center',
   },
-  // Card individual do motorista.
+
   driverCard: {
-    borderRadius: 16,
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 22,
     backgroundColor: '#101014',
     borderWidth: 1,
     borderColor: '#2A2830',
     padding: 14,
   },
-  driverMainRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  // Foto do motorista.
+
+  driverCardRunning: {
+    borderColor: 'rgba(34,197,94,0.24)',
+  },
+
+  driverGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(212,166,74,0.06)',
+    right: -65,
+    top: -50,
+  },
+
+  driverMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+
+  avatarWrap: {
+    position: 'relative',
+  },
+
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 15,
+    width: 54,
+    height: 54,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: 'rgba(212,166,74,0.30)',
     backgroundColor: '#18171D',
   },
-  // Avatar com inicial quando não existe foto.
+
   avatarFallback: {
-    width: 52,
-    height: 52,
-    borderRadius: 15,
+    width: 54,
+    height: 54,
+    borderRadius: 17,
     backgroundColor: '#18171D',
     borderWidth: 1,
     borderColor: 'rgba(212,166,74,0.30)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarFallbackText: { color: '#D4A64A', fontSize: 19, fontWeight: '900' },
-  driverInfo: { flex: 1, minWidth: 0 },
-  driverName: { color: '#F5F0E6', fontSize: 15, fontWeight: '900' },
-  driverSubtitle: { color: '#9B969B', fontSize: 12, fontWeight: '800', marginTop: 3 },
-  // Badge de status: Rodando agora, Pausado ou Offline.
+
+  avatarFallbackText: {
+    color: '#D4A64A',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+
+  liveDot: {
+    position: 'absolute',
+    width: 13,
+    height: 13,
+    borderRadius: 999,
+    right: -2,
+    bottom: -2,
+    backgroundColor: '#22C55E',
+    borderWidth: 2,
+    borderColor: '#101014',
+  },
+
+  driverInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  driverName: {
+    color: '#F5F0E6',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  driverSubtitle: {
+    color: '#9B969B',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+
   statusBadge: {
     minHeight: 30,
     borderRadius: 999,
@@ -1106,20 +1186,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
   },
-  statusBadgeText: { fontSize: 11, fontWeight: '900' },
-  driverFooter: {
+
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  driverMetaRow: {
     borderTopWidth: 1,
-    borderTopColor: '#2A2830',
+    borderTopColor: 'rgba(245,240,230,0.07)',
     marginTop: 12,
     paddingTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 8,
   },
-  // Pílula com tempo rodando.
-  runningTimePill: {
-    minHeight: 30,
+
+  metaPill: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 31,
     borderRadius: 999,
     backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
@@ -1129,10 +1216,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  runningTimeText: { color: '#E8D49B', fontSize: 11, fontWeight: '900' },
-  // Pílula exibida quando o motorista não está rodando.
+
+  metaPillText: {
+    flex: 1,
+    color: '#E8D49B',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  runningTimePill: {
+    flexShrink: 0,
+    maxWidth: '48%',
+    minHeight: 31,
+    borderRadius: 999,
+    backgroundColor: 'rgba(212,166,74,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,166,74,0.18)',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  runningTimeText: {
+    flexShrink: 1,
+    color: '#E8D49B',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
   offlineTimePill: {
-    minHeight: 30,
+    flexShrink: 0,
+    maxWidth: '48%',
+    minHeight: 31,
     borderRadius: 999,
     backgroundColor: 'rgba(143,138,145,0.08)',
     borderWidth: 1,
@@ -1141,9 +1257,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flexShrink: 1,
   },
-  offlineTimeText: { color: '#9B969B', fontSize: 11, fontWeight: '900' },
-  openProfileRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  openProfileText: { color: '#D4A64A', fontSize: 12, fontWeight: '900' },
+
+  offlineTimeText: {
+    flexShrink: 1,
+    color: '#9B969B',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
 });

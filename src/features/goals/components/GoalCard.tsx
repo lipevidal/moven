@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   View,
@@ -19,14 +19,11 @@ import { saveGoal } from "../services/saveGoal";
 import { getGoalsFromPeriod } from "../services/getGoalsFromPeriod";
 import { deleteGoals } from "../services/deleteGoals";
 
-const rewardByPeriod: Record<GoalPeriodType, number> = {
-  day: 10,
-  week: 30,
-  month: 50,
-  year: 100,
-};
-
+/**
+ * Listas auxiliares usadas para montar labels amigáveis de datas.
+ */
 const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
 const shortMonths = [
   "Jan",
   "Fev",
@@ -41,6 +38,7 @@ const shortMonths = [
   "Nov",
   "Dez",
 ];
+
 const months = [
   "Janeiro",
   "Fevereiro",
@@ -56,6 +54,28 @@ const months = [
   "Dezembro",
 ];
 
+/**
+ * Propriedades recebidas pelo card de meta.
+ *
+ * periodType:
+ * - tipo do período da meta: dia, semana, mês ou ano.
+ *
+ * periodKey:
+ * - chave única do período.
+ * - exemplo para dia: 2026-07-12.
+ * - exemplo para mês: 2026-07.
+ * - exemplo para ano: 2026.
+ *
+ * periodStart:
+ * - data inicial do período.
+ *
+ * periodEnd:
+ * - data final do período.
+ *
+ * currentAmount:
+ * - valor atual feito pelo usuário naquele período.
+ * - normalmente vem do faturamento do dashboard.
+ */
 type GoalCardProps = {
   periodType: GoalPeriodType;
   periodKey: string;
@@ -64,6 +84,13 @@ type GoalCardProps = {
   currentAmount: number;
 };
 
+/**
+ * Opção de período que pode receber a mesma meta.
+ *
+ * Exemplo:
+ * - ao criar meta diária, o app pode mostrar os próximos 10 dias.
+ * - o usuário pode aplicar a mesma meta em mais de um desses dias.
+ */
 type GoalOption = {
   label: string;
   periodType: GoalPeriodType;
@@ -72,12 +99,29 @@ type GoalOption = {
   periodEnd: string;
 };
 
+/**
+ * Opção exibida no modal de exclusão de metas.
+ */
 type DeleteGoalOption = {
   id: string;
   label: string;
   targetAmount: number;
 };
 
+/**
+ * Card principal de meta.
+ *
+ * Esse componente é responsável por:
+ *
+ * - carregar a meta do período atual;
+ * - mostrar progresso da meta;
+ * - mostrar quanto falta;
+ * - mostrar tempo restante;
+ * - permitir criar meta dentro do prazo;
+ * - permitir editar meta dentro do prazo;
+ * - permitir excluir uma ou várias metas dentro do prazo;
+ * - mostrar mensagem de meta alcançada ou meta não batida.
+ */
 export function GoalCard({
   periodType,
   periodKey,
@@ -85,45 +129,181 @@ export function GoalCard({
   periodEnd,
   currentAmount,
 }: GoalCardProps) {
+  /**
+   * Evita setState depois que o componente for desmontado.
+   *
+   * Isso deixa a tela mais segura quando o usuário muda de aba ou período
+   * enquanto uma busca ainda está em andamento.
+   */
+  const mountedRef = useRef(true);
+
+  /**
+   * Controla o carregamento inicial da meta.
+   */
   const [loading, setLoading] = useState(true);
+
+  /**
+   * Controla o loading dos botões de salvar/excluir.
+   */
   const [saving, setSaving] = useState(false);
+
+  /**
+   * Controla o modal de criar/editar meta.
+   */
   const [modalVisible, setModalVisible] = useState(false);
+
+  /**
+   * Guarda a meta encontrada para o período atual.
+   */
   const [goal, setGoal] = useState<any>(null);
+
+  /**
+   * Valor digitado no input de meta.
+   *
+   * Fica como string porque precisa receber máscara de moeda.
+   */
   const [amount, setAmount] = useState("");
+
+  /**
+   * Data/hora atual usada para:
+   * - atualizar o contador regressivo;
+   * - verificar se ainda pode criar/editar/excluir meta;
+   * - verificar se o período acabou.
+   */
   const [now, setNow] = useState(new Date());
+
+  /**
+   * Lista de períodos disponíveis para aplicar a meta.
+   *
+   * Exemplo:
+   * - próximos dias;
+   * - próximas semanas;
+   * - próximos meses.
+   */
   const [options, setOptions] = useState<GoalOption[]>([]);
+
+  /**
+   * Chaves dos períodos selecionados para receber a meta.
+   */
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+
+  /**
+   * Controla o modal de exclusão de metas.
+   */
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+
+  /**
+   * Controla o loading ao buscar metas para exclusão.
+   */
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  /**
+   * Lista de metas que podem ser excluídas.
+   */
   const [deleteOptions, setDeleteOptions] = useState<DeleteGoalOption[]>([]);
+
+  /**
+   * IDs das metas selecionadas para exclusão.
+   */
   const [selectedDeleteIds, setSelectedDeleteIds] = useState<string[]>([]);
 
+  /**
+   * Marca quando o componente está montado.
+   */
   useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  /**
+   * Atualiza o horário atual somente enquanto ainda existe algo temporal
+   * para acompanhar.
+   *
+   * Antes, o contador rodava a cada segundo para sempre enquanto o card
+   * estivesse montado.
+   *
+   * Agora ele para automaticamente quando:
+   * - o prazo de gerenciar a meta já passou;
+   * - e o período também já terminou.
+   *
+   * Isso reduz renderizações desnecessárias.
+   */
+  useEffect(() => {
+    const manageDeadline = getManageDeadline(periodType, periodStart);
+    const periodEndDate = new Date(periodEnd);
+    const lastRelevantTime = Math.max(
+      manageDeadline.getTime(),
+      periodEndDate.getTime(),
+    );
+
+    setNow(new Date());
+
+    if (Date.now() > lastRelevantTime) {
+      return;
+    }
+
     const interval = setInterval(() => {
-      setNow(new Date());
+      if (mountedRef.current) {
+        setNow(new Date());
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [periodType, periodStart, periodEnd]);
 
+  /**
+   * Sempre que o tipo ou a chave do período mudar,
+   * recarrega a meta correspondente.
+   */
   useEffect(() => {
     loadGoal();
   }, [periodType, periodKey]);
 
-  const rewardXp = rewardByPeriod[periodType];
+  /**
+   * Define se o usuário ainda pode criar, editar ou excluir meta.
+   */
   const canManage = isManageAllowed(periodType, periodStart, now);
+
+  /**
+   * Indica se o período ainda não começou.
+   */
   const periodNotStarted = now < new Date(periodStart);
+
+  /**
+   * Indica se o período já terminou.
+   */
   const periodEnded = now > new Date(periodEnd);
+
+  /**
+   * Prazo máximo para gerenciar a meta.
+   */
   const manageDeadline = getManageDeadline(periodType, periodStart);
+
+  /**
+   * Contagem regressiva até o prazo final para gerenciar a meta.
+   */
   const manageDeadlineCountdown = getCountdown(
     manageDeadline.toISOString(),
     now,
   );
+
+  /**
+   * Texto que explica a regra de criação/edição/exclusão da meta.
+   */
   const manageRuleDescription = getManageRuleDescription(
     periodType,
     Boolean(goal),
   );
 
+  /**
+   * Calcula o progresso da meta em percentual.
+   *
+   * useMemo evita recalcular em todo render quando goal/currentAmount
+   * não mudaram.
+   */
   const progress = useMemo(() => {
     if (!goal?.target_amount) return 0;
 
@@ -133,22 +313,38 @@ export function GoalCard({
     );
   }, [goal, currentAmount]);
 
+  /**
+   * Calcula quanto ainda falta para bater a meta.
+   */
   const missingAmount = Math.max(
     Number(goal?.target_amount ?? 0) - Number(currentAmount ?? 0),
     0,
   );
 
+  /**
+   * Indica se a meta foi alcançada.
+   */
   const achieved =
     Boolean(goal) && currentAmount >= Number(goal.target_amount ?? 0);
 
+  /**
+   * Carrega a meta cadastrada para o período atual.
+   */
   async function loadGoal() {
     try {
       setLoading(true);
 
       const response = await getGoalForPeriod(periodType, periodKey);
 
+      if (!mountedRef.current) return;
+
       setGoal(response);
 
+      /**
+       * Se já existe meta, preenche o input com o valor salvo.
+       * Multiplica por 100 porque a função formatCurrencyInput trabalha
+       * com números digitados como centavos.
+       */
       if (response?.target_amount) {
         setAmount(
           formatCurrencyInput(String(Number(response.target_amount) * 100)),
@@ -158,12 +354,26 @@ export function GoalCard({
       }
     } catch (error) {
       console.log(error);
-      setGoal(null);
+
+      if (mountedRef.current) {
+        setGoal(null);
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }
 
+  /**
+   * Abre o modal de criar ou editar meta.
+   *
+   * Se já existe meta:
+   * - permite editar somente o período atual.
+   *
+   * Se não existe meta:
+   * - gera opções futuras para aplicar a meta em vários períodos.
+   */
   function openModal() {
     if (!canManage) return;
 
@@ -186,6 +396,7 @@ export function GoalCard({
         periodType,
         periodStart,
       );
+
       setOptions(generatedOptions);
       setSelectedKeys([generatedOptions[0]?.periodKey].filter(Boolean));
       setAmount("");
@@ -194,6 +405,11 @@ export function GoalCard({
     setModalVisible(true);
   }
 
+  /**
+   * Marca ou desmarca um período no modal de criação de metas.
+   *
+   * Mantém pelo menos uma opção selecionada para evitar salvar sem período.
+   */
   function toggleOption(key: string) {
     setSelectedKeys((current) => {
       if (current.includes(key)) {
@@ -205,6 +421,12 @@ export function GoalCard({
     });
   }
 
+  /**
+   * Valida e salva a meta.
+   *
+   * Quando o usuário seleciona vários períodos, salva a mesma meta
+   * em todos eles usando Promise.all.
+   */
   async function handleSaveGoal() {
     const targetAmount = parseCurrency(amount);
 
@@ -240,20 +462,32 @@ export function GoalCard({
         ),
       );
 
+      if (!mountedRef.current) return;
+
       setModalVisible(false);
       await loadGoal();
     } catch (error: any) {
       Alert.alert("Erro", error.message ?? "Não foi possível salvar a meta.");
     } finally {
-      setSaving(false);
+      if (mountedRef.current) {
+        setSaving(false);
+      }
     }
   }
 
+  /**
+   * Abre o modal de exclusão de metas.
+   *
+   * Busca todas as metas a partir do período selecionado,
+   * permitindo excluir uma ou várias de uma vez.
+   */
   async function openDeleteModal() {
     try {
       setDeleteLoading(true);
 
       const response = await getGoalsFromPeriod(periodType, periodStart);
+
+      if (!mountedRef.current) return;
 
       const mappedOptions = response.map((item: any) => ({
         id: item.id,
@@ -274,10 +508,15 @@ export function GoalCard({
         error.message ?? "Não foi possível carregar as metas.",
       );
     } finally {
-      setDeleteLoading(false);
+      if (mountedRef.current) {
+        setDeleteLoading(false);
+      }
     }
   }
 
+  /**
+   * Marca ou desmarca uma meta para exclusão.
+   */
   function toggleDeleteOption(id: string) {
     setSelectedDeleteIds((current) => {
       if (current.includes(id)) {
@@ -288,6 +527,9 @@ export function GoalCard({
     });
   }
 
+  /**
+   * Exclui as metas selecionadas no modal de exclusão.
+   */
   async function handleDeleteSelectedGoals() {
     if (selectedDeleteIds.length === 0) {
       Alert.alert(
@@ -302,6 +544,8 @@ export function GoalCard({
 
       await deleteGoals(selectedDeleteIds);
 
+      if (!mountedRef.current) return;
+
       setDeleteModalVisible(false);
       setSelectedDeleteIds([]);
       await loadGoal();
@@ -311,10 +555,19 @@ export function GoalCard({
         error.message ?? "Não foi possível excluir as metas selecionadas.",
       );
     } finally {
-      setSaving(false);
+      if (mountedRef.current) {
+        setSaving(false);
+      }
     }
   }
 
+  /**
+   * Retorna o complemento textual do período.
+   *
+   * Exemplo:
+   * - Meta do dia.
+   * - Meta da semana.
+   */
   function getPeriodLabel() {
     if (periodType === "day") return "do dia";
     if (periodType === "week") return "da semana";
@@ -322,6 +575,9 @@ export function GoalCard({
     return "do ano";
   }
 
+  /**
+   * Retorna o label do período atual exibido no modal de edição.
+   */
   function getCurrentPeriodLabel() {
     const start = new Date(periodStart);
     const end = new Date(periodEnd);
@@ -334,6 +590,13 @@ export function GoalCard({
     return String(start.getFullYear());
   }
 
+  /**
+   * Retorna mensagem de status da meta.
+   *
+   * Só mostra mensagem quando:
+   * - a meta foi batida;
+   * - ou o período terminou e a meta não foi batida.
+   */
   function getStatusMessage() {
     if (!goal) return null;
     if (achieved) return "🎉 Parabéns, meta alcançada!";
@@ -341,6 +604,9 @@ export function GoalCard({
     return null;
   }
 
+  /**
+   * Formata número para moeda brasileira sem incluir o prefixo "R$".
+   */
   function formatCurrency(value: number) {
     return Number(value ?? 0).toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
@@ -348,6 +614,14 @@ export function GoalCard({
     });
   }
 
+  /**
+   * Aplica máscara de moeda no input.
+   *
+   * O usuário digita apenas números e a função transforma em formato:
+   * - 1,00
+   * - 10,00
+   * - 100,00
+   */
   function formatCurrencyInput(value: string) {
     const numbers = value.replace(/\D/g, "");
     if (!numbers) return "";
@@ -360,6 +634,12 @@ export function GoalCard({
     });
   }
 
+  /**
+   * Converte moeda brasileira em número.
+   *
+   * Exemplo:
+   * - "1.250,50" vira 1250.5.
+   */
   function parseCurrency(value: string) {
     if (!value) return 0;
 
@@ -371,6 +651,9 @@ export function GoalCard({
     );
   }
 
+  /**
+   * Estado de carregamento inicial do card.
+   */
   if (loading) {
     return (
       <View style={styles.card}>
@@ -379,14 +662,25 @@ export function GoalCard({
     );
   }
 
+  /**
+   * Se não existe meta e o período já terminou,
+   * o card não aparece.
+   */
   if (!goal && periodEnded) {
     return null;
   }
 
+  /**
+   * Se for meta anual, não existe meta e o prazo de gestão acabou,
+   * o card também não aparece.
+   */
   if (!goal && periodType === "year" && !canManage) {
     return null;
   }
 
+  /**
+   * Renderização quando ainda não existe meta cadastrada.
+   */
   if (!goal) {
     return (
       <View style={styles.card}>
@@ -398,7 +692,7 @@ export function GoalCard({
           <View style={styles.headerInfo}>
             <Text style={styles.title}>Meta {getPeriodLabel()}</Text>
             <Text style={styles.subtitle}>
-              Defina uma meta e ganhe {rewardXp} XP ao atingi-la.
+              Defina uma meta para acompanhar seu desempenho no período.
             </Text>
           </View>
         </View>
@@ -465,6 +759,9 @@ export function GoalCard({
     );
   }
 
+  /**
+   * Renderização quando já existe meta cadastrada.
+   */
   const statusMessage = getStatusMessage();
 
   return (
@@ -477,7 +774,7 @@ export function GoalCard({
         <View style={styles.headerInfo}>
           <Text style={styles.title}>Meta {getPeriodLabel()}</Text>
           <Text style={styles.subtitle}>
-            Ganhe {rewardXp} XP ao atingir essa meta.
+            Acompanhe seu progresso até o final do período.
           </Text>
         </View>
       </View>
@@ -501,11 +798,6 @@ export function GoalCard({
             R$ {formatCurrency(goal.target_amount)}
           </Text>
         </View>
-
-        <View style={styles.xpBadge}>
-          <Ionicons name="flash" size={15} color="#FACC15" />
-          <Text style={styles.xpBadgeText}>{rewardXp} XP</Text>
-        </View>
       </View>
 
       <View style={styles.progressHeader}>
@@ -525,7 +817,11 @@ export function GoalCard({
       </View>
 
       <View style={styles.detailsGrid}>
-        <Detail label={periodEnded ? "Faltou" : "Falta"} value={`R$ ${formatCurrency(missingAmount)}`} />
+        <Detail
+          label={periodEnded ? "Faltou" : "Falta"}
+          value={`R$ ${formatCurrency(missingAmount)}`}
+        />
+
         <Detail
           label={periodNotStarted ? "Inicia em" : "Tempo restante"}
           value={
@@ -605,6 +901,15 @@ export function GoalCard({
   );
 }
 
+/**
+ * Modal usado para criar ou editar uma meta.
+ *
+ * Quando showOptions é true:
+ * - mostra a lista horizontal de períodos selecionáveis.
+ *
+ * Quando showOptions é false:
+ * - edita apenas a meta do período atual.
+ */
 function GoalModal({
   visible,
   title,
@@ -712,6 +1017,9 @@ function GoalModal({
   );
 }
 
+/**
+ * Modal usado para excluir uma ou várias metas.
+ */
 function DeleteGoalModal({
   visible,
   loading,
@@ -814,6 +1122,13 @@ function DeleteGoalModal({
   );
 }
 
+/**
+ * Pequeno card de detalhe usado dentro da meta.
+ *
+ * Exemplo:
+ * - Falta: R$ 120,00.
+ * - Tempo restante: 02:10:30.
+ */
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.detailBox}>
@@ -823,6 +1138,15 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * Gera opções de metas futuras para o usuário selecionar.
+ *
+ * Regras:
+ * - Meta diária: próximos 10 dias.
+ * - Meta semanal: próximas 5 semanas.
+ * - Meta mensal: próximos 5 meses.
+ * - Meta anual: apenas o ano selecionado.
+ */
 function getSelectableGoalOptions(
   periodType: GoalPeriodType,
   periodStart: string,
@@ -919,6 +1243,9 @@ function getSelectableGoalOptions(
   ];
 }
 
+/**
+ * Formata o nome de uma meta para exibição no modal de exclusão.
+ */
 function formatGoalOptionLabel(
   periodType: GoalPeriodType,
   periodStart: string,
@@ -935,6 +1262,9 @@ function formatGoalOptionLabel(
   return String(start.getFullYear());
 }
 
+/**
+ * Verifica se a meta ainda pode ser criada, editada ou excluída.
+ */
 function isManageAllowed(
   periodType: GoalPeriodType,
   periodStart: string,
@@ -943,6 +1273,9 @@ function isManageAllowed(
   return currentDate <= getManageDeadline(periodType, periodStart);
 }
 
+/**
+ * Retorna o prazo final de gerenciamento de acordo com o tipo da meta.
+ */
 function getManageDeadline(periodType: GoalPeriodType, periodStart: string) {
   const start = new Date(periodStart);
   const deadline = new Date(start);
@@ -974,6 +1307,9 @@ function getManageDeadline(periodType: GoalPeriodType, periodStart: string) {
   return deadline;
 }
 
+/**
+ * Retorna o texto explicativo da regra de cada meta.
+ */
 function getManageRuleDescription(
   periodType: GoalPeriodType,
   hasGoal: boolean,
@@ -997,6 +1333,13 @@ function getManageRuleDescription(
   return `As metas do ano ${actionText} até o final de outubro do ano selecionado.`;
 }
 
+/**
+ * Calcula contagem regressiva até uma data.
+ *
+ * Retorna:
+ * - DDd HH:mm:ss quando ainda falta mais de um dia;
+ * - HH:mm:ss quando falta menos de um dia.
+ */
 function getCountdown(targetDate: string, currentDate: Date) {
   const now = currentDate.getTime();
   const target = new Date(targetDate).getTime();
@@ -1019,6 +1362,9 @@ function getCountdown(targetDate: string, currentDate: Date) {
   return `${hh}:${mm}:${ss}`;
 }
 
+/**
+ * Retorna o início do dia.
+ */
 function startOfDay(date: Date) {
   return new Date(
     date.getFullYear(),
@@ -1031,6 +1377,9 @@ function startOfDay(date: Date) {
   );
 }
 
+/**
+ * Retorna o final do dia.
+ */
 function endOfDay(date: Date) {
   return new Date(
     date.getFullYear(),
@@ -1043,6 +1392,9 @@ function endOfDay(date: Date) {
   );
 }
 
+/**
+ * Retorna a segunda-feira da semana da data recebida.
+ */
 function startOfWeekMonday(date: Date) {
   const day = date.getDay();
   const diff = day === 0 ? -6 : 1 - day;
@@ -1051,12 +1403,18 @@ function startOfWeekMonday(date: Date) {
   return monday;
 }
 
+/**
+ * Soma dias a uma data.
+ */
 function addDays(date: Date, days: number) {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
   return result;
 }
 
+/**
+ * Formata uma data como chave YYYY-MM-DD.
+ */
 function formatDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -1065,6 +1423,12 @@ function formatDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Formata uma data curta para exibição.
+ *
+ * Exemplo:
+ * - Seg, 12 Jul.
+ */
 function formatDayLabel(date: Date) {
   return `${weekDays[date.getDay()]}, ${date.getDate()} ${shortMonths[date.getMonth()]}`;
 }
@@ -1146,9 +1510,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   amountRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 12,
   },
   amountLabel: { color: "#A1A1AA", fontSize: 11, fontWeight: "800" },
@@ -1158,18 +1519,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginTop: 3,
   },
-  xpBadge: {
-    height: 32,
-    borderRadius: 999,
-    backgroundColor: "#2A2408",
-    borderWidth: 1,
-    borderColor: "#713F12",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-  },
-  xpBadgeText: { color: "#FACC15", fontSize: 12, fontWeight: "900" },
   progressHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

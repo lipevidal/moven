@@ -1,30 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Keyboard,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
-  StyleSheet,
-  Modal,
-  ScrollView,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
-  Keyboard,
+  View,
 } from 'react-native';
 
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 import { supabase } from '../../src/database/supabase';
 import {
-  searchMunicipalities,
-  Municipality,
-} from '../../src/features/municipalities/services/searchMunicipalities';
-
+  IbgeMunicipality,
+  searchIbgeMunicipalities,
+} from '../../src/features/municipalities/services/searchIbgeMunicipalities';
 type RegisterErrors = {
   name?: string;
   username?: string;
@@ -34,85 +32,315 @@ type RegisterErrors = {
   confirmPassword?: string;
 };
 
+type RegisterErrorResult = {
+  title: string;
+  message: string;
+  field?: keyof RegisterErrors;
+};
+
+
+/**
+ * Logo fora do componente.
+ *
+ * Isso evita recriar o require a cada renderização.
+ */
+const LOGO_SOURCE = require('../../assets/images/movenapp-logo.png');
+
+/**
+ * Rotas usadas pela tela.
+ *
+ * Evita strings espalhadas pelo código.
+ */
+const ROUTES = {
+  login: '/(auth)/login',
+  dashboard: '/(private)/(tabs)/dashboard',
+} as const;
+
+/**
+ * Tempo de debounce da busca de cidades.
+ *
+ * Em vez de chamar a busca em toda letra digitada imediatamente,
+ * aguardamos um pequeno intervalo. Isso deixa a tela mais leve.
+ */
+const MUNICIPALITY_SEARCH_DEBOUNCE_MS = 320;
+
+/**
+ * Tempo usado para aguardar o teclado iniciar o fechamento antes de processar.
+ */
+const KEYBOARD_DISMISS_DELAY_MS = 120;
+
+/**
+ * Padroniza o username para URL/perfil público.
+ *
+ * Regras:
+ * - minúsculo
+ * - sem espaços
+ * - apenas letras, números, ponto e underline
+ * - máximo de 24 caracteres
+ */
+function formatUsername(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._]/g, '')
+    .slice(0, 24);
+}
+
+/**
+ * Validação simples de e-mail.
+ */
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
+}
+
+/**
+ * Pequeno helper para aguardar alguns milissegundos.
+ *
+ * Usado para fechar o teclado antes de começar o processamento do cadastro.
+ */
+function wait(milliseconds: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+
+/**
+ * Traduz erros retornados pelo Supabase para mensagens amigáveis em português.
+ *
+ * Isso evita mostrar mensagens técnicas como:
+ * - User already registered
+ * - invalid email
+ * - rate limit
+ */
+function translateRegisterError(error: any): RegisterErrorResult {
+  const rawMessage = String(error?.message ?? '');
+  const message = rawMessage.toLowerCase();
+  const code = String(error?.code ?? '').toLowerCase();
+
+  if (
+    code.includes('user_already_exists') ||
+    code.includes('email_exists') ||
+    message.includes('user already registered') ||
+    message.includes('already registered') ||
+    message.includes('already been registered') ||
+    (message.includes('email') && message.includes('registered'))
+  ) {
+    return {
+      title: 'E-mail já cadastrado',
+      message: 'Este e-mail já está cadastrado. Entre com sua conta ou use outro e-mail.',
+      field: 'email',
+    };
+  }
+
+  if (message.includes('invalid email')) {
+    return {
+      title: 'E-mail inválido',
+      message: 'Informe um e-mail válido para criar sua conta.',
+      field: 'email',
+    };
+  }
+
+  if (message.includes('password')) {
+    return {
+      title: 'Senha inválida',
+      message: 'A senha informada não atende aos requisitos. Use pelo menos 6 caracteres.',
+      field: 'password',
+    };
+  }
+
+  if (message.includes('rate limit') || message.includes('too many')) {
+    return {
+      title: 'Muitas tentativas',
+      message: 'Você tentou criar conta muitas vezes. Aguarde alguns minutos e tente novamente.',
+    };
+  }
+
+  if (message.includes('network') || message.includes('fetch')) {
+    return {
+      title: 'Falha de conexão',
+      message: 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
+    };
+  }
+
+  if (message.includes('username') || rawMessage.includes('nome de usuário')) {
+    return {
+      title: 'Nome de usuário indisponível',
+      message: 'Este nome de usuário já está em uso. Escolha outro.',
+      field: 'username',
+    };
+  }
+
+  if (
+    message.includes('profile') ||
+    message.includes('perfil') ||
+    message.includes('profiles') ||
+    message.includes('handle_new_user_profile')
+  ) {
+    return {
+      title: 'Erro ao criar perfil',
+      message:
+        'Não foi possível criar seu perfil. A conta não será criada até o perfil ser salvo corretamente.',
+    };
+  }
+
+  return {
+    title: 'Erro ao criar conta',
+    message: 'Não foi possível criar sua conta agora. Revise os dados e tente novamente.',
+  };
+}
+
+/**
+ * Tela de cadastro.
+ *
+ * Otimizações aplicadas:
+ * - Removido useEffect do teclado.
+ * - Removido KeyboardAvoidingView.
+ * - Removido estado keyboardVisible.
+ * - Removida troca dinâmica de tamanho da logo.
+ * - Adicionado debounce na busca de cidades.
+ * - Evita verificar username duas vezes se ele já foi validado.
+ * - Evita clique duplo no botão Criar conta com registerRequestRef.
+ * - Fecha o teclado antes de começar o processamento.
+ * - Funções estáticas foram movidas para fora do componente.
+ */
 export default function RegisterScreen() {
-  // Estados principais do formulário de cadastro.
+  /**
+   * Referência do ScrollView principal.
+   *
+   * Usada para rolar até o botão/erros quando necessário.
+   */
+  const scrollRef = useRef<any>(null);
+
+  /**
+   * Guarda o timeout da busca de cidades.
+   *
+   * Isso permite cancelar a busca anterior quando o usuário continua digitando.
+   */
+  const municipalitySearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Evita múltiplos cadastros ao tocar várias vezes no botão.
+   */
+  const registerRequestRef = useRef(false);
+
+  /**
+   * Guarda o último username verificado com sucesso/erro.
+   *
+   * Com isso, no botão Criar conta não precisamos chamar a RPC novamente
+   * se o mesmo username já foi verificado no onBlur.
+   */
+  const lastCheckedUsernameRef = useRef<{
+    username: string;
+    available: boolean;
+  } | null>(null);
+
+  /**
+   * Campos principais do formulário.
+   */
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [usernameLoading, setUsernameLoading] = useState(false);
-  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
-  const [usernameMessage, setUsernameMessage] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  /**
+   * Estados visuais de senha.
+   */
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  /**
+   * Estados de carregamento.
+   */
   const [loading, setLoading] = useState(false);
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [municipalityLoading, setMunicipalityLoading] = useState(false);
+
+  /**
+   * Estados de validação do username.
+   */
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameMessage, setUsernameMessage] = useState('');
+
+  /**
+   * Estado de erros por campo.
+   */
   const [errors, setErrors] = useState<RegisterErrors>({});
 
-  // Estados da busca de cidade base.
+  /**
+   * Estados do modal de município.
+   */
   const [municipalityModalVisible, setMunicipalityModalVisible] = useState(false);
   const [municipalitySearch, setMunicipalitySearch] = useState('');
-  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
-  const [selectedMunicipality, setSelectedMunicipality] = useState<Municipality | null>(null);
-  const [municipalityLoading, setMunicipalityLoading] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [municipalities, setMunicipalities] = useState<IbgeMunicipality[]>([]);
+  const [selectedMunicipality, setSelectedMunicipality] = useState<IbgeMunicipality | null>(null);
 
-  // Controla o teclado para reduzir a logo no iOS/Android e evitar que os campos fiquem cobertos.
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-
-    const hideEvent =
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSubscription = Keyboard.addListener(showEvent, () => {
-      setKeyboardVisible(true);
-    });
-
-    const hideSubscription = Keyboard.addListener(hideEvent, () => {
-      setKeyboardVisible(false);
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  // Padroniza o username para ser usado em URL/perfil público.
-  function formatUsername(value: string) {
-    return value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._]/g, '')
-      .slice(0, 24);
-  }
-
-  function clearFieldError(field: keyof RegisterErrors) {
+  /**
+   * Remove erro de um campo quando o usuário começa a corrigir.
+   */
+  const clearFieldError = useCallback((field: keyof RegisterErrors) => {
     setErrors((current) => ({
       ...current,
       [field]: undefined,
     }));
-  }
+  }, []);
 
-  function isValidEmail(value: string) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
-  }
+  /**
+   * Rola para o final da tela.
+   *
+   * Útil quando o teclado abre ou quando aparece erro próximo ao botão.
+   */
+  const scrollToEnd = useCallback((delay = 120) => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, delay);
+  }, []);
 
-  // Verifica se o username já está em uso no Supabase.
-  async function checkUsername(value: string) {
+  /**
+   * Verifica se o username está disponível.
+   *
+   * Otimização:
+   * - Se o mesmo username já foi verificado, retorna o resultado em cache.
+   * - Evita chamada RPC duplicada no Supabase.
+   */
+  const checkUsername = useCallback(async (value: string, force = false) => {
     const cleanUsername = formatUsername(value);
 
     setUsername(cleanUsername);
 
     if (cleanUsername.length < 3) {
+      const message = 'O nome de usuário precisa ter pelo menos 3 caracteres.';
+
+      lastCheckedUsernameRef.current = {
+        username: cleanUsername,
+        available: false,
+      };
+
       setUsernameAvailable(false);
-      setUsernameMessage('O nome de usuário precisa ter pelo menos 3 caracteres.');
+      setUsernameMessage(message);
       setErrors((current) => ({
         ...current,
-        username: 'O nome de usuário precisa ter pelo menos 3 caracteres.',
+        username: message,
       }));
+
       return false;
+    }
+
+    if (
+      !force &&
+      lastCheckedUsernameRef.current?.username === cleanUsername
+    ) {
+      const cachedAvailable = lastCheckedUsernameRef.current.available;
+
+      setUsernameAvailable(cachedAvailable);
+      setUsernameMessage(
+        cachedAvailable
+          ? 'Nome de usuário disponível.'
+          : 'Este nome de usuário já está em uso.',
+      );
+
+      return cachedAvailable;
     }
 
     try {
@@ -122,11 +350,14 @@ export default function RegisterScreen() {
         username_to_check: cleanUsername,
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       const available = data === true;
+
+      lastCheckedUsernameRef.current = {
+        username: cleanUsername,
+        available,
+      };
 
       setUsernameAvailable(available);
       setUsernameMessage(
@@ -144,6 +375,11 @@ export default function RegisterScreen() {
     } catch (error) {
       console.log('Erro ao verificar username:', error);
 
+      lastCheckedUsernameRef.current = {
+        username: cleanUsername,
+        available: false,
+      };
+
       setUsernameAvailable(false);
       setUsernameMessage('Não foi possível verificar o nome de usuário.');
       setErrors((current) => ({
@@ -155,39 +391,62 @@ export default function RegisterScreen() {
     } finally {
       setUsernameLoading(false);
     }
-  }
+  }, []);
 
-  // Busca municípios conforme o usuário digita no modal.
-  async function handleSearchMunicipalities(text: string) {
+  /**
+   * Busca municípios com debounce.
+   *
+   * Antes:
+   * - cada letra digitada chamava a busca imediatamente.
+   *
+   * Agora:
+   * - espera o usuário parar de digitar por alguns milissegundos.
+   * - reduz chamadas desnecessárias.
+   * - deixa a tela mais leve.
+   */
+  const handleSearchMunicipalities = useCallback((text: string) => {
     setMunicipalitySearch(text);
 
-    if (text.trim().length < 2) {
+    if (municipalitySearchTimeoutRef.current) {
+      clearTimeout(municipalitySearchTimeoutRef.current);
+    }
+
+    const cleanText = text.trim();
+
+    if (cleanText.length < 2) {
       setMunicipalities([]);
+      setMunicipalityLoading(false);
       return;
     }
 
-    try {
-      setMunicipalityLoading(true);
+    setMunicipalityLoading(true);
 
-      const response = await searchMunicipalities(text);
+    municipalitySearchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await searchIbgeMunicipalities(cleanText);
 
-      setMunicipalities(response);
-    } catch (error) {
-      console.log(error);
-      setMunicipalities([]);
-    } finally {
-      setMunicipalityLoading(false);
-    }
-  }
+        setMunicipalities(response);
+      } catch (error) {
+        console.log('Erro ao buscar cidades na tabela ibge_localidades:', error);
+        setMunicipalities([]);
+      } finally {
+        setMunicipalityLoading(false);
+      }
+    }, MUNICIPALITY_SEARCH_DEBOUNCE_MS);
+  }, []);
 
-  // Valida todos os campos e mostra mensagens em português abaixo de cada input.
-  function validateFields() {
+  /**
+   * Valida todos os campos antes de chamar o Supabase.
+   */
+  const validateFields = useCallback(() => {
     const nextErrors: RegisterErrors = {};
+    const cleanName = name.trim();
     const cleanUsername = formatUsername(username);
+    const cleanEmail = email.trim();
 
-    if (!name.trim()) {
+    if (!cleanName) {
       nextErrors.name = 'Informe seu nome completo.';
-    } else if (name.trim().length < 2) {
+    } else if (cleanName.length < 2) {
       nextErrors.name = 'O nome precisa ter pelo menos 2 caracteres.';
     }
 
@@ -198,12 +457,12 @@ export default function RegisterScreen() {
     }
 
     if (!selectedMunicipality) {
-      nextErrors.municipality = 'Selecione sua cidade base.';
+      nextErrors.municipality = 'Selecione a cidade onde mora.';
     }
 
-    if (!email.trim()) {
+    if (!cleanEmail) {
       nextErrors.email = 'Informe seu e-mail.';
-    } else if (!isValidEmail(email)) {
+    } else if (!isValidEmail(cleanEmail)) {
       nextErrors.email = 'Informe um e-mail válido.';
     }
 
@@ -222,83 +481,29 @@ export default function RegisterScreen() {
     setErrors(nextErrors);
 
     return Object.keys(nextErrors).length === 0;
-  }
+  }, [confirmPassword, email, name, password, selectedMunicipality, username]);
 
-  // Traduz erros retornados pelo Supabase para mensagens amigáveis em português.
-  // Isso evita que mensagens como "User already registered" apareçam para o usuário.
-  function translateRegisterError(error: any): {
-    title: string;
-    message: string;
-    field?: keyof RegisterErrors;
-  } {
-    const rawMessage = String(error?.message ?? '');
-    const message = rawMessage.toLowerCase();
-    const code = String(error?.code ?? '').toLowerCase();
-
-    if (
-      code.includes('user_already_exists') ||
-      code.includes('email_exists') ||
-      message.includes('user already registered') ||
-      message.includes('already registered') ||
-      message.includes('already been registered') ||
-      (message.includes('email') && message.includes('registered'))
-    ) {
-      return {
-        title: 'E-mail já cadastrado',
-        message: 'Este e-mail já está cadastrado. Entre com sua conta ou use outro e-mail.',
-        field: 'email',
-      };
-    }
-
-    if (message.includes('invalid email')) {
-      return {
-        title: 'E-mail inválido',
-        message: 'Informe um e-mail válido para criar sua conta.',
-        field: 'email',
-      };
-    }
-
-    if (message.includes('password')) {
-      return {
-        title: 'Senha inválida',
-        message: 'A senha informada não atende aos requisitos. Use pelo menos 6 caracteres.',
-        field: 'password',
-      };
-    }
-
-    if (message.includes('rate limit') || message.includes('too many')) {
-      return {
-        title: 'Muitas tentativas',
-        message: 'Você tentou criar conta muitas vezes. Aguarde alguns minutos e tente novamente.',
-      };
-    }
-
-    if (message.includes('network') || message.includes('fetch')) {
-      return {
-        title: 'Falha de conexão',
-        message: 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
-      };
-    }
-
-    if (message.includes('username') || rawMessage.includes('nome de usuário')) {
-      return {
-        title: 'Nome de usuário indisponível',
-        message: 'Este nome de usuário já está em uso. Escolha outro.',
-        field: 'username',
-      };
-    }
-
-    return {
-      title: 'Erro ao criar conta',
-      message: 'Não foi possível criar sua conta agora. Revise os dados e tente novamente.',
-    };
-  }
-
-  async function handleRegister() {
+  /**
+   * Cria a conta no Supabase Auth e depois cria o perfil na tabela profiles.
+   */
+  const handleRegister = useCallback(async () => {
     try {
+      if (loading || registerRequestRef.current) return;
+
+      registerRequestRef.current = true;
+
+      /**
+       * Primeiro fecha o teclado, depois começa o processamento.
+       *
+       * Isso evita travamentos visuais e deixa a experiência mais limpa.
+       */
+      Keyboard.dismiss();
+      await wait(KEYBOARD_DISMISS_DELAY_MS);
+
       const valid = validateFields();
 
       if (!valid) {
+        scrollToEnd(100);
         return;
       }
 
@@ -306,47 +511,43 @@ export default function RegisterScreen() {
       const available = await checkUsername(cleanUsername);
 
       if (!available) {
+        scrollToEnd(100);
         return;
       }
 
       setLoading(true);
 
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanName = name.trim();
+
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password,
         options: {
           data: {
-            name: name.trim(),
+            name: cleanName,
             username: cleanUsername,
             city: selectedMunicipality?.name,
             municipality_id: selectedMunicipality?.id,
+            regiao_imediata: selectedMunicipality?.immediate_region,
+            regiao_intermediaria: selectedMunicipality?.intermediate_region,
+            estado: selectedMunicipality?.state,
+            estado_uf: selectedMunicipality?.uf,
           },
         },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      if (data.user && selectedMunicipality) {
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          name: name.trim(),
-          full_name: name.trim(),
-          username: cleanUsername,
-          email: email.trim().toLowerCase(),
-          city: selectedMunicipality.name,
-          region: selectedMunicipality.immediate_region ?? selectedMunicipality.name,
-          default_municipality_id: selectedMunicipality.id,
-        });
+      /*
+        O perfil agora é criado automaticamente no banco por trigger em auth.users.
 
-        if (profileError) {
-          if (profileError.code === '23505') {
-            throw new Error('Este nome de usuário já está em uso.');
-          }
-
-          throw profileError;
-        }
+        Isso evita o problema de criar o usuário no Auth e falhar depois ao inserir
+        na tabela profiles. Se a criação do perfil falhar no trigger, o próprio
+        signUp retorna erro e o usuário não fica órfão sem profile.
+      */
+      if (!data.user) {
+        throw new Error('Não foi possível confirmar a criação do usuário.');
       }
 
       if (!data.session) {
@@ -355,13 +556,13 @@ export default function RegisterScreen() {
           'A conta foi criada, mas o Supabase ainda está exigindo confirmação de e-mail. Desative essa opção no painel do Supabase para entrar automaticamente.',
         );
 
-        router.replace('/(auth)/login');
+        router.replace(ROUTES.login as never);
         return;
       }
 
       Alert.alert('Conta criada', 'Sua conta foi criada com sucesso.');
 
-      router.replace('/(private)/(tabs)/dashboard' as never);
+      router.replace(ROUTES.dashboard as never);
     } catch (error: any) {
       const translatedError = translateRegisterError(error);
 
@@ -372,40 +573,58 @@ export default function RegisterScreen() {
         }));
       }
 
+      scrollToEnd(100);
       Alert.alert(translatedError.title, translatedError.message);
     } finally {
       setLoading(false);
+      registerRequestRef.current = false;
     }
-  }
+  }, [
+    checkUsername,
+    email,
+    loading,
+    name,
+    password,
+    scrollToEnd,
+    selectedMunicipality,
+    username,
+    validateFields,
+  ]);
+
+  /**
+   * Seleciona município e fecha modal.
+   */
+  const handleSelectMunicipality = useCallback((item: IbgeMunicipality) => {
+    setSelectedMunicipality(item);
+    clearFieldError('municipality');
+    setMunicipalityModalVisible(false);
+  }, [clearFieldError]);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
+    <View style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        contentContainerStyle={[
-          styles.scrollContent,
-          keyboardVisible && styles.scrollContentKeyboard,
-        ]}
-        automaticallyAdjustKeyboardInsets
-        contentInsetAdjustmentBehavior="always"
+        contentContainerStyle={styles.scrollContent}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        automaticallyAdjustKeyboardInsets={false}
+        overScrollMode="never"
+        bounces={false}
       >
         <View style={styles.heroCard}>
           <View style={styles.titleRow}>
             <View style={styles.logoShell}>
               <Image
-                source={require('../../assets/images/movenapp-logo.png')}
-                style={[styles.logo, keyboardVisible && styles.logoKeyboard]}
+                source={LOGO_SOURCE}
+                style={styles.logo}
                 resizeMode="contain"
               />
             </View>
 
-            <View style={{ flex: 1,}}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.eyebrow}>Comece agora</Text>
               <Text style={styles.title}>Criar conta</Text>
             </View>
@@ -417,10 +636,11 @@ export default function RegisterScreen() {
         </View>
 
         <View style={styles.formCard}>
-          {/* Campo de nome do usuário. */}
           <Text style={styles.label}>Nome completo</Text>
+
           <View style={[styles.inputContainer, errors.name && styles.inputContainerError]}>
             <Ionicons name="person-outline" size={20} color="#9B969B" />
+
             <TextInput
               value={name}
               onChangeText={(text) => {
@@ -433,19 +653,23 @@ export default function RegisterScreen() {
               style={styles.input}
             />
           </View>
+
           {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
 
-          {/* Campo de username único para perfil público. */}
           <Text style={styles.label}>Nome de usuário</Text>
+
           <View style={[styles.inputContainer, errors.username && styles.inputContainerError]}>
             <Text style={styles.atSign}>@</Text>
+
             <TextInput
               value={username}
               onChangeText={(value) => {
                 const clean = formatUsername(value);
+
                 setUsername(clean);
                 setUsernameAvailable(null);
                 setUsernameMessage('');
+                lastCheckedUsernameRef.current = null;
                 clearFieldError('username');
               }}
               onBlur={() => checkUsername(username)}
@@ -466,6 +690,7 @@ export default function RegisterScreen() {
               />
             ) : null}
           </View>
+
           {usernameMessage ? (
             <Text
               style={[
@@ -481,8 +706,8 @@ export default function RegisterScreen() {
             <Text style={styles.helperText}>Use letras, números, ponto ou underline.</Text>
           )}
 
-          {/* Seleção da cidade base. A região foi removida da exibição conforme solicitado. */}
-          <Text style={styles.label}>Cidade base</Text>
+          <Text style={styles.label}>Cidade onde mora</Text>
+
           <TouchableOpacity
             activeOpacity={0.85}
             style={[styles.selectCard, errors.municipality && styles.inputContainerError]}
@@ -493,24 +718,31 @@ export default function RegisterScreen() {
             </View>
 
             <View style={{ flex: 1 }}>
-              <Text style={styles.selectLabel}>Cidade de atuação</Text>
               <Text style={styles.selectText} numberOfLines={1}>
                 {selectedMunicipality
                   ? `${selectedMunicipality.name} - ${selectedMunicipality.uf}`
                   : 'Selecionar cidade'}
               </Text>
+
+              {selectedMunicipality?.immediate_region ? (
+                <Text style={styles.selectSubText} numberOfLines={1}>
+                  {selectedMunicipality.immediate_region}
+                </Text>
+              ) : null}
             </View>
 
             <Ionicons name="chevron-forward" size={21} color="#F5F0E6" />
           </TouchableOpacity>
+
           {errors.municipality ? (
             <Text style={styles.errorText}>{errors.municipality}</Text>
           ) : null}
 
-          {/* Campo de e-mail usado no login. */}
           <Text style={styles.label}>E-mail</Text>
+
           <View style={[styles.inputContainer, errors.email && styles.inputContainerError]}>
             <Ionicons name="mail-outline" size={20} color="#9B969B" />
+
             <TextInput
               value={email}
               onChangeText={(text) => {
@@ -527,15 +759,14 @@ export default function RegisterScreen() {
               style={styles.input}
             />
           </View>
+
           {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
 
-          {/*
-            No iOS, textContentType="oneTimeCode" evita que o sistema force a sugestão
-            de senha forte e atrapalhe o usuário ao digitar a própria senha.
-          */}
           <Text style={styles.label}>Senha</Text>
+
           <View style={[styles.inputContainer, errors.password && styles.inputContainerError]}>
             <Ionicons name="lock-closed-outline" size={20} color="#9B969B" />
+
             <TextInput
               value={password}
               onChangeText={(text) => {
@@ -552,6 +783,7 @@ export default function RegisterScreen() {
               importantForAutofill="no"
               textContentType="oneTimeCode"
               style={styles.input}
+              onFocus={() => scrollToEnd(160)}
             />
 
             <TouchableOpacity
@@ -566,12 +798,14 @@ export default function RegisterScreen() {
               />
             </TouchableOpacity>
           </View>
+
           {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
 
-          {/* Confirmação para impedir cadastro com senha digitada incorretamente. */}
           <Text style={styles.label}>Confirmar senha</Text>
+
           <View style={[styles.inputContainer, errors.confirmPassword && styles.inputContainerError]}>
             <Ionicons name="shield-checkmark-outline" size={20} color="#9B969B" />
+
             <TextInput
               value={confirmPassword}
               onChangeText={(text) => {
@@ -587,6 +821,8 @@ export default function RegisterScreen() {
               importantForAutofill="no"
               textContentType="oneTimeCode"
               style={styles.input}
+              onFocus={() => scrollToEnd(160)}
+              onSubmitEditing={handleRegister}
             />
 
             <TouchableOpacity
@@ -601,6 +837,7 @@ export default function RegisterScreen() {
               />
             </TouchableOpacity>
           </View>
+
           {errors.confirmPassword ? (
             <Text style={styles.errorText}>{errors.confirmPassword}</Text>
           ) : null}
@@ -644,8 +881,8 @@ export default function RegisterScreen() {
                 </View>
 
                 <View>
-                  <Text style={styles.modalEyebrow}>Cidade base</Text>
-                  <Text style={styles.modalTitle}>Escolher cidade</Text>
+                  <Text style={styles.modalEyebrow}>Cidade onde mora</Text>
+                  <Text style={styles.modalTitle}>Escolher cidade onde mora</Text>
                 </View>
               </View>
 
@@ -658,13 +895,13 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* A busca continua pesquisando cidade e região no service, mas a tela só exibe cidade/UF. */}
             <View style={styles.searchBox}>
               <Ionicons name="search-outline" size={20} color="#9B969B" />
+
               <TextInput
                 value={municipalitySearch}
                 onChangeText={handleSearchMunicipalities}
-                placeholder="Buscar cidade"
+                placeholder="Buscar pelo nome da cidade"
                 placeholderTextColor="#71717A"
                 autoCorrect={false}
                 style={styles.municipalitySearchInput}
@@ -688,7 +925,7 @@ export default function RegisterScreen() {
                     <Ionicons name="search-outline" size={34} color="#8F8A91" />
                     <Text style={styles.emptyTitle}>Busque sua cidade</Text>
                     <Text style={styles.emptyText}>
-                      Digite pelo menos 2 letras para encontrar sua cidade base.
+                      Digite pelo menos 2 letras para encontrar a cidade onde mora.
                     </Text>
                   </View>
                 ) : municipalities.length === 0 ? (
@@ -696,7 +933,7 @@ export default function RegisterScreen() {
                     <Ionicons name="alert-circle-outline" size={34} color="#8F8A91" />
                     <Text style={styles.emptyTitle}>Nenhuma cidade encontrada</Text>
                     <Text style={styles.emptyText}>
-                      Tente buscar pelo nome da cidade ou pela sigla do estado.
+                      Tente buscar somente pelo nome da cidade.
                     </Text>
                   </View>
                 ) : (
@@ -711,11 +948,7 @@ export default function RegisterScreen() {
                           styles.municipalityItem,
                           selected && styles.municipalityItemSelected,
                         ]}
-                        onPress={() => {
-                          setSelectedMunicipality(item);
-                          clearFieldError('municipality');
-                          setMunicipalityModalVisible(false);
-                        }}
+                        onPress={() => handleSelectMunicipality(item)}
                       >
                         <View style={styles.municipalityIconSmall}>
                           <Ionicons name="business-outline" size={19} color="#D4A64A" />
@@ -724,6 +957,10 @@ export default function RegisterScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.municipalityName} numberOfLines={1}>
                             {item.name} - {item.uf}
+                          </Text>
+
+                          <Text style={styles.municipalityRegion} numberOfLines={1}>
+                            {item.immediate_region || 'Região imediata não informada'}
                           </Text>
                         </View>
 
@@ -741,7 +978,7 @@ export default function RegisterScreen() {
           </View>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -750,17 +987,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#050505',
   },
+
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 28,
-    paddingBottom: 60,
+    paddingBottom: 80,
     backgroundColor: '#050505',
   },
-  scrollContentKeyboard: {
-    paddingTop: 16,
-    paddingBottom: 240,
-  },
+
   heroCard: {
     backgroundColor: '#101014',
     borderRadius: 18,
@@ -769,55 +1004,40 @@ const styles = StyleSheet.create({
     borderColor: '#2A2830',
     marginBottom: 16,
     overflow: 'hidden',
-    shadowColor: '#D4A64A',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.08,
-    shadowRadius: 22,
-    elevation: 10,
   },
+
   logoShell: {
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   logo: {
     width: 100,
     height: 56,
   },
-  logoKeyboard: {
-    width: 105,
-    height: 56,
-  },
+
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
   },
-  titleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 13,
-    backgroundColor: 'rgba(212,166,74,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,166,74,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   eyebrow: {
     color: '#D4A64A',
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 1.4,
+    letterSpacing: 1.7,
   },
+
   title: {
     color: '#F5F0E6',
     fontSize: 25,
     fontWeight: '900',
-    marginTop: 3,
-    letterSpacing: -0.4,
+    letterSpacing: 0.1,
   },
+
   subtitle: {
-    alignItems: 'center',
     color: '#9B969B',
     fontSize: 13,
     lineHeight: 20,
@@ -825,6 +1045,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     textAlign: 'center',
   },
+
   formCard: {
     backgroundColor: '#101014',
     borderRadius: 18,
@@ -832,6 +1053,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2A2830',
   },
+
   label: {
     color: '#F5F0E6',
     fontSize: 13,
@@ -840,6 +1062,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4,
   },
+
   inputContainer: {
     minHeight: 58,
     backgroundColor: '#18171D',
@@ -852,10 +1075,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+
   inputContainerError: {
     borderColor: '#EF4444',
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
+
   input: {
     flex: 1,
     height: 56,
@@ -864,11 +1089,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     paddingVertical: 0,
   },
+
   atSign: {
     color: '#D4A64A',
     fontSize: 17,
     fontWeight: '900',
   },
+
   helperText: {
     color: '#8F8A91',
     fontSize: 12,
@@ -876,6 +1103,7 @@ const styles = StyleSheet.create({
     marginTop: 7,
     marginLeft: 4,
   },
+
   errorText: {
     color: '#F87171',
     fontSize: 12,
@@ -883,9 +1111,11 @@ const styles = StyleSheet.create({
     marginTop: 7,
     marginLeft: 4,
   },
+
   successText: {
     color: '#22C55E',
   },
+
   selectCard: {
     minHeight: 68,
     backgroundColor: '#18171D',
@@ -898,6 +1128,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+
   selectIcon: {
     width: 42,
     height: 42,
@@ -908,17 +1139,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   selectLabel: {
     color: '#8F8A91',
     fontSize: 12,
     fontWeight: '800',
     marginBottom: 3,
   },
+
   selectText: {
     color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
   },
+
+  selectSubText: {
+    color: '#9B969B',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+
   passwordIconButton: {
     width: 44,
     height: 44,
@@ -926,6 +1167,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   button: {
     height: 60,
     backgroundColor: '#D4A64A',
@@ -936,14 +1178,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+
   buttonDisabled: {
     opacity: 0.65,
   },
+
   buttonText: {
     color: '#080808',
     fontSize: 16,
     fontWeight: '900',
   },
+
   link: {
     color: '#D4A64A',
     textAlign: 'center',
@@ -951,11 +1196,13 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 14,
   },
+
   municipalityModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.82)',
     justifyContent: 'flex-end',
   },
+
   municipalityModalContent: {
     height: '82%',
     backgroundColor: '#101014',
@@ -967,6 +1214,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2A2830',
   },
+
   modalHandle: {
     width: 48,
     height: 5,
@@ -975,18 +1223,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 18,
   },
+
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
   },
+
   modalTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     flex: 1,
   },
+
   modalIconBox: {
     width: 46,
     height: 46,
@@ -997,6 +1248,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   modalEyebrow: {
     color: '#D4A64A',
     fontSize: 11,
@@ -1004,12 +1256,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
+
   modalTitle: {
     color: '#F5F0E6',
     fontSize: 21,
     fontWeight: '900',
     marginTop: 2,
   },
+
   modalCloseButton: {
     width: 42,
     height: 42,
@@ -1020,6 +1274,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   searchBox: {
     height: 56,
     borderRadius: 14,
@@ -1032,6 +1287,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14,
   },
+
   municipalitySearchInput: {
     flex: 1,
     height: '100%',
@@ -1040,32 +1296,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     paddingVertical: 0,
   },
+
   loadingBox: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   loadingText: {
     color: '#9B969B',
     fontSize: 13,
     fontWeight: '800',
     marginTop: 10,
   },
+
   municipalityListContent: {
     paddingBottom: 20,
   },
+
   emptyBox: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 46,
     paddingHorizontal: 20,
   },
+
   emptyTitle: {
     color: '#F5F0E6',
     fontSize: 16,
     fontWeight: '900',
     marginTop: 12,
   },
+
   emptyText: {
     color: '#8F8A91',
     fontSize: 13,
@@ -1074,6 +1336,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 19,
   },
+
   municipalityItem: {
     minHeight: 62,
     borderRadius: 14,
@@ -1087,10 +1350,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+
   municipalityItemSelected: {
     borderColor: '#D4A64A',
     backgroundColor: 'rgba(212,166,74,0.10)',
   },
+
   municipalityIconSmall: {
     width: 38,
     height: 38,
@@ -1101,9 +1366,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   municipalityName: {
     color: '#F5F0E6',
     fontSize: 15,
     fontWeight: '900',
+  },
+
+  municipalityRegion: {
+    color: '#9B969B',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 3,
   },
 });

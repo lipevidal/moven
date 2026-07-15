@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
 } from "react-native";
 
@@ -20,10 +21,15 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 
 import { supabase } from "../../../src/database/supabase";
-import {
-  searchMunicipalities,
-  Municipality,
-} from "../../../src/features/municipalities/services/searchMunicipalities";
+type Municipality = {
+  id: string;
+  name: string;
+  uf: string;
+  state_name: string;
+  immediate_region: string;
+  intermediate_region: string;
+  ibge_code?: string;
+};
 
 type AccountErrors = {
   name?: string;
@@ -131,6 +137,164 @@ function getFriendlySaveError(message?: string) {
   return "Não foi possível salvar suas informações. Verifique os dados e tente novamente.";
 }
 
+function cleanText(value?: string | number | null) {
+  return String(value ?? "").trim();
+}
+
+function isUuid(value?: string | null) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value ?? "").trim(),
+  );
+}
+
+function getMunicipalityProfileId(municipality?: Municipality | null) {
+  const id = cleanText(municipality?.id);
+
+  return isUuid(id) ? id : null;
+}
+
+function getMunicipalityIbgeCode(municipality?: Municipality | null) {
+  return (
+    cleanText(municipality?.ibge_code) ||
+    cleanText(municipality?.id) ||
+    null
+  );
+}
+
+function getFirstFilledValue(row: any, keys: string[]) {
+  for (const key of keys) {
+    const value = cleanText(row?.[key]);
+
+    if (value) return value;
+  }
+
+  return "";
+}
+
+function mapIbgeLocalidade(row: any): Municipality {
+  const name = getFirstFilledValue(row, [
+    "nome",
+    "municipio",
+    "nome_municipio",
+    "city",
+    "cidade",
+    "localidade",
+  ]);
+  const uf = getFirstFilledValue(row, [
+    "uf",
+    "estado_uf",
+    "sigla_uf",
+    "sigla_estado",
+  ]).toUpperCase();
+  const id = getFirstFilledValue(row, [
+    "id",
+    "municipio_id",
+    "id_municipio",
+    "codigo_municipio",
+    "codigo_ibge",
+    "ibge_code",
+    "cod_municipio",
+    "geocodigo",
+  ]);
+  const stateName = getFirstFilledValue(row, [
+    "estado",
+    "state_name",
+    "nome_estado",
+    "uf_nome",
+  ]);
+  const immediateRegion = getFirstFilledValue(row, [
+    "regiao_imediata",
+    "regiao_imediata_nome",
+    "nome_regiao_imediata",
+    "immediate_region",
+    "immediate_region_name",
+  ]);
+  const intermediateRegion = getFirstFilledValue(row, [
+    "regiao_intermediaria",
+    "regiao_intermediaria_nome",
+    "nome_regiao_intermediaria",
+    "intermediate_region",
+    "intermediate_region_name",
+  ]);
+
+  return {
+    id: id || `${name}-${uf}`,
+    name,
+    uf,
+    state_name: stateName,
+    immediate_region: immediateRegion,
+    intermediate_region: intermediateRegion,
+    ibge_code: id || undefined,
+  };
+}
+
+async function searchIbgeLocalidades(text: string) {
+  const searchText = text.trim();
+  const searchPattern = `%${searchText}%`;
+  const searchColumns = ["nome", "municipio", "nome_municipio", "cidade"];
+
+  for (const column of searchColumns) {
+    const { data, error } = await supabase
+      .from("ibge_localidades")
+      .select("*")
+      .ilike(column, searchPattern)
+      .limit(25);
+
+    if (!error) {
+      return (data ?? [])
+        .map(mapIbgeLocalidade)
+        .filter((item) => Boolean(item.name))
+        .sort((a, b) => {
+          const byName = a.name.localeCompare(b.name, "pt-BR");
+          if (byName !== 0) return byName;
+          return a.uf.localeCompare(b.uf, "pt-BR");
+        });
+    }
+
+    console.log(`Busca em ibge_localidades pela coluna ${column} falhou:`, error);
+  }
+
+  return [];
+}
+
+async function findIbgeLocalidadeById(id?: string | null) {
+  const cleanId = cleanText(id);
+  if (!cleanId) return null;
+
+  const idColumns = [
+    ...(isUuid(cleanId) ? ["id"] : []),
+    "municipio_id",
+    "id_municipio",
+    "codigo_municipio",
+    "codigo_ibge",
+    "ibge_code",
+    "cod_municipio",
+    "geocodigo",
+  ];
+
+  for (const column of idColumns) {
+    const { data, error } = await supabase
+      .from("ibge_localidades")
+      .select("*")
+      .eq(column, cleanId)
+      .maybeSingle();
+
+    if (!error && data) {
+      return mapIbgeLocalidade(data);
+    }
+  }
+
+  return null;
+}
+
+function getMunicipalityDisplayName(municipality?: Municipality | null) {
+  if (!municipality?.name) return "";
+
+  const uf = cleanText(municipality.uf).toUpperCase();
+
+  return uf ? `${municipality.name} ${uf}` : municipality.name;
+}
+
 export default function MyAccountScreen() {
   const [userId, setUserId] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -138,6 +302,10 @@ export default function MyAccountScreen() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [tiktok, setTiktok] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [youtube, setYoutube] = useState("");
   const [selectedMunicipality, setSelectedMunicipality] =
     useState<Municipality | null>(null);
 
@@ -181,7 +349,7 @@ export default function MyAccountScreen() {
       const { data: profile, error } = await supabase
         .from("profiles")
         .select(
-          "id, name, full_name, username, email, city, avatar_url, default_municipality_id",
+          "id, name, full_name, username, email, city, avatar_url, default_municipality_id, region, regiao_imediata, regiao_intermediaria, estado, estado_uf, instagram, tiktok, whatsapp, youtube",
         )
         .eq("id", user.id)
         .single();
@@ -194,15 +362,26 @@ export default function MyAccountScreen() {
       setUsername(profileUsername);
       setOriginalUsername(formatUsername(profileUsername));
       setAvatarUrl(profile?.avatar_url ?? null);
+      setInstagram(profile?.instagram ?? "");
+      setTiktok(profile?.tiktok ?? "");
+      setWhatsapp(profile?.whatsapp ?? "");
+      setYoutube(profile?.youtube ?? "");
 
       if (profile?.default_municipality_id || profile?.city) {
-        setSelectedMunicipality({
-          id: profile.default_municipality_id ?? "",
-          name: profile.city ?? "",
-          uf: "",
-          state_name: "",
-          immediate_region: "",
-        });
+        const ibgeMunicipality = await findIbgeLocalidadeById(
+          profile.default_municipality_id,
+        );
+
+        setSelectedMunicipality(
+          ibgeMunicipality ?? {
+            id: profile.default_municipality_id ?? "",
+            name: profile.city ?? "",
+            uf: profile.estado_uf ?? "",
+            state_name: profile.estado ?? "",
+            immediate_region: profile.regiao_imediata || profile.region || "",
+            intermediate_region: profile.regiao_intermediaria ?? "",
+          },
+        );
       }
     } catch (error) {
       console.log("Erro ao carregar conta:", error);
@@ -307,8 +486,149 @@ export default function MyAccountScreen() {
       return;
     }
 
-    const response = await searchMunicipalities(text);
-    setMunicipalities(response);
+    try {
+      const response = await searchIbgeLocalidades(text);
+      setMunicipalities(response);
+    } catch (error) {
+      console.log("Erro ao buscar cidades do IBGE:", error);
+      setMunicipalities([]);
+    }
+  }
+
+  function openCitySearchModal() {
+    setMunicipalitySearch("");
+    setMunicipalities([]);
+    setCitySearchVisible(true);
+  }
+
+  function closeCitySearchModal() {
+    setCitySearchVisible(false);
+    setMunicipalitySearch("");
+    setMunicipalities([]);
+  }
+
+  function selectMunicipality(item: Municipality) {
+    setSelectedMunicipality(item);
+    closeCitySearchModal();
+    clearFieldError("city");
+  }
+
+  function renderCitySearchModal() {
+    return (
+      <Modal
+        visible={citySearchVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeCitySearchModal}
+      >
+        <View style={styles.cityModalOverlay}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={StyleSheet.absoluteFillObject}
+            onPress={closeCitySearchModal}
+          />
+
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.cityModalKeyboard}
+          >
+            <View style={styles.cityModalCard}>
+              <View style={styles.cityModalHeader}>
+                <View style={styles.cityModalIconBox}>
+                  <Ionicons name="location-outline" size={22} color="#D4A64A" />
+                </View>
+
+                <View style={styles.cityModalTitleBox}>
+                  <Text style={styles.cityModalEyebrow}>Buscar cidade</Text>
+                  <Text style={styles.cityModalTitle}>IBGE Localidades</Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.86}
+                  style={styles.cityModalCloseButton}
+                  onPress={closeCitySearchModal}
+                >
+                  <Ionicons name="close" size={21} color="#F5F0E6" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.cityModalDescription}>
+                Pesquise a cidade e selecione o resultado correto.
+              </Text>
+
+              <View style={styles.cityModalSearchRow}>
+                <Ionicons name="search-outline" size={19} color="#8F8A91" />
+                <TextInput
+                  value={municipalitySearch}
+                  onChangeText={handleSearchMunicipalities}
+                  placeholder="Digite o nome da cidade"
+                  placeholderTextColor="#8F8A91"
+                  autoFocus
+                  style={styles.cityModalSearchInput}
+                />
+              </View>
+
+              <ScrollView
+                style={styles.cityModalResultsScroll}
+                contentContainerStyle={styles.cityModalResultsContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {municipalitySearch.trim().length < 2 ? (
+                  <View style={styles.cityModalEmptyBox}>
+                    <Ionicons name="search-outline" size={28} color="#8F8A91" />
+                    <Text style={styles.cityModalEmptyTitle}>
+                      Busque pelo nome da cidade
+                    </Text>
+                    <Text style={styles.cityModalEmptyText}>
+                      Digite pelo menos 2 letras para buscar.
+                    </Text>
+                  </View>
+                ) : municipalities.length === 0 ? (
+                  <View style={styles.cityModalEmptyBox}>
+                    <Ionicons name="location-outline" size={28} color="#8F8A91" />
+                    <Text style={styles.cityModalEmptyTitle}>
+                      Nenhuma cidade encontrada
+                    </Text>
+                    <Text style={styles.cityModalEmptyText}>
+                      Confira a escrita da cidade e tente novamente.
+                    </Text>
+                  </View>
+                ) : (
+                  municipalities.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      activeOpacity={0.86}
+                      style={styles.cityResultItem}
+                      onPress={() => selectMunicipality(item)}
+                    >
+                      <View style={styles.cityResultInfo}>
+                        <Text style={styles.cityResultText} numberOfLines={1}>
+                          {getMunicipalityDisplayName(item)}
+                        </Text>
+
+                        <Text style={styles.cityResultSubText} numberOfLines={1}>
+                          {item.immediate_region
+                            ? `Região: ${item.immediate_region}`
+                            : "Região não informada"}
+                        </Text>
+                      </View>
+
+                      <Ionicons
+                        name="checkmark-circle-outline"
+                        size={20}
+                        color="#D4A64A"
+                      />
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    );
   }
 
   async function pickAvatar() {
@@ -412,7 +732,7 @@ export default function MyAccountScreen() {
               .from("profiles")
               .update({
                 avatar_url: null,
-                    })
+              })
               .eq("id", userId);
 
             if (error) throw error;
@@ -461,7 +781,31 @@ export default function MyAccountScreen() {
       const authUpdate: {
         email?: string;
         password?: string;
-      } = {};
+        data?: Record<string, any>;
+      } = {
+        data: {
+          name: name.trim(),
+          full_name: name.trim(),
+          username: cleanUsername,
+          city: selectedMunicipality?.name,
+          profile_city: selectedMunicipality?.name,
+          default_municipality_id: getMunicipalityProfileId(selectedMunicipality),
+          ibge_code: getMunicipalityIbgeCode(selectedMunicipality),
+          codigo_ibge: getMunicipalityIbgeCode(selectedMunicipality),
+          regiao_imediata: selectedMunicipality?.immediate_region || null,
+          immediate_region: selectedMunicipality?.immediate_region || null,
+          regiao_intermediaria:
+            selectedMunicipality?.intermediate_region || null,
+          intermediate_region:
+            selectedMunicipality?.intermediate_region || null,
+          estado: selectedMunicipality?.state_name || null,
+          estado_uf: selectedMunicipality?.uf || null,
+          instagram: instagram.trim() || null,
+          tiktok: tiktok.trim() || null,
+          whatsapp: whatsapp.trim() || null,
+          youtube: youtube.trim() || null,
+        },
+      };
 
       if (cleanEmail !== originalEmail) {
         authUpdate.email = cleanEmail;
@@ -487,9 +831,18 @@ export default function MyAccountScreen() {
           email: cleanEmail,
           city: selectedMunicipality?.name,
           region:
-            selectedMunicipality?.immediate_region ??
+            selectedMunicipality?.immediate_region ||
             selectedMunicipality?.name,
-          default_municipality_id: selectedMunicipality?.id || null,
+          regiao_imediata: selectedMunicipality?.immediate_region || null,
+          regiao_intermediaria:
+            selectedMunicipality?.intermediate_region || null,
+          estado: selectedMunicipality?.state_name || null,
+          estado_uf: selectedMunicipality?.uf || null,
+          instagram: instagram.trim() || null,
+          tiktok: tiktok.trim() || null,
+          whatsapp: whatsapp.trim() || null,
+          youtube: youtube.trim() || null,
+          default_municipality_id: getMunicipalityProfileId(selectedMunicipality),
         })
         .eq("id", userId);
 
@@ -615,7 +968,18 @@ export default function MyAccountScreen() {
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Informações pessoais</Text>
+          <View style={styles.formSectionHeader}>
+            <View style={styles.formSectionIconBox}>
+              <Ionicons name="person-outline" size={21} color="#D4A64A" />
+            </View>
+
+            <View style={styles.formSectionInfo}>
+              <Text style={styles.sectionTitle}>Informações pessoais</Text>
+              <Text style={styles.formSectionDescription}>
+                Atualize seus dados principais, cidade e informações da conta.
+              </Text>
+            </View>
+          </View>
 
           <FieldLabel label="Nome completo" />
           <InputRow error={errors.name} icon="person-outline">
@@ -668,74 +1032,105 @@ export default function MyAccountScreen() {
           <TouchableOpacity
             activeOpacity={0.85}
             style={[styles.cityButton, errors.city && styles.inputError]}
-            onPress={() => setCitySearchVisible((current) => !current)}
+            onPress={openCitySearchModal}
           >
             <Ionicons name="location-outline" size={20} color="#D4A64A" />
 
             <Text style={styles.cityButtonText} numberOfLines={1}>
               {selectedMunicipality?.name
-                ? `${selectedMunicipality.name}${
-                    selectedMunicipality.uf
-                      ? ` - ${selectedMunicipality.uf}`
-                      : ""
-                  }`
+                ? getMunicipalityDisplayName(selectedMunicipality)
                 : "Selecionar cidade"}
             </Text>
 
-            <Ionicons
-              name={citySearchVisible ? "chevron-up" : "chevron-down"}
-              size={19}
-              color="#F5F0E6"
-            />
+            <Ionicons name="search-outline" size={19} color="#F5F0E6" />
           </TouchableOpacity>
 
           {errors.city ? (
             <Text style={styles.errorText}>{errors.city}</Text>
           ) : null}
 
-          {citySearchVisible && (
-            <View style={styles.citySearchBox}>
-              <TextInput
-                value={municipalitySearch}
-                onChangeText={handleSearchMunicipalities}
-                placeholder="Buscar cidade"
-                placeholderTextColor="#8F8A91"
-                style={styles.citySearchInput}
-              />
 
-              {municipalities.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.cityResultItem}
-                  onPress={() => {
-                    setSelectedMunicipality(item);
-                    setCitySearchVisible(false);
-                    setMunicipalitySearch("");
-                    setMunicipalities([]);
-                    clearFieldError("city");
-                  }}
-                >
-                  <Text style={styles.cityResultText}>
-                    {item.name} - {item.uf}
-                  </Text>
-
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={20}
-                    color="#D4A64A"
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Alterar senha</Text>
+          <View style={styles.publicSocialHeader}>
+            <View style={styles.publicSocialIconBox}>
+              <Ionicons name="share-social-outline" size={21} color="#D4A64A" />
+            </View>
 
-          <Text style={styles.sectionDescription}>
-            Preencha apenas se quiser trocar sua senha atual.
-          </Text>
+            <View style={styles.publicSocialInfo}>
+              <Text style={styles.sectionTitle}>Redes sociais</Text>
+              <Text style={styles.publicSocialDescription}>
+                Preencha somente se quiser que essas informações apareçam publicamente no seu perfil.
+              </Text>
+            </View>
+          </View>
+
+          <FieldLabel label="Instagram" />
+          <InputRow icon="logo-instagram">
+            <TextInput
+              value={instagram}
+              onChangeText={setInstagram}
+              placeholder="@seuinstagram ou link"
+              placeholderTextColor="#8F8A91"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+            />
+          </InputRow>
+
+          <FieldLabel label="TikTok" />
+          <InputRow icon="musical-notes-outline">
+            <TextInput
+              value={tiktok}
+              onChangeText={setTiktok}
+              placeholder="@seutiktok ou link"
+              placeholderTextColor="#8F8A91"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+            />
+          </InputRow>
+
+          <FieldLabel label="WhatsApp" />
+          <InputRow icon="logo-whatsapp">
+            <TextInput
+              value={whatsapp}
+              onChangeText={setWhatsapp}
+              placeholder="(31) 99999-9999 ou link"
+              placeholderTextColor="#8F8A91"
+              keyboardType="phone-pad"
+              style={styles.input}
+            />
+          </InputRow>
+
+          <FieldLabel label="YouTube" />
+          <InputRow icon="logo-youtube">
+            <TextInput
+              value={youtube}
+              onChangeText={setYoutube}
+              placeholder="@canal ou link do YouTube"
+              placeholderTextColor="#8F8A91"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+            />
+          </InputRow>
+        </View>
+
+        <View style={styles.formCard}>
+          <View style={styles.formSectionHeader}>
+            <View style={styles.formSectionIconBox}>
+              <Ionicons name="lock-closed-outline" size={21} color="#D4A64A" />
+            </View>
+
+            <View style={styles.formSectionInfo}>
+              <Text style={styles.sectionTitle}>Alterar senha</Text>
+              <Text style={styles.formSectionDescription}>
+                Preencha apenas se quiser trocar sua senha atual.
+              </Text>
+            </View>
+          </View>
 
           <FieldLabel label="Nova senha" />
           <InputRow error={errors.password} icon="lock-closed-outline">
@@ -805,6 +1200,8 @@ export default function MyAccountScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {renderCitySearchModal()}
     </KeyboardAvoidingView>
   );
 }
@@ -991,6 +1388,70 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 
+  formSectionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 4,
+  },
+
+  formSectionIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.28)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  formSectionInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  formSectionDescription: {
+    color: "#BDB5A7",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+    marginTop: 2,
+    marginBottom: 8,
+  },
+
+  publicSocialHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 4,
+  },
+
+  publicSocialIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.28)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  publicSocialInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  publicSocialDescription: {
+    color: "#BDB5A7",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+    marginTop: 2,
+    marginBottom: 8,
+  },
+
   sectionDescription: {
     color: "#9B969B",
     fontSize: 12,
@@ -1059,43 +1520,157 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
   },
-  citySearchBox: {
+  cityModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.74)",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 34,
+  },
+  cityModalKeyboard: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  cityModalCard: {
+    width: "100%",
+    maxHeight: "74%",
+    minHeight: 360,
+    borderRadius: 24,
     backgroundColor: "#101014",
-    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.28)",
+    padding: 15,
+    overflow: "hidden",
+  },
+  cityModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  cityModalIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: "rgba(212,166,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,166,74,0.30)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cityModalTitleBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cityModalEyebrow: {
+    color: "#D4A64A",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  cityModalTitle: {
+    color: "#F5F0E6",
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  cityModalCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: "#18171D",
     borderWidth: 1,
     borderColor: "#2A2830",
-    padding: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cityModalDescription: {
+    color: "#A8A1A8",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17,
     marginTop: 10,
   },
-  citySearchInput: {
-    height: 48,
-    backgroundColor: "#18171D",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#2A2830",
-    paddingHorizontal: 14,
-    color: "#F5F0E6",
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  cityResultItem: {
-    minHeight: 50,
-    borderRadius: 12,
+  cityModalSearchRow: {
+    minHeight: 48,
+    borderRadius: 15,
     backgroundColor: "#18171D",
     borderWidth: 1,
     borderColor: "#2A2830",
     paddingHorizontal: 12,
-    marginBottom: 8,
     flexDirection: "row",
     alignItems: "center",
+    gap: 9,
+    marginTop: 14,
   },
-
-  cityResultText: {
+  cityModalSearchInput: {
     flex: 1,
     color: "#F5F0E6",
     fontSize: 14,
     fontWeight: "800",
+    paddingVertical: 0,
+  },
+  cityModalResultsScroll: {
+    marginTop: 12,
+  },
+  cityModalResultsContent: {
+    gap: 8,
+    paddingBottom: 2,
+  },
+  cityModalEmptyBox: {
+    minHeight: 180,
+    borderRadius: 18,
+    backgroundColor: "#18171D",
+    borderWidth: 1,
+    borderColor: "#2A2830",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+  },
+  cityModalEmptyTitle: {
+    color: "#F5F0E6",
+    fontSize: 15,
+    fontWeight: "900",
+    marginTop: 10,
+    textAlign: "center",
+  },
+  cityModalEmptyText: {
+    color: "#9B969B",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+    marginTop: 6,
+    textAlign: "center",
+  },
+  cityResultItem: {
+    minHeight: 58,
+    borderRadius: 14,
+    backgroundColor: "#18171D",
+    borderWidth: 1,
+    borderColor: "#2A2830",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  cityResultInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  cityResultText: {
+    color: "#F5F0E6",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  cityResultSubText: {
+    color: "#8F8A91",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
   },
   saveButton: {
     height: 60,
