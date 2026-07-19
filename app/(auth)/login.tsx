@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -11,13 +11,17 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-import { supabase } from '../../src/database/supabase';
+import {
+  getLoginErrorMessage,
+  loginWithPassword,
+} from '../../src/features/auth/services/loginService';
 
 type LoginErrors = {
   email?: string;
@@ -36,59 +40,28 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
 }
 
-function getLoginErrorMessage(message?: string) {
-  const normalizedMessage = String(message ?? '').toLowerCase();
-
-  if (
-    normalizedMessage.includes('invalid login credentials') ||
-    normalizedMessage.includes('invalid credentials')
-  ) {
-    return 'E-mail ou senha incorretos. Verifique os dados e tente novamente.';
-  }
-
-  if (
-    normalizedMessage.includes('email not confirmed') ||
-    normalizedMessage.includes('email_not_confirmed')
-  ) {
-    return 'Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.';
-  }
-
-  if (
-    normalizedMessage.includes('too many requests') ||
-    normalizedMessage.includes('rate limit')
-  ) {
-    return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.';
-  }
-
-  if (
-    normalizedMessage.includes('network') ||
-    normalizedMessage.includes('fetch')
-  ) {
-    return 'Não foi possível conectar. Verifique sua internet e tente novamente.';
-  }
-
-  return 'Não foi possível entrar. Verifique seus dados e tente novamente.';
-}
-
 function wait(milliseconds: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
   });
 }
 
-/**
- * Tela de login.
- *
- * Correção aplicada para teclado:
- * - Removido KeyboardAvoidingView, que no Android/Expo pode causar faixa branca.
- * - A tela agora usa View + ScrollView com fundo preto em todos os níveis.
- * - Quando o teclado abre, o conteúdo deixa de ficar centralizado e passa para o topo.
- * - A tela rola automaticamente para o fim, liberando acesso ao botão Entrar.
- * - Ao fechar o teclado, volta para o topo e remove o espaço extra inferior.
- */
 export default function LoginScreen() {
   const scrollRef = useRef<any>(null);
+  const emailInputRef = useRef<any>(null);
+  const passwordInputRef = useRef<any>(null);
   const loginRequestRef = useRef(false);
+  const { width } = useWindowDimensions();
+
+  const compactMode = width < 370;
+
+  const logoSize = useMemo(
+    () => ({
+      width: compactMode ? 184 : 224,
+      height: compactMode ? 92 : 116,
+    }),
+    [compactMode],
+  );
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -97,6 +70,9 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(
+    null,
+  );
   const [errors, setErrors] = useState<LoginErrors>({});
 
   useEffect(() => {
@@ -116,6 +92,7 @@ export default function LoginScreen() {
 
     const hideSubscription = Keyboard.addListener(hideEvent, () => {
       setKeyboardVisible(false);
+      setFocusedField(null);
 
       setTimeout(() => {
         scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -158,24 +135,11 @@ export default function LoginScreen() {
 
   const handleLogin = useCallback(async () => {
     try {
-      /**
-       * Evita duplo clique, inclusive durante o pequeno intervalo usado
-       * para fechar o teclado antes de iniciar o processamento.
-       */
       if (loading || loginRequestRef.current) return;
 
       loginRequestRef.current = true;
-
-      /**
-       * Primeiro fecha o teclado.
-       * Só depois a validação/loading/requisição começam.
-       */
       Keyboard.dismiss();
 
-      /**
-       * Pequena pausa para dar tempo do teclado iniciar o fechamento
-       * antes de mudar layout, exibir loading ou chamar o Supabase.
-       */
       await wait(140);
 
       const valid = validateFields();
@@ -190,30 +154,17 @@ export default function LoginScreen() {
 
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+      await loginWithPassword({
+        email,
         password,
       });
 
-      if (error) {
-        const translatedMessage = getLoginErrorMessage(error.message);
-
-        setErrors((current) => ({
-          ...current,
-          password: translatedMessage,
-        }));
-
-        setTimeout(() => {
-          scrollRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-
-        Alert.alert('Não foi possível entrar', translatedMessage);
-        return;
-      }
-
       router.replace(ROUTES.dashboard as never);
     } catch (error: any) {
-      const translatedMessage = getLoginErrorMessage(error?.message);
+      const translatedMessage =
+        error?.name === 'LoginServiceError'
+          ? error.message
+          : getLoginErrorMessage(error?.message);
 
       setErrors((current) => ({
         ...current,
@@ -268,47 +219,78 @@ export default function LoginScreen() {
         bounces={false}
       >
         <View style={styles.heroCard}>
-          <View style={styles.logoShell}>
+          <View style={styles.logoFrame}>
             <Image
               source={LOGO_SOURCE}
               style={[
                 styles.logo,
+                logoSize,
                 keyboardVisible && styles.logoKeyboard,
               ]}
               resizeMode="contain"
             />
           </View>
 
-          <Text style={styles.title}>Entrar</Text>
+          <View style={styles.heroTextBox}>
+            <Text style={styles.eyebrow}>Controle financeiro e comunidade</Text>
+            <Text style={styles.title}>Entre na sua conta</Text>
+            
+          </View>
 
-          <Text style={styles.subtitle}>
-            Controle sua rotina financeira
-          </Text>
+          {!keyboardVisible ? (
+            <View style={styles.benefitsRow}>
+              <View style={styles.benefitChip}>
+                <Ionicons name="analytics-outline" size={14} color="#D4A64A" />
+                <Text style={styles.benefitText}>Ganhos</Text>
+              </View>
 
-          <Text style={styles.subtitle}>
-            Motoristas de aplicativos e entregadores.
-          </Text>
+              <View style={styles.benefitChip}>
+                <Ionicons name="car-sport-outline" size={14} color="#D4A64A" />
+                <Text style={styles.benefitText}>Jornadas</Text>
+              </View>
+
+              <View style={styles.benefitChip}>
+                <Ionicons name="people-outline" size={14} color="#D4A64A" />
+                <Text style={styles.benefitText}>Comunidade</Text>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.formCard}>
           <Text style={styles.label}>E-mail</Text>
 
-          <View
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => emailInputRef.current?.focus?.()}
             style={[
               styles.inputContainer,
+              focusedField === 'email' && styles.inputContainerFocused,
               errors.email && styles.inputContainerError,
             ]}
           >
-            <Ionicons name="mail-outline" size={20} color="#9B969B" />
+            <View
+              style={[
+                styles.inputIconBox,
+                focusedField === 'email' && styles.inputIconBoxFocused,
+              ]}
+            >
+              <Ionicons
+                name="mail-outline"
+                size={18}
+                color={focusedField === 'email' ? '#D4A64A' : '#9B969B'}
+              />
+            </View>
 
             <TextInput
+              ref={emailInputRef}
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
                 clearFieldError('email');
               }}
               placeholder="seuemail@exemplo.com"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#6F6A72"
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -316,31 +298,53 @@ export default function LoginScreen() {
               textContentType="emailAddress"
               autoComplete="email"
               style={styles.input}
+              editable={!loading}
+              showSoftInputOnFocus
+              onFocus={() => setFocusedField('email')}
+              onBlur={() => setFocusedField(null)}
             />
-          </View>
+          </TouchableOpacity>
 
           {errors.email ? (
-            <Text style={styles.errorText}>{errors.email}</Text>
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle-outline" size={15} color="#F87171" />
+              <Text style={styles.errorText}>{errors.email}</Text>
+            </View>
           ) : null}
 
           <Text style={styles.label}>Senha</Text>
 
-          <View
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => passwordInputRef.current?.focus?.()}
             style={[
               styles.inputContainer,
+              focusedField === 'password' && styles.inputContainerFocused,
               errors.password && styles.inputContainerError,
             ]}
           >
-            <Ionicons name="lock-closed-outline" size={20} color="#9B969B" />
+            <View
+              style={[
+                styles.inputIconBox,
+                focusedField === 'password' && styles.inputIconBoxFocused,
+              ]}
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={18}
+                color={focusedField === 'password' ? '#D4A64A' : '#9B969B'}
+              />
+            </View>
 
             <TextInput
+              ref={passwordInputRef}
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
                 clearFieldError('password');
               }}
               placeholder="Digite sua senha"
-              placeholderTextColor="#71717A"
+              placeholderTextColor="#6F6A72"
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
@@ -348,7 +352,13 @@ export default function LoginScreen() {
               textContentType="password"
               autoComplete="current-password"
               style={styles.input}
-              onFocus={scrollToButtons}
+              editable={!loading}
+              showSoftInputOnFocus
+              onFocus={() => {
+                setFocusedField('password');
+                scrollToButtons();
+              }}
+              onBlur={() => setFocusedField(null)}
               onSubmitEditing={handleLogin}
             />
 
@@ -360,18 +370,17 @@ export default function LoginScreen() {
               <Ionicons
                 name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 size={22}
-                color="#9B969B"
+                color={showPassword ? '#D4A64A' : '#9B969B'}
               />
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
 
           {errors.password ? (
-            <Text style={styles.errorText}>{errors.password}</Text>
-          ) : (
-            <Text style={styles.helperText}>
-              Use a senha cadastrada na sua conta.
-            </Text>
-          )}
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle-outline" size={15} color="#F87171" />
+              <Text style={styles.errorText}>{errors.password}</Text>
+            </View>
+          ) : null}
 
           <TouchableOpacity
             style={styles.forgotButton}
@@ -379,27 +388,43 @@ export default function LoginScreen() {
             activeOpacity={0.85}
           >
             <Text style={styles.forgotButtonText}>Esqueci minha senha</Text>
+            <Ionicons name="chevron-forward" size={16} color="#D4A64A" />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading}
-            activeOpacity={0.9}
+            activeOpacity={0.92}
           >
             {loading ? (
               <ActivityIndicator color="#080808" />
             ) : (
               <>
-                <Ionicons name="log-in-outline" size={23} color="#080808" />
-                <Text style={styles.buttonText}>Entrar</Text>
+                <Text style={styles.buttonText}>Entrar agora</Text>
+                <View style={styles.buttonIconCircle}>
+                  <Ionicons name="arrow-forward" size={19} color="#080808" />
+                </View>
               </>
             )}
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity onPress={openRegister} activeOpacity={0.85}>
-          <Text style={styles.link}>Criar conta</Text>
+        <TouchableOpacity
+          style={styles.registerCard}
+          onPress={openRegister}
+          activeOpacity={0.88}
+        >
+          <View style={styles.registerIconBox}>
+            <Ionicons name="person-add-outline" size={18} color="#D4A64A" />
+          </View>
+
+          <View style={styles.registerTextBox}>
+            <Text style={styles.registerTitle}>Ainda não tem conta?</Text>
+            <Text style={styles.registerSubtitle}>Crie sua conta em poucos passos.</Text>
+          </View>
+
+          <Ionicons name="chevron-forward" size={19} color="#8F8A91" />
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -414,34 +439,45 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: 'transparent',
   },
 
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 44,
+    paddingBottom: 34,
     justifyContent: 'center',
-    backgroundColor: '#050505',
   },
 
   scrollContentKeyboard: {
     justifyContent: 'flex-start',
-    paddingTop: 12,
+    paddingTop: 14,
     paddingBottom: 260,
   },
 
-  logoShell: {
+  heroCard: {
+    overflow: 'hidden',
+    borderRadius: 30,
+    borderWidth: 0,
+    
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 18,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+
+  logoFrame: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
-    paddingVertical: 6,
   },
 
   logo: {
-    width: 190,
-    height: 92,
+    width: 224,
+    height: 116,
   },
 
   logoKeyboard: {
@@ -449,63 +485,101 @@ const styles = StyleSheet.create({
     height: 62,
   },
 
-  heroCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#2A2830',
-    backgroundColor: '#101014',
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+  heroTextBox: {
     alignItems: 'center',
-    marginBottom: 14,
+    marginTop: 2,
+  },
+
+  eyebrow: {
+    color: '#D4A64A',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    marginBottom: 7,
   },
 
   title: {
     color: '#F5F0E6',
     fontSize: 30,
     fontWeight: '900',
-    marginTop: 4,
-    marginBottom: 9,
     textAlign: 'center',
-    letterSpacing: -0.6,
+    letterSpacing: -0.8,
   },
 
   subtitle: {
-    color: '#9B969B',
-    fontSize: 14,
-    lineHeight: 20,
+    color: '#A8A3AB',
+    fontSize: 13,
+    lineHeight: 19,
     textAlign: 'center',
     fontWeight: '700',
+    marginTop: 8,
+    maxWidth: 300,
+  },
+
+  benefitsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+  },
+
+  benefitChip: {
+    minHeight: 32,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 10,
+  },
+
+  benefitText: {
+    color: '#F5F0E6',
+    fontSize: 11,
+    fontWeight: '900',
   },
 
   formCard: {
-    backgroundColor: '#101014',
-    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(11,11,15,0.96)',
+    borderRadius: 28,
     borderWidth: 1,
-    borderColor: '#2A2830',
-    padding: 18,
+    borderColor: '#25222A',
+    padding: 16,
   },
 
   label: {
     color: '#F5F0E6',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
     marginTop: 12,
     marginBottom: 8,
     marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 
   inputContainer: {
-    minHeight: 56,
-    backgroundColor: '#18171D',
-    borderRadius: 14,
+    minHeight: 58,
+    backgroundColor: '#121217',
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#2A2830',
-    paddingLeft: 16,
+    paddingLeft: 9,
     paddingRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+
+  inputContainerFocused: {
+    borderColor: 'rgba(212,166,74,0.72)',
+    backgroundColor: '#17151A',
   },
 
   inputContainerError: {
@@ -513,44 +587,60 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
 
+  inputIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#1C1B21',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  inputIconBoxFocused: {
+    backgroundColor: 'rgba(212,166,74,0.14)',
+  },
+
   input: {
     flex: 1,
-    height: 54,
+    height: 56,
     color: '#F5F0E6',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     paddingVertical: 0,
   },
 
   passwordIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  helperText: {
-    color: '#8F8A91',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 7,
-    marginLeft: 4,
+  errorBox: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 7,
+    marginTop: 9,
+    paddingHorizontal: 4,
   },
 
   errorText: {
     color: '#F87171',
+    flex: 1,
     fontSize: 12,
     fontWeight: '800',
-    marginTop: 7,
-    marginLeft: 4,
     lineHeight: 17,
   },
 
   forgotButton: {
     alignSelf: 'flex-end',
-    marginTop: 12,
-    marginBottom: 4,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 3,
+    marginTop: 14,
+    marginBottom: 2,
+    paddingVertical: 5,
   },
 
   forgotButtonText: {
@@ -560,18 +650,19 @@ const styles = StyleSheet.create({
   },
 
   button: {
-    height: 58,
+    overflow: 'hidden',
+    height: 60,
     backgroundColor: '#D4A64A',
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 22,
+    marginTop: 18,
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
 
   buttonDisabled: {
-    opacity: 0.65,
+    opacity: 0.68,
   },
 
   buttonText: {
@@ -580,11 +671,53 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  link: {
-    color: '#D4A64A',
-    textAlign: 'center',
-    marginTop: 22,
+  buttonIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: 'rgba(8,8,8,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  registerCard: {
+    minHeight: 68,
+    borderRadius: 22,
+    backgroundColor: 'rgba(16,16,20,0.72)',
+    borderWidth: 1,
+    borderColor: '#25222A',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    marginTop: 14,
+  },
+
+  registerIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  registerTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  registerTitle: {
+    color: '#F5F0E6',
+    fontSize: 13,
     fontWeight: '900',
-    fontSize: 14,
+  },
+
+  registerSubtitle: {
+    color: '#8F8A91',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 3,
   },
 });

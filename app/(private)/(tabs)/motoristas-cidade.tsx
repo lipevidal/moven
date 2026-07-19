@@ -182,7 +182,7 @@ export default function LocalCommunityHomeScreen() {
       setImmediateRegion(userImmediateRegion);
 
       const [postCounts, members, openPosts, cities] = await Promise.all([
-        loadCounts(userImmediateRegion),
+        loadNewPostCounts(),
         loadMemberCount(userImmediateRegion, userCity),
         loadMyOpenPostsCount(user.id),
         loadRegionCities(userImmediateRegion, userCity),
@@ -353,85 +353,39 @@ export default function LocalCommunityHomeScreen() {
     }
   }
 
-  function getProfileUserIds(profile: any) {
-    return [profile?.id]
-      .map((value) => String(value ?? '').trim())
-      .filter(Boolean);
-  }
-
-  function splitIntoChunks<T>(items: T[], size = 80) {
-    const chunks: T[][] = [];
-
-    for (let index = 0; index < items.length; index += size) {
-      chunks.push(items.slice(index, index + size));
-    }
-
-    return chunks;
-  }
-
-  async function loadRegionMemberUserIds(userImmediateRegion: string) {
-    const cleanImmediateRegion = normalizeText(userImmediateRegion);
-
-    if (!cleanImmediateRegion) return [];
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, regiao_imediata')
-      .eq('regiao_imediata', cleanImmediateRegion)
-      .limit(5000);
-
-    if (error) {
-      console.log('Erro ao buscar membros da região imediata para contar posts:', error);
-      return [];
-    }
-
-    return Array.from(
-      new Set(
-        (data ?? [])
-          .flatMap(getProfileUserIds)
-          .map((value) => String(value).trim())
-          .filter(Boolean),
-      ),
-    );
-  }
-
-  async function loadCounts(userImmediateRegion: string) {
-    const nowIso = new Date().toISOString();
-    const regionMemberUserIds = await loadRegionMemberUserIds(userImmediateRegion);
-
-    if (regionMemberUserIds.length === 0) {
-      return {};
-    }
-
-    const countsByType: Record<string, number> = {};
-
-    for (const userIdChunk of splitIntoChunks(regionMemberUserIds)) {
-      const { data, error } = await supabase
-        .from('community_posts')
-        .select('id, user_id, content_type, category, status, closed_at, expires_at')
-        .in('user_id', userIdChunk)
-        .is('deleted_at', null)
-        .eq('status', 'open')
-        .is('closed_at', null)
-        .or(`expires_at.is.null,expires_at.gte.${nowIso}`)
-        .limit(5000);
+  async function loadNewPostCounts() {
+    try {
+      const { data, error } = await (supabase as any).rpc(
+        'get_community_new_post_counts',
+      );
 
       if (error) {
-        console.log('Erro ao contar posts abertos por região imediata:', error);
-        throw error;
+        console.log('Erro ao contar novos posts por área:', error);
+        return {};
       }
 
-      (data ?? []).forEach((post: any) => {
-        const contentType = String(post.content_type || post.category || 'general');
-        const content = contents.find((item) => item.id === contentType);
+      const countsByType = contents.reduce<Record<string, number>>(
+        (accumulator, item) => {
+          accumulator[item.id] = 0;
+          return accumulator;
+        },
+        {},
+      );
 
-        if (!content) return;
+      (data ?? []).forEach((item: any) => {
+        const contentType = String(item?.content_type ?? '').trim();
+        const count = Number(item?.new_count ?? 0);
 
-        countsByType[contentType] = (countsByType[contentType] ?? 0) + 1;
+        if (contents.some((content) => content.id === contentType)) {
+          countsByType[contentType] = Number.isFinite(count) ? count : 0;
+        }
       });
-    }
 
-    return countsByType;
+      return countsByType;
+    } catch (error) {
+      console.log('get_community_new_post_counts indisponível:', error);
+      return {};
+    }
   }
 
   function openContent(contentType: ContentType) {
@@ -645,7 +599,7 @@ export default function LocalCommunityHomeScreen() {
               <Text style={styles.heroStatValue}>
                 {contents.reduce((total, item) => total + Number(counts[item.id] ?? 0), 0)}
               </Text>
-              <Text style={styles.heroStatLabel}>posts abertos</Text>
+              <Text style={styles.heroStatLabel}>novos posts</Text>
             </View>
           </View>
         </View>
@@ -727,21 +681,48 @@ export default function LocalCommunityHomeScreen() {
                   </View>
 
                   <View style={styles.contentInfo}>
-                    <View style={styles.contentTitleRow}>
-                      <Text style={styles.contentTitle}>{content.title}</Text>
+                    <Text style={styles.contentTitle}>{content.title}</Text>
 
-                      <View style={[styles.openBadge, count > 0 && styles.openBadgeActive]}>
-                        <Text style={[styles.openBadgeText, count > 0 && styles.openBadgeTextActive]}>
-                          {count} posts
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.contentDescription}>{content.description}</Text>
+                    <Text style={styles.contentDescription}>
+                      {content.description}
+                    </Text>
                   </View>
 
-                  <View style={styles.contentArrowBox}>
-                    <Ionicons name="chevron-forward" size={19} color="#F5F0E6" />
+                  <View
+                    style={[
+                      styles.contentArrowBox,
+                      count > 0 && {
+                        backgroundColor: content.color,
+                        borderColor: content.color,
+                        shadowColor: content.color,
+                        shadowOffset: {
+                          width: 0,
+                          height: 4,
+                        },
+                        shadowOpacity: 0.32,
+                        shadowRadius: 8,
+                        elevation: 6,
+                      },
+                    ]}
+                  >
+                    {count > 0 ? (
+                      <Text
+                        style={[
+                          styles.contentNewCount,
+                          {
+                            color: '#080808',
+                          },
+                        ]}
+                      >
+                        {count > 99 ? '99+' : count}
+                      </Text>
+                    ) : (
+                      <Ionicons
+                        name="chevron-forward"
+                        size={19}
+                        color="#F5F0E6"
+                      />
+                    )}
                   </View>
                 </TouchableOpacity>
               );
@@ -1105,13 +1086,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
 
-  contentTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-
   contentTitle: {
     flex: 1,
     color: '#F5F0E6',
@@ -1129,41 +1103,20 @@ const styles = StyleSheet.create({
   },
 
   contentArrowBox: {
-    width: 34,
+    minWidth: 34,
     height: 34,
     borderRadius: 12,
     backgroundColor: 'rgba(245,240,230,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(245,240,230,0.08)',
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  openBadge: {
-    flexShrink: 0,
-    minHeight: 26,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#2A2830',
-    backgroundColor: '#18171D',
-    paddingHorizontal: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  openBadgeActive: {
-    backgroundColor: 'rgba(212,166,74,0.12)',
-    borderColor: 'rgba(212,166,74,0.30)',
-  },
-
-  openBadgeText: {
-    color: '#9B969B',
-    fontSize: 10,
+  contentNewCount: {
+    fontSize: 13,
     fontWeight: '900',
-  },
-
-  openBadgeTextActive: {
-    color: '#D4A64A',
   },
 
   modalOverlay: {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -23,6 +24,9 @@ import {
   IbgeMunicipality,
   searchIbgeMunicipalities,
 } from '../../src/features/municipalities/services/searchIbgeMunicipalities';
+
+type RegisterStep = 1 | 2;
+
 type RegisterErrors = {
   name?: string;
   username?: string;
@@ -38,46 +42,16 @@ type RegisterErrorResult = {
   field?: keyof RegisterErrors;
 };
 
-
-/**
- * Logo fora do componente.
- *
- * Isso evita recriar o require a cada renderização.
- */
 const LOGO_SOURCE = require('../../assets/images/movenapp-logo.png');
 
-/**
- * Rotas usadas pela tela.
- *
- * Evita strings espalhadas pelo código.
- */
 const ROUTES = {
   login: '/(auth)/login',
   dashboard: '/(private)/(tabs)/dashboard',
 } as const;
 
-/**
- * Tempo de debounce da busca de cidades.
- *
- * Em vez de chamar a busca em toda letra digitada imediatamente,
- * aguardamos um pequeno intervalo. Isso deixa a tela mais leve.
- */
 const MUNICIPALITY_SEARCH_DEBOUNCE_MS = 320;
-
-/**
- * Tempo usado para aguardar o teclado iniciar o fechamento antes de processar.
- */
 const KEYBOARD_DISMISS_DELAY_MS = 120;
 
-/**
- * Padroniza o username para URL/perfil público.
- *
- * Regras:
- * - minúsculo
- * - sem espaços
- * - apenas letras, números, ponto e underline
- * - máximo de 24 caracteres
- */
 function formatUsername(value: string) {
   return value
     .trim()
@@ -86,33 +60,16 @@ function formatUsername(value: string) {
     .slice(0, 24);
 }
 
-/**
- * Validação simples de e-mail.
- */
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
 }
 
-/**
- * Pequeno helper para aguardar alguns milissegundos.
- *
- * Usado para fechar o teclado antes de começar o processamento do cadastro.
- */
 function wait(milliseconds: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
   });
 }
 
-
-/**
- * Traduz erros retornados pelo Supabase para mensagens amigáveis em português.
- *
- * Isso evita mostrar mensagens técnicas como:
- * - User already registered
- * - invalid email
- * - rate limit
- */
 function translateRegisterError(error: any): RegisterErrorResult {
   const rawMessage = String(error?.message ?? '');
   const message = rawMessage.toLowerCase();
@@ -190,95 +147,66 @@ function translateRegisterError(error: any): RegisterErrorResult {
   };
 }
 
-/**
- * Tela de cadastro.
- *
- * Otimizações aplicadas:
- * - Removido useEffect do teclado.
- * - Removido KeyboardAvoidingView.
- * - Removido estado keyboardVisible.
- * - Removida troca dinâmica de tamanho da logo.
- * - Adicionado debounce na busca de cidades.
- * - Evita verificar username duas vezes se ele já foi validado.
- * - Evita clique duplo no botão Criar conta com registerRequestRef.
- * - Fecha o teclado antes de começar o processamento.
- * - Funções estáticas foram movidas para fora do componente.
- */
 export default function RegisterScreen() {
-  /**
-   * Referência do ScrollView principal.
-   *
-   * Usada para rolar até o botão/erros quando necessário.
-   */
   const scrollRef = useRef<any>(null);
+  const nameInputRef = useRef<any>(null);
+  const usernameInputRef = useRef<any>(null);
+  const emailInputRef = useRef<any>(null);
+  const passwordInputRef = useRef<any>(null);
+  const confirmPasswordInputRef = useRef<any>(null);
 
-  /**
-   * Guarda o timeout da busca de cidades.
-   *
-   * Isso permite cancelar a busca anterior quando o usuário continua digitando.
-   */
   const municipalitySearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  /**
-   * Evita múltiplos cadastros ao tocar várias vezes no botão.
-   */
   const registerRequestRef = useRef(false);
-
-  /**
-   * Guarda o último username verificado com sucesso/erro.
-   *
-   * Com isso, no botão Criar conta não precisamos chamar a RPC novamente
-   * se o mesmo username já foi verificado no onBlur.
-   */
   const lastCheckedUsernameRef = useRef<{
     username: string;
     available: boolean;
   } | null>(null);
 
-  /**
-   * Campos principais do formulário.
-   */
+  const { width } = useWindowDimensions();
+  const compactMode = width < 370;
+
+  const logoSize = useMemo(
+    () => ({
+      width: compactMode ? 184 : 224,
+      height: compactMode ? 92 : 116,
+    }),
+    [compactMode],
+  );
+
+  const [step, setStep] = useState<RegisterStep>(1);
+
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  /**
-   * Estados visuais de senha.
-   */
+  const [focusedField, setFocusedField] = useState<
+    'name' | 'username' | 'email' | 'password' | 'confirmPassword' | null
+  >(null);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  /**
-   * Estados de carregamento.
-   */
   const [loading, setLoading] = useState(false);
   const [usernameLoading, setUsernameLoading] = useState(false);
   const [municipalityLoading, setMunicipalityLoading] = useState(false);
 
-  /**
-   * Estados de validação do username.
-   */
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [usernameMessage, setUsernameMessage] = useState('');
 
-  /**
-   * Estado de erros por campo.
-   */
   const [errors, setErrors] = useState<RegisterErrors>({});
 
-  /**
-   * Estados do modal de município.
-   */
   const [municipalityModalVisible, setMunicipalityModalVisible] = useState(false);
   const [municipalitySearch, setMunicipalitySearch] = useState('');
   const [municipalities, setMunicipalities] = useState<IbgeMunicipality[]>([]);
   const [selectedMunicipality, setSelectedMunicipality] = useState<IbgeMunicipality | null>(null);
 
-  /**
-   * Remove erro de um campo quando o usuário começa a corrigir.
-   */
+  const stepSubtitle =
+    step === 1
+      ? 'Informe seus dados para aparecer corretamente na comunidade.'
+      : 'Defina os dados que você vai usar para entrar no app.';
+
   const clearFieldError = useCallback((field: keyof RegisterErrors) => {
     setErrors((current) => ({
       ...current,
@@ -286,24 +214,18 @@ export default function RegisterScreen() {
     }));
   }, []);
 
-  /**
-   * Rola para o final da tela.
-   *
-   * Útil quando o teclado abre ou quando aparece erro próximo ao botão.
-   */
+  const scrollToTop = useCallback((delay = 80) => {
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }, delay);
+  }, []);
+
   const scrollToEnd = useCallback((delay = 120) => {
     setTimeout(() => {
       scrollRef.current?.scrollToEnd({ animated: true });
     }, delay);
   }, []);
 
-  /**
-   * Verifica se o username está disponível.
-   *
-   * Otimização:
-   * - Se o mesmo username já foi verificado, retorna o resultado em cache.
-   * - Evita chamada RPC duplicada no Supabase.
-   */
   const checkUsername = useCallback(async (value: string, force = false) => {
     const cleanUsername = formatUsername(value);
 
@@ -339,6 +261,11 @@ export default function RegisterScreen() {
           ? 'Nome de usuário disponível.'
           : 'Este nome de usuário já está em uso.',
       );
+
+      setErrors((current) => ({
+        ...current,
+        username: cachedAvailable ? undefined : 'Este nome de usuário já está em uso.',
+      }));
 
       return cachedAvailable;
     }
@@ -393,17 +320,6 @@ export default function RegisterScreen() {
     }
   }, []);
 
-  /**
-   * Busca municípios com debounce.
-   *
-   * Antes:
-   * - cada letra digitada chamava a busca imediatamente.
-   *
-   * Agora:
-   * - espera o usuário parar de digitar por alguns milissegundos.
-   * - reduz chamadas desnecessárias.
-   * - deixa a tela mais leve.
-   */
   const handleSearchMunicipalities = useCallback((text: string) => {
     setMunicipalitySearch(text);
 
@@ -435,14 +351,10 @@ export default function RegisterScreen() {
     }, MUNICIPALITY_SEARCH_DEBOUNCE_MS);
   }, []);
 
-  /**
-   * Valida todos os campos antes de chamar o Supabase.
-   */
-  const validateFields = useCallback(() => {
+  const validateUserStep = useCallback(() => {
     const nextErrors: RegisterErrors = {};
     const cleanName = name.trim();
     const cleanUsername = formatUsername(username);
-    const cleanEmail = email.trim();
 
     if (!cleanName) {
       nextErrors.name = 'Informe seu nome completo.';
@@ -459,6 +371,20 @@ export default function RegisterScreen() {
     if (!selectedMunicipality) {
       nextErrors.municipality = 'Selecione a cidade onde mora.';
     }
+
+    setErrors((current) => ({
+      ...current,
+      name: nextErrors.name,
+      username: nextErrors.username,
+      municipality: nextErrors.municipality,
+    }));
+
+    return Object.keys(nextErrors).length === 0;
+  }, [name, selectedMunicipality, username]);
+
+  const validateAccessStep = useCallback(() => {
+    const nextErrors: RegisterErrors = {};
+    const cleanEmail = email.trim();
 
     if (!cleanEmail) {
       nextErrors.email = 'Informe seu e-mail.';
@@ -478,32 +404,46 @@ export default function RegisterScreen() {
       nextErrors.confirmPassword = 'As senhas não conferem.';
     }
 
-    setErrors(nextErrors);
+    setErrors((current) => ({
+      ...current,
+      email: nextErrors.email,
+      password: nextErrors.password,
+      confirmPassword: nextErrors.confirmPassword,
+    }));
 
     return Object.keys(nextErrors).length === 0;
-  }, [confirmPassword, email, name, password, selectedMunicipality, username]);
+  }, [confirmPassword, email, password]);
 
-  /**
-   * Cria a conta no Supabase Auth e depois cria o perfil na tabela profiles.
-   */
-  const handleRegister = useCallback(async () => {
+  const validateFields = useCallback(() => {
+    const userStepValid = validateUserStep();
+    const accessStepValid = validateAccessStep();
+
+    if (!userStepValid) {
+      setStep(1);
+      scrollToTop();
+      return false;
+    }
+
+    if (!accessStepValid) {
+      setStep(2);
+      scrollToTop();
+      return false;
+    }
+
+    return true;
+  }, [scrollToTop, validateAccessStep, validateUserStep]);
+
+  const handleNextStep = useCallback(async () => {
     try {
-      if (loading || registerRequestRef.current) return;
+      if (loading || usernameLoading) return;
 
-      registerRequestRef.current = true;
-
-      /**
-       * Primeiro fecha o teclado, depois começa o processamento.
-       *
-       * Isso evita travamentos visuais e deixa a experiência mais limpa.
-       */
       Keyboard.dismiss();
       await wait(KEYBOARD_DISMISS_DELAY_MS);
 
-      const valid = validateFields();
+      const userStepValid = validateUserStep();
 
-      if (!valid) {
-        scrollToEnd(100);
+      if (!userStepValid) {
+        scrollToTop(80);
         return;
       }
 
@@ -511,7 +451,46 @@ export default function RegisterScreen() {
       const available = await checkUsername(cleanUsername);
 
       if (!available) {
-        scrollToEnd(100);
+        scrollToTop(80);
+        return;
+      }
+
+      setStep(2);
+      setFocusedField(null);
+      scrollToTop(80);
+    } catch (error) {
+      console.log('Erro ao avançar etapa:', error);
+      Alert.alert('Atenção', 'Não foi possível validar seus dados agora.');
+    }
+  }, [checkUsername, loading, scrollToTop, username, usernameLoading, validateUserStep]);
+
+  const handleBackStep = useCallback(() => {
+    setStep(1);
+    setFocusedField(null);
+    scrollToTop(80);
+  }, [scrollToTop]);
+
+  const handleRegister = useCallback(async () => {
+    try {
+      if (loading || registerRequestRef.current) return;
+
+      registerRequestRef.current = true;
+
+      Keyboard.dismiss();
+      await wait(KEYBOARD_DISMISS_DELAY_MS);
+
+      const valid = validateFields();
+
+      if (!valid) {
+        return;
+      }
+
+      const cleanUsername = formatUsername(username);
+      const available = await checkUsername(cleanUsername);
+
+      if (!available) {
+        setStep(1);
+        scrollToTop(80);
         return;
       }
 
@@ -539,13 +518,6 @@ export default function RegisterScreen() {
 
       if (error) throw error;
 
-      /*
-        O perfil agora é criado automaticamente no banco por trigger em auth.users.
-
-        Isso evita o problema de criar o usuário no Auth e falhar depois ao inserir
-        na tabela profiles. Se a criação do perfil falhar no trigger, o próprio
-        signUp retorna erro e o usuário não fica órfão sem profile.
-      */
       if (!data.user) {
         throw new Error('Não foi possível confirmar a criação do usuário.');
       }
@@ -571,9 +543,19 @@ export default function RegisterScreen() {
           ...current,
           [translatedError.field as keyof RegisterErrors]: translatedError.message,
         }));
+
+        if (
+          translatedError.field === 'name' ||
+          translatedError.field === 'username' ||
+          translatedError.field === 'municipality'
+        ) {
+          setStep(1);
+        } else {
+          setStep(2);
+        }
       }
 
-      scrollToEnd(100);
+      scrollToTop(80);
       Alert.alert(translatedError.title, translatedError.message);
     } finally {
       setLoading(false);
@@ -585,20 +567,21 @@ export default function RegisterScreen() {
     loading,
     name,
     password,
-    scrollToEnd,
+    scrollToTop,
     selectedMunicipality,
     username,
     validateFields,
   ]);
 
-  /**
-   * Seleciona município e fecha modal.
-   */
   const handleSelectMunicipality = useCallback((item: IbgeMunicipality) => {
     setSelectedMunicipality(item);
     clearFieldError('municipality');
     setMunicipalityModalVisible(false);
   }, [clearFieldError]);
+
+  const openLogin = useCallback(() => {
+    router.replace(ROUTES.login as never);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -615,251 +598,447 @@ export default function RegisterScreen() {
         bounces={false}
       >
         <View style={styles.heroCard}>
-          <View style={styles.titleRow}>
-            <View style={styles.logoShell}>
-              <Image
-                source={LOGO_SOURCE}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.eyebrow}>Comece agora</Text>
-              <Text style={styles.title}>Criar conta</Text>
-            </View>
+          <View style={styles.logoFrame}>
+            <Image
+              source={LOGO_SOURCE}
+              style={[styles.logo, logoSize]}
+              resizeMode="contain"
+            />
           </View>
 
-          <Text style={styles.subtitle}>
-            Cadastre seus dados para acompanhar sua rotina, ganhos, corridas e desempenho no MovenApp.
-          </Text>
+          <View style={styles.heroTextBox}>
+            <Text style={styles.eyebrow}>Faça parte da nossa comunidade</Text>
+            <Text style={styles.title}>Crie sua conta</Text>
+          </View>
+
+          <View style={styles.stepsRow}>
+            <View style={[styles.stepPill, step === 1 && styles.stepPillActive]}>
+              <View style={[styles.stepNumber, step === 1 && styles.stepNumberActive]}>
+                <Text style={[styles.stepNumberText, step === 1 && styles.stepNumberTextActive]}>
+                  1
+                </Text>
+              </View>
+              <Text style={[styles.stepPillText, step === 1 && styles.stepPillTextActive]}>
+                Perfil
+              </Text>
+            </View>
+
+            <View style={styles.stepDivider} />
+
+            <View style={[styles.stepPill, step === 2 && styles.stepPillActive]}>
+              <View style={[styles.stepNumber, step === 2 && styles.stepNumberActive]}>
+                <Text style={[styles.stepNumberText, step === 2 && styles.stepNumberTextActive]}>
+                  2
+                </Text>
+              </View>
+              <Text style={[styles.stepPillText, step === 2 && styles.stepPillTextActive]}>
+                Acesso
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.label}>Nome completo</Text>
+          {step === 1 ? (
+            <>
+              <Text style={styles.label}>Nome e sobrenome</Text>
 
-          <View style={[styles.inputContainer, errors.name && styles.inputContainerError]}>
-            <Ionicons name="person-outline" size={20} color="#9B969B" />
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => nameInputRef.current?.focus?.()}
+                style={[
+                  styles.inputContainer,
+                  focusedField === 'name' && styles.inputContainerFocused,
+                  errors.name && styles.inputContainerError,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.inputIconBox,
+                    focusedField === 'name' && styles.inputIconBoxFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="person-outline"
+                    size={18}
+                    color={focusedField === 'name' ? '#D4A64A' : '#9B969B'}
+                  />
+                </View>
 
-            <TextInput
-              value={name}
-              onChangeText={(text) => {
-                setName(text);
-                clearFieldError('name');
-              }}
-              placeholder="Seu nome completo"
-              placeholderTextColor="#71717A"
-              autoCapitalize="words"
-              style={styles.input}
-            />
-          </View>
+                <TextInput
+                  ref={nameInputRef}
+                  value={name}
+                  onChangeText={(text) => {
+                    setName(text);
+                    clearFieldError('name');
+                  }}
+                  placeholder="Seu nome e sobrenome"
+                  placeholderTextColor="#71717A"
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                  style={styles.input}
+                  onFocus={() => setFocusedField('name')}
+                  onBlur={() => setFocusedField(null)}
+                  onSubmitEditing={() => usernameInputRef.current?.focus?.()}
+                />
+              </TouchableOpacity>
 
-          {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
-
-          <Text style={styles.label}>Nome de usuário</Text>
-
-          <View style={[styles.inputContainer, errors.username && styles.inputContainerError]}>
-            <Text style={styles.atSign}>@</Text>
-
-            <TextInput
-              value={username}
-              onChangeText={(value) => {
-                const clean = formatUsername(value);
-
-                setUsername(clean);
-                setUsernameAvailable(null);
-                setUsernameMessage('');
-                lastCheckedUsernameRef.current = null;
-                clearFieldError('username');
-              }}
-              onBlur={() => checkUsername(username)}
-              placeholder="username único"
-              placeholderTextColor="#71717A"
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.input}
-            />
-
-            {usernameLoading ? (
-              <ActivityIndicator color="#D4A64A" />
-            ) : usernameAvailable !== null ? (
-              <Ionicons
-                name={usernameAvailable ? 'checkmark-circle' : 'close-circle'}
-                size={22}
-                color={usernameAvailable ? '#22C55E' : '#EF4444'}
-              />
-            ) : null}
-          </View>
-
-          {usernameMessage ? (
-            <Text
-              style={[
-                styles.helperText,
-                usernameAvailable ? styles.successText : styles.errorText,
-              ]}
-            >
-              {usernameMessage}
-            </Text>
-          ) : errors.username ? (
-            <Text style={styles.errorText}>{errors.username}</Text>
-          ) : (
-            <Text style={styles.helperText}>Use letras, números, ponto ou underline.</Text>
-          )}
-
-          <Text style={styles.label}>Cidade onde mora</Text>
-
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={[styles.selectCard, errors.municipality && styles.inputContainerError]}
-            onPress={() => setMunicipalityModalVisible(true)}
-          >
-            <View style={styles.selectIcon}>
-              <Ionicons name="location-outline" size={23} color="#D4A64A" />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.selectText} numberOfLines={1}>
-                {selectedMunicipality
-                  ? `${selectedMunicipality.name} - ${selectedMunicipality.uf}`
-                  : 'Selecionar cidade'}
-              </Text>
-
-              {selectedMunicipality?.immediate_region ? (
-                <Text style={styles.selectSubText} numberOfLines={1}>
-                  {selectedMunicipality.immediate_region}
-                </Text>
+              {errors.name ? (
+                <Text style={styles.errorText}>{errors.name}</Text>
               ) : null}
-            </View>
 
-            <Ionicons name="chevron-forward" size={21} color="#F5F0E6" />
-          </TouchableOpacity>
+              <Text style={styles.label}>Nome de usuário</Text>
 
-          {errors.municipality ? (
-            <Text style={styles.errorText}>{errors.municipality}</Text>
-          ) : null}
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => usernameInputRef.current?.focus?.()}
+                style={[
+                  styles.inputContainer,
+                  focusedField === 'username' && styles.inputContainerFocused,
+                  errors.username && styles.inputContainerError,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.inputIconBox,
+                    focusedField === 'username' && styles.inputIconBoxFocused,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.atSign,
+                      focusedField === 'username' && styles.atSignFocused,
+                    ]}
+                  >
+                    @
+                  </Text>
+                </View>
 
-          <Text style={styles.label}>E-mail</Text>
+                <TextInput
+                  ref={usernameInputRef}
+                  value={username}
+                  onChangeText={(value) => {
+                    const clean = formatUsername(value);
 
-          <View style={[styles.inputContainer, errors.email && styles.inputContainerError]}>
-            <Ionicons name="mail-outline" size={20} color="#9B969B" />
+                    setUsername(clean);
+                    setUsernameAvailable(null);
+                    setUsernameMessage('');
+                    lastCheckedUsernameRef.current = null;
+                    clearFieldError('username');
+                  }}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    checkUsername(username);
+                  }}
+                  placeholder="username único"
+                  placeholderTextColor="#71717A"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  style={styles.input}
+                  onFocus={() => setFocusedField('username')}
+                />
 
-            <TextInput
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                clearFieldError('email');
-              }}
-              placeholder="seuemail@exemplo.com"
-              placeholderTextColor="#71717A"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              autoComplete="email"
-              style={styles.input}
-            />
-          </View>
+                {usernameLoading ? (
+                  <ActivityIndicator color="#D4A64A" />
+                ) : usernameAvailable !== null ? (
+                  <Ionicons
+                    name={usernameAvailable ? 'checkmark-circle' : 'close-circle'}
+                    size={22}
+                    color={usernameAvailable ? '#22C55E' : '#EF4444'}
+                  />
+                ) : null}
+              </TouchableOpacity>
 
-          {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+              {usernameMessage ? (
+                <Text
+                  style={[
+                    styles.helperText,
+                    usernameAvailable ? styles.successText : styles.errorText,
+                  ]}
+                >
+                  {usernameMessage}
+                </Text>
+              ) : errors.username ? (
+                <Text style={styles.errorText}>{errors.username}</Text>
+              ) : (
+                <Text style={styles.helperText}>Use letras, números, ponto ou underline.</Text>
+              )}
 
-          <Text style={styles.label}>Senha</Text>
+              <Text style={styles.label}>Cidade onde mora</Text>
 
-          <View style={[styles.inputContainer, errors.password && styles.inputContainerError]}>
-            <Ionicons name="lock-closed-outline" size={20} color="#9B969B" />
+              <TouchableOpacity
+                activeOpacity={0.88}
+                style={[
+                  styles.selectCard,
+                  errors.municipality && styles.inputContainerError,
+                ]}
+                onPress={() => setMunicipalityModalVisible(true)}
+              >
+                <View style={styles.selectIcon}>
+                  <Ionicons name="location-outline" size={21} color="#D4A64A" />
+                </View>
 
-            <TextInput
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                clearFieldError('password');
-                clearFieldError('confirmPassword');
-              }}
-              placeholder="Mínimo de 6 caracteres"
-              placeholderTextColor="#71717A"
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="off"
-              importantForAutofill="no"
-              textContentType="oneTimeCode"
-              style={styles.input}
-              onFocus={() => scrollToEnd(160)}
-            />
+                <View style={styles.selectTextBox}>
+                  <Text style={styles.selectText} numberOfLines={1}>
+                    {selectedMunicipality
+                      ? `${selectedMunicipality.name} - ${selectedMunicipality.uf}`
+                      : 'Selecionar cidade'}
+                  </Text>
 
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.passwordIconButton}
-              onPress={() => setShowPassword((current) => !current)}
-            >
-              <Ionicons
-                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={22}
-                color="#9B969B"
-              />
-            </TouchableOpacity>
-          </View>
+                  <Text style={styles.selectSubText} numberOfLines={1}>
+                    {selectedMunicipality?.immediate_region ||
+                      'A comunidade será conectada à sua região'}
+                  </Text>
+                </View>
 
-          {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+                <Ionicons name="chevron-forward" size={21} color="#F5F0E6" />
+              </TouchableOpacity>
 
-          <Text style={styles.label}>Confirmar senha</Text>
+              {errors.municipality ? (
+                <Text style={styles.errorText}>{errors.municipality}</Text>
+              ) : null}
 
-          <View style={[styles.inputContainer, errors.confirmPassword && styles.inputContainerError]}>
-            <Ionicons name="shield-checkmark-outline" size={20} color="#9B969B" />
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={[
+                  styles.button,
+                  (usernameLoading || loading) && styles.buttonDisabled,
+                ]}
+                onPress={handleNextStep}
+                disabled={usernameLoading || loading}
+              >
+                {usernameLoading ? (
+                  <ActivityIndicator color="#080808" />
+                ) : (
+                  <>
+                    <Text style={styles.buttonText}>Continuar</Text>
+                    <View style={styles.buttonIconCircle}>
+                      <Ionicons name="arrow-forward" size={18} color="#080808" />
+                    </View>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              
 
-            <TextInput
-              value={confirmPassword}
-              onChangeText={(text) => {
-                setConfirmPassword(text);
-                clearFieldError('confirmPassword');
-              }}
-              placeholder="Digite a senha novamente"
-              placeholderTextColor="#71717A"
-              secureTextEntry={!showConfirmPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="off"
-              importantForAutofill="no"
-              textContentType="oneTimeCode"
-              style={styles.input}
-              onFocus={() => scrollToEnd(160)}
-              onSubmitEditing={handleRegister}
-            />
+              <Text style={styles.label}>E-mail</Text>
 
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.passwordIconButton}
-              onPress={() => setShowConfirmPassword((current) => !current)}
-            >
-              <Ionicons
-                name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={22}
-                color="#9B969B"
-              />
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => emailInputRef.current?.focus?.()}
+                style={[
+                  styles.inputContainer,
+                  focusedField === 'email' && styles.inputContainerFocused,
+                  errors.email && styles.inputContainerError,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.inputIconBox,
+                    focusedField === 'email' && styles.inputIconBoxFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="mail-outline"
+                    size={18}
+                    color={focusedField === 'email' ? '#D4A64A' : '#9B969B'}
+                  />
+                </View>
 
-          {errors.confirmPassword ? (
-            <Text style={styles.errorText}>{errors.confirmPassword}</Text>
-          ) : null}
+                <TextInput
+                  ref={emailInputRef}
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    clearFieldError('email');
+                  }}
+                  placeholder="seuemail@exemplo.com"
+                  placeholderTextColor="#71717A"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  autoComplete="email"
+                  returnKeyType="next"
+                  style={styles.input}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
+                  onSubmitEditing={() => passwordInputRef.current?.focus?.()}
+                />
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#080808" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle-outline" size={22} color="#080808" />
-                <Text style={styles.buttonText}>Criar conta</Text>
-              </>
-            )}
-          </TouchableOpacity>
+              {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+
+              <Text style={styles.label}>Senha</Text>
+
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => passwordInputRef.current?.focus?.()}
+                style={[
+                  styles.inputContainer,
+                  focusedField === 'password' && styles.inputContainerFocused,
+                  errors.password && styles.inputContainerError,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.inputIconBox,
+                    focusedField === 'password' && styles.inputIconBoxFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={18}
+                    color={focusedField === 'password' ? '#D4A64A' : '#9B969B'}
+                  />
+                </View>
+
+                <TextInput
+                  ref={passwordInputRef}
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    clearFieldError('password');
+                    clearFieldError('confirmPassword');
+                  }}
+                  placeholder="Mínimo de 6 caracteres"
+                  placeholderTextColor="#71717A"
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  importantForAutofill="no"
+                  textContentType="oneTimeCode"
+                  returnKeyType="next"
+                  style={styles.input}
+                  onFocus={() => {
+                    setFocusedField('password');
+                    scrollToEnd(160);
+                  }}
+                  onBlur={() => setFocusedField(null)}
+                  onSubmitEditing={() => confirmPasswordInputRef.current?.focus?.()}
+                />
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.passwordIconButton}
+                  onPress={() => setShowPassword((current) => !current)}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color={showPassword ? '#D4A64A' : '#9B969B'}
+                  />
+                </TouchableOpacity>
+              </TouchableOpacity>
+
+              {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+
+              <Text style={styles.label}>Confirmar senha</Text>
+
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => confirmPasswordInputRef.current?.focus?.()}
+                style={[
+                  styles.inputContainer,
+                  focusedField === 'confirmPassword' && styles.inputContainerFocused,
+                  errors.confirmPassword && styles.inputContainerError,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.inputIconBox,
+                    focusedField === 'confirmPassword' && styles.inputIconBoxFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={18}
+                    color={
+                      focusedField === 'confirmPassword' ? '#D4A64A' : '#9B969B'
+                    }
+                  />
+                </View>
+
+                <TextInput
+                  ref={confirmPasswordInputRef}
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    clearFieldError('confirmPassword');
+                  }}
+                  placeholder="Digite a senha novamente"
+                  placeholderTextColor="#71717A"
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  importantForAutofill="no"
+                  textContentType="oneTimeCode"
+                  returnKeyType="done"
+                  style={styles.input}
+                  onFocus={() => {
+                    setFocusedField('confirmPassword');
+                    scrollToEnd(160);
+                  }}
+                  onBlur={() => setFocusedField(null)}
+                  onSubmitEditing={handleRegister}
+                />
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.passwordIconButton}
+                  onPress={() => setShowConfirmPassword((current) => !current)}
+                >
+                  <Ionicons
+                    name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color={showConfirmPassword ? '#D4A64A' : '#9B969B'}
+                  />
+                </TouchableOpacity>
+              </TouchableOpacity>
+
+              {errors.confirmPassword ? (
+                <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+              ) : null}
+
+              <View style={styles.actionsRow}>
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={styles.secondaryButton}
+                  onPress={handleBackStep}
+                  disabled={loading}
+                >
+                  <Ionicons name="arrow-back" size={18} color="#F5F0E6" />
+                  <Text style={styles.secondaryButtonText}>Voltar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={[styles.button, styles.createButton, loading && styles.buttonDisabled]}
+                  onPress={handleRegister}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#080808" />
+                  ) : (
+                    <>
+                      <Text style={styles.buttonText}>Criar conta</Text>
+                      <View style={styles.buttonIconCircle}>
+                        <Ionicons name="checkmark" size={18} color="#080808" />
+                      </View>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
 
-        <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()}>
+        <TouchableOpacity activeOpacity={0.85} onPress={openLogin}>
           <Text style={styles.link}>Já tenho conta</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -877,12 +1056,12 @@ export default function RegisterScreen() {
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleRow}>
                 <View style={styles.modalIconBox}>
-                  <Ionicons name="location-outline" size={23} color="#D4A64A" />
+                  <Ionicons name="location-outline" size={22} color="#D4A64A" />
                 </View>
 
-                <View>
+                <View style={styles.modalTitleBox}>
                   <Text style={styles.modalEyebrow}>Cidade onde mora</Text>
-                  <Text style={styles.modalTitle}>Escolher cidade onde mora</Text>
+                  <Text style={styles.modalTitle}>Escolher cidade</Text>
                 </View>
               </View>
 
@@ -915,7 +1094,7 @@ export default function RegisterScreen() {
               </View>
             ) : (
               <ScrollView
-                style={{ flex: 1 }}
+                style={styles.modalList}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.municipalityListContent}
@@ -954,7 +1133,7 @@ export default function RegisterScreen() {
                           <Ionicons name="business-outline" size={19} color="#D4A64A" />
                         </View>
 
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.municipalityTextBox}>
                           <Text style={styles.municipalityName} numberOfLines={1}>
                             {item.name} - {item.uf}
                           </Text>
@@ -991,89 +1170,202 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 80,
+    paddingTop: Platform.OS === 'ios' ? 26 : 22,
+    paddingBottom: 40,
     backgroundColor: '#050505',
-  },
-
-  heroCard: {
-    backgroundColor: '#101014',
-    borderRadius: 18,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#2A2830',
-    marginBottom: 16,
-    overflow: 'hidden',
-  },
-
-  logoShell: {
-    alignItems: 'center',
     justifyContent: 'center',
   },
 
-  logo: {
-    width: 100,
-    height: 56,
+  heroCard: {
+    overflow: 'hidden',
+    borderRadius: 30,
+    borderWidth: 0,
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 18,
+    alignItems: 'center',
+    marginBottom: 14,
   },
 
-  titleRow: {
-    flexDirection: 'row',
+  logoFrame: {
+    position: 'relative',
     alignItems: 'center',
-    marginTop: 4,
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+
+  logo: {
+    width: 224,
+    height: 116,
+  },
+
+  heroTextBox: {
+    alignItems: 'center',
+    marginTop: 2,
   },
 
   eyebrow: {
     color: '#D4A64A',
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '900',
+    letterSpacing: 1,
     textTransform: 'uppercase',
-    letterSpacing: 1.7,
+    textAlign: 'center',
+    marginBottom: 7,
   },
 
   title: {
     color: '#F5F0E6',
-    fontSize: 25,
+    fontSize: 30,
     fontWeight: '900',
-    letterSpacing: 0.1,
+    textAlign: 'center',
+    letterSpacing: -0.8,
   },
 
   subtitle: {
-    color: '#9B969B',
+    color: '#A8A3AB',
     fontSize: 13,
-    lineHeight: 20,
-    fontWeight: '700',
-    marginTop: 14,
+    lineHeight: 19,
     textAlign: 'center',
+    fontWeight: '700',
+    marginTop: 8,
+    maxWidth: 300,
+  },
+
+  benefitsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+  },
+
+  benefitChip: {
+    minHeight: 32,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 10,
+  },
+
+  benefitText: {
+    color: '#F5F0E6',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  stepsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginTop: 20,
+  },
+
+  stepPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 999,
+    backgroundColor: '#141318',
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+  },
+
+  stepPillActive: {
+    borderColor: '#D4A64A',
+    backgroundColor: 'rgba(212,166,74,0.10)',
+  },
+
+  stepNumber: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: '#242229',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  stepNumberActive: {
+    backgroundColor: '#D4A64A',
+  },
+
+  stepNumberText: {
+    color: '#9B969B',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  stepNumberTextActive: {
+    color: '#080808',
+  },
+
+  stepPillText: {
+    color: '#9B969B',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  stepPillTextActive: {
+    color: '#F5F0E6',
+  },
+
+  stepDivider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#2A2830',
+    marginHorizontal: 8,
   },
 
   formCard: {
-    backgroundColor: '#101014',
-    borderRadius: 18,
-    padding: 18,
+    backgroundColor: '#0E0E12',
+    borderRadius: 28,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#2A2830',
+    borderColor: '#25222A',
+    marginTop: -20,
+  },
+
+  sectionTitle: {
+    color: '#F5F0E6',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+    marginBottom: 4,
   },
 
   label: {
     color: '#F5F0E6',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
-    marginTop: 12,
+    marginTop: 14,
     marginBottom: 8,
     marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 
   inputContainer: {
     minHeight: 58,
     backgroundColor: '#18171D',
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#2A2830',
-    paddingLeft: 16,
+    paddingLeft: 9,
     paddingRight: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+
+  inputContainerFocused: {
+    borderColor: '#D4A64A',
+    backgroundColor: '#1D1A20',
   },
 
   inputContainerError: {
@@ -1081,19 +1373,36 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
 
+  inputIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#222027',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  inputIconBoxFocused: {
+    backgroundColor: 'rgba(212,166,74,0.12)',
+  },
+
   input: {
     flex: 1,
     height: 56,
     color: '#F5F0E6',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     paddingVertical: 0,
   },
 
   atSign: {
-    color: '#D4A64A',
+    color: '#9B969B',
     fontSize: 17,
     fontWeight: '900',
+  },
+
+  atSignFocused: {
+    color: '#D4A64A',
   },
 
   helperText: {
@@ -1102,6 +1411,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 7,
     marginLeft: 4,
+    lineHeight: 17,
   },
 
   errorText: {
@@ -1110,6 +1420,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 7,
     marginLeft: 4,
+    lineHeight: 17,
   },
 
   successText: {
@@ -1119,20 +1430,20 @@ const styles = StyleSheet.create({
   selectCard: {
     minHeight: 68,
     backgroundColor: '#18171D',
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#2A2830',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 11,
   },
 
   selectIcon: {
     width: 42,
     height: 42,
-    borderRadius: 12,
+    borderRadius: 15,
     backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(212,166,74,0.24)',
@@ -1140,11 +1451,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  selectLabel: {
-    color: '#8F8A91',
-    fontSize: 12,
-    fontWeight: '800',
-    marginBottom: 3,
+  selectTextBox: {
+    flex: 1,
+    minWidth: 0,
   },
 
   selectText: {
@@ -1163,20 +1472,67 @@ const styles = StyleSheet.create({
   passwordIconButton: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
+  reviewCard: {
+    minHeight: 64,
+    borderRadius: 18,
+    backgroundColor: '#18171D',
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    marginTop: 11,
+  },
+
+  reviewIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: 'rgba(212,166,74,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  reviewTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  reviewName: {
+    color: '#F5F0E6',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  reviewMeta: {
+    color: '#8F8A91',
+    fontSize: 11.5,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+
   button: {
+    overflow: 'hidden',
     height: 60,
     backgroundColor: '#D4A64A',
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 24,
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
+  },
+
+  createButton: {
+    flex: 1,
+    marginTop: 0,
   },
 
   buttonDisabled: {
@@ -1186,6 +1542,40 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#080808',
     fontSize: 16,
+    fontWeight: '900',
+  },
+
+  buttonIconCircle: {
+    width: 31,
+    height: 31,
+    borderRadius: 999,
+    backgroundColor: 'rgba(8,8,8,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 24,
+  },
+
+  secondaryButton: {
+    minWidth: 106,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: '#18171D',
+    borderWidth: 1,
+    borderColor: '#2A2830',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 7,
+  },
+
+  secondaryButtonText: {
+    color: '#F5F0E6',
+    fontSize: 14,
     fontWeight: '900',
   },
 
@@ -1206,8 +1596,8 @@ const styles = StyleSheet.create({
   municipalityModalContent: {
     height: '82%',
     backgroundColor: '#101014',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 20,
@@ -1241,12 +1631,17 @@ const styles = StyleSheet.create({
   modalIconBox: {
     width: 46,
     height: 46,
-    borderRadius: 13,
+    borderRadius: 16,
     backgroundColor: 'rgba(212,166,74,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(212,166,74,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  modalTitleBox: {
+    flex: 1,
+    minWidth: 0,
   },
 
   modalEyebrow: {
@@ -1267,7 +1662,7 @@ const styles = StyleSheet.create({
   modalCloseButton: {
     width: 42,
     height: 42,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: '#18171D',
     borderWidth: 1,
     borderColor: '#2A2830',
@@ -1277,7 +1672,7 @@ const styles = StyleSheet.create({
 
   searchBox: {
     height: 56,
-    borderRadius: 14,
+    borderRadius: 18,
     backgroundColor: '#18171D',
     borderWidth: 1,
     borderColor: '#2A2830',
@@ -1310,6 +1705,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 
+  modalList: {
+    flex: 1,
+  },
+
   municipalityListContent: {
     paddingBottom: 20,
   },
@@ -1339,7 +1738,7 @@ const styles = StyleSheet.create({
 
   municipalityItem: {
     minHeight: 62,
-    borderRadius: 14,
+    borderRadius: 18,
     backgroundColor: '#18171D',
     borderWidth: 1,
     borderColor: '#2A2830',
@@ -1359,12 +1758,17 @@ const styles = StyleSheet.create({
   municipalityIconSmall: {
     width: 38,
     height: 38,
-    borderRadius: 11,
+    borderRadius: 13,
     backgroundColor: 'rgba(212,166,74,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(212,166,74,0.20)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  municipalityTextBox: {
+    flex: 1,
+    minWidth: 0,
   },
 
   municipalityName: {

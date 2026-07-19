@@ -1,38 +1,34 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { supabase } from "../../../src/database/supabase";
+import { router } from "expo-router";
+
+import { supabase } from "../../../database/supabase";
 import {
   DashboardPeriod,
   getDashboardData,
-} from "../../../src/features/dashboard/services/getDashboardData";
-import { PublicUserProfileModal } from "../../../src/features/profile/components/PublicUserProfileModal";
-import { OperationalResultCard } from "../../../src/features/dashboard/components/OperationalResultCard";
-import { ResumoJornada } from "../../../src/features/dashboard/components/ResumoJornada";
-import { CommunityPostCard } from "../../../src/features/community/components/CommunityPostCard";
-import { CommunityPostConversation } from "../../../src/features/community/components/CommunityPostConversation";
-import { NovoPostModal } from "../../../src/features/posts/components/NovoPostModal";
+} from "../../dashboard/services/getDashboardData";
+import { OperationalResultCard } from "../../dashboard/components/OperationalResultCard";
+import { ResumoJornada } from "../../dashboard/components/ResumoJornada";
+import { DescricaoPostCard } from "../../posts/components/shared/DescricaoPostCard";
+import { FotosPostCard } from "../../posts/components/shared/FotosPostCard";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type ContentType =
@@ -66,7 +62,6 @@ type CommunityPost = {
   id: string;
   user_id: string;
   city?: string | null;
-  immediate_region?: string | null;
   content_type?: string | null;
   category?: string | null;
   scope?: string | null;
@@ -576,78 +571,6 @@ function buildOperationalResultSummaryFromSnapshot(snapshot: any) {
   };
 }
 
-function getSnapshotResultPeriod(snapshot: any, fallbackPeriod?: string | null) {
-  return String(
-    snapshot?.period ||
-      snapshot?.result_period_type ||
-      fallbackPeriod ||
-      "",
-  ).trim();
-}
-
-function buildResumoJornadaDataFromSnapshot(snapshot: any) {
-  const dailySession = Array.isArray(snapshot?.dailySessions)
-    ? snapshot.dailySessions[0]
-    : null;
-
-  const totalHours = Number(
-    snapshot?.totalHours ??
-      dailySession?.hours ??
-      dailySession?.totalHours ??
-      dailySession?.total_hours ??
-      0,
-  );
-
-  const totalKm = Number(
-    snapshot?.totalKm ??
-      dailySession?.km ??
-      dailySession?.totalKm ??
-      dailySession?.total_km ??
-      0,
-  );
-
-  const revenue = Number(
-    snapshot?.revenue ??
-      dailySession?.revenue ??
-      dailySession?.amount ??
-      dailySession?.total_earnings ??
-      dailySession?.totalEarnings ??
-      0,
-  );
-
-  return {
-    id: snapshot?.turnId ?? dailySession?.id ?? null,
-    referenceDate:
-      snapshot?.referenceDate ??
-      snapshot?.startDate ??
-      dailySession?.startedAt ??
-      dailySession?.started_at ??
-      null,
-    started_at:
-      dailySession?.startedAt ??
-      dailySession?.started_at ??
-      dailySession?.start_time ??
-      snapshot?.startDate ??
-      null,
-    finished_at:
-      dailySession?.endedAt ??
-      dailySession?.finished_at ??
-      dailySession?.ended_at ??
-      dailySession?.end_time ??
-      snapshot?.endDate ??
-      null,
-    totalHours,
-    totalKm,
-    revenue,
-    revenuePerHour:
-      Number(snapshot?.revenuePerHour ?? 0) ||
-      (totalHours > 0 ? revenue / totalHours : 0),
-    revenuePerKm:
-      Number(snapshot?.revenuePerKm ?? 0) ||
-      (totalKm > 0 ? revenue / totalKm : 0),
-  };
-}
-
 function shiftResultReferenceDate(value: string, period: ResultPeriod, direction: -1 | 1) {
   const date = getSafeResultReferenceDate(value);
   const next = new Date(date);
@@ -1148,48 +1071,32 @@ function buildRevenueRowsFromSessions(rows: any[]) {
   }));
 }
 
-export default function CommunityContentFeedScreen() {
-  const params = useLocalSearchParams();
-  const contentType = normalizeContentType(params.contentType as any);
+export type CommunityCreatePostModalProps = {
+  visible: boolean;
+  contentType: ContentType;
+  currentUserId: string;
+  profileCity?: string | null;
+  profileImmediateRegion?: string | null;
+  onClose: () => void;
+  onCreated?: () => void | Promise<void>;
+};
+
+export function CommunityCreatePostModal({
+  visible,
+  contentType,
+  currentUserId,
+  profileCity = "",
+  profileImmediateRegion = "",
+  onClose,
+  onCreated,
+}: CommunityCreatePostModalProps) {
   const config = getConfig(contentType);
-  const { width: windowWidth } = useWindowDimensions();
-  const postImagesViewportWidth = Math.max(windowWidth - 66, 260);
-  const postImagePairItemWidth = Math.max((postImagesViewportWidth - 8) / 2, 120);
-  const postImageTripleItemWidth = Math.max((postImagesViewportWidth - 16) / 3, 82);
-  const messageBubbleMinWidth = Math.max(windowWidth * 0.6, 220);
-  const createImagesViewportWidth = Math.max(windowWidth - 72, 260);
-  const createImagePairItemWidth = Math.max((createImagesViewportWidth - 10) / 2, 128);
-  const communityAreasScrollRef = useRef<ScrollView>(null);
-  const communityAreasScrollXRef = useRef(0);
-  const communityAreasViewportWidthRef = useRef(0);
-  const communityAreaLayoutsRef = useRef<
-    Partial<Record<ContentType, { x: number; width: number }>>
-  >({});
-
-  const [currentUserId, setCurrentUserId] = useState("");
-  const [profileCity, setProfileCity] = useState("");
-  const [profileImmediateRegion, setProfileImmediateRegion] = useState("");
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
-  const [newPostCounts, setNewPostCounts] = useState<Record<string, number>>({});
-  const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
-  const [selectedPublicProfile, setSelectedPublicProfile] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [postModalVisible, setPostModalVisible] = useState(false);
-  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
-  const [imageModalVisible, setImageModalVisible] = useState(false);
-  const [fullImages, setFullImages] = useState<string[]>([]);
-  const [fullImageIndex, setFullImageIndex] = useState(0);
-  const [feedScope, setFeedScope] = useState<FeedScope>(
-    contentType === "sale" ? "national" : "city",
-  );
-  const [resultsScopeFilter, setResultsScopeFilter] =
-    useState<FeedScope>("city");
   const [postContent, setPostContent] = useState("");
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
-
+  const [selectedImages, setSelectedImages] = useState<Array<string | null>>(
+    Array(6).fill(null),
+  );
   const selectedImageUris = selectedImages.filter(
-    (uri): uri is string => Boolean(String(uri ?? "").trim()),
+    (uri): uri is string => Boolean(uri),
   );
   const [savingPost, setSavingPost] = useState(false);
   const [supportType, setSupportType] = useState("passenger_problem");
@@ -1197,7 +1104,6 @@ export default function CommunityContentFeedScreen() {
   const [supportLongitude, setSupportLongitude] = useState<number | null>(null);
   const [supportLocationLabel, setSupportLocationLabel] = useState("");
   const [gettingLocation, setGettingLocation] = useState(false);
-  const [updatingLocationPostId, setUpdatingLocationPostId] = useState("");
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
   const [saleScope, setSaleScope] = useState<FeedScope>("national");
@@ -1234,17 +1140,6 @@ export default function CommunityContentFeedScreen() {
   const [loadingResultTurnOptions, setLoadingResultTurnOptions] = useState(false);
   const [loadingResultPreview, setLoadingResultPreview] = useState(false);
 
-  const visiblePosts = useMemo(() => {
-    return [...posts].sort((a, b) => {
-      const aClosed = isPostClosed(a);
-      const bClosed = isPostClosed(b);
-
-      if (aClosed !== bClosed) return aClosed ? 1 : -1;
-
-      return getPostSortTime(b) - getPostSortTime(a);
-    });
-  }, [posts]);
-
   const resultReferenceOptions = useMemo(
     () => buildResultReferenceOptions(resultPeriod, resultReferencePage),
     [resultPeriod, resultReferencePage],
@@ -1255,340 +1150,6 @@ export default function CommunityContentFeedScreen() {
     [resultDate],
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      const focusedContentType = contentType;
-
-      loadCommunity();
-
-      /*
-        Ao sair da área, registra novamente o horário no servidor.
-        Assim, posts que chegaram enquanto o usuário estava nesta tela
-        também serão considerados visualizados.
-      */
-      return () => {
-        void markCommunityAreaAsSeen(focusedContentType);
-      };
-    }, [contentType]),
-  );
-
-  async function loadCommunity(showRefresh = false) {
-    try {
-      if (showRefresh) setRefreshing(true);
-      else setLoading(true);
-      await closeExpiredPosts();
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      const userId = user?.id ?? "";
-      setCurrentUserId(userId);
-
-      if (!userId) {
-        setProfileCity("");
-        setProfileImmediateRegion("");
-        setPosts([]);
-        return;
-      }
-
-      const profile = await getLoggedProfile(userId, user);
-
-      const city = normalizeCity(
-        profile?.city ||
-          user?.user_metadata?.city ||
-          user?.user_metadata?.profile_city ||
-          user?.user_metadata?.municipality,
-      );
-
-      const immediateRegion = normalizeRegion(
-        profile?.regiao_imediata ||
-          profile?.immediate_region ||
-          profile?.region ||
-          user?.user_metadata?.regiao_imediata ||
-          user?.user_metadata?.immediate_region ||
-          user?.user_metadata?.region,
-      );
-
-      setProfileCity(city);
-      setProfileImmediateRegion(immediateRegion);
-
-      /*
-        Ao acessar a área, a quantidade dela é zerada imediatamente.
-        O RPC usa o horário do servidor e a região atual do perfil.
-      */
-      await markCommunityAreaAsSeen(contentType);
-
-      await Promise.all([
-        loadPosts(immediateRegion, userId),
-        loadNewPostCounts(),
-      ]);
-    } catch (error) {
-      console.log("Erro ao carregar conteúdo da comunidade:", error);
-      setPosts([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
-
-  async function closeExpiredPosts() {
-    try {
-      await (supabase as any).rpc("close_expired_community_posts");
-    } catch (error) {
-      console.log("close_expired_community_posts indisponível:", error);
-    }
-  }
-
-  async function markCommunityAreaAsSeen(area: ContentType) {
-    try {
-      const { error } = await (supabase as any).rpc(
-        "mark_community_area_seen",
-        {
-          p_content_type: area,
-        },
-      );
-
-      if (error) {
-        console.log("Erro ao registrar visualização da área:", error);
-        return;
-      }
-
-      setNewPostCounts((current) => ({
-        ...current,
-        [area]: 0,
-      }));
-    } catch (error) {
-      console.log("mark_community_area_seen indisponível:", error);
-    }
-  }
-
-  async function loadNewPostCounts() {
-    try {
-      const { data, error } = await (supabase as any).rpc(
-        "get_community_new_post_counts",
-      );
-
-      if (error) {
-        console.log("Erro ao carregar novos posts por área:", error);
-        setNewPostCounts({});
-        return;
-      }
-
-      const nextCounts = configs.reduce<Record<string, number>>(
-        (accumulator, item) => {
-          accumulator[item.id] = 0;
-          return accumulator;
-        },
-        {},
-      );
-
-      (data ?? []).forEach((item: any) => {
-        const area = String(item?.content_type ?? "").trim();
-        const count = Number(item?.new_count ?? 0);
-
-        if (configs.some((configItem) => configItem.id === area)) {
-          nextCounts[area] = Number.isFinite(count) ? count : 0;
-        }
-      });
-
-      setNewPostCounts(nextCounts);
-    } catch (error) {
-      console.log("get_community_new_post_counts indisponível:", error);
-      setNewPostCounts({});
-    }
-  }
-
-  async function getLoggedProfile(userId: string, user: any) {
-    const { data: profileById, error: profileByIdError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (profileByIdError) {
-      console.log("Erro ao buscar profile do usuário logado:", profileByIdError);
-    }
-
-    return (
-      profileById ?? {
-        id: userId,
-        full_name: user?.user_metadata?.full_name || user?.user_metadata?.name,
-        username: user?.user_metadata?.username,
-        avatar_url:
-          user?.user_metadata?.avatar_url || user?.user_metadata?.picture,
-        email: user?.email,
-        city: user?.user_metadata?.city,
-        regiao_imediata: user?.user_metadata?.regiao_imediata,
-        region: user?.user_metadata?.region,
-      }
-    );
-  }
-
-  async function loadPosts(immediateRegion: string, userId: string) {
-    const cleanImmediateRegion = normalizeRegion(immediateRegion);
-
-    if (!cleanImmediateRegion) {
-      setPosts([]);
-      return;
-    }
-
-    /*
-      A região é consultada diretamente no post.
-
-      Isso é diferente de buscar os autores que atualmente moram na região.
-      Portanto, se o autor mudar a região do perfil futuramente, o post antigo
-      continuará pertencendo à região em que foi criado.
-    */
-    const { data: postsResponse, error: postsError } = await supabase
-      .from("community_posts")
-      .select("*")
-      .eq("content_type", contentType)
-      .eq("immediate_region", cleanImmediateRegion)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(180);
-
-    if (postsError) throw postsError;
-
-    /*
-      Mantém uma segunda verificação no cliente. A proteção real também será
-      aplicada no Supabase pelo script SQL entregue junto com esta página.
-    */
-    const regionalPosts = (postsResponse ?? []).filter((post: any) => {
-      return normalizeRegion(post?.immediate_region) === cleanImmediateRegion;
-    });
-
-    const authorUserIds = Array.from(
-      new Set(
-        regionalPosts
-          .map((post: any) => String(post?.user_id ?? "").trim())
-          .filter(Boolean),
-      ),
-    );
-
-    const profilesByUserId = await getProfilesByUserIds(authorUserIds);
-    const postIds = regionalPosts.map((post: any) => post.id).filter(Boolean);
-
-    const [likesByPostId, commentsByPostId, likedPostIds] = await Promise.all([
-      getLikesCountByPostIds(postIds),
-      getCommentsCountByPostIds(postIds),
-      getLikedPostIdsByUser(postIds, userId),
-    ]);
-
-    setPosts(
-      regionalPosts.map((post: any) => ({
-        ...post,
-        images: Array.isArray(post.images) ? post.images : [],
-        profile: profilesByUserId[String(post.user_id)] ?? null,
-        likes_count: likesByPostId[post.id] ?? 0,
-        comments_count: commentsByPostId[post.id] ?? 0,
-        liked_by_me: likedPostIds.includes(post.id),
-      })),
-    );
-  }
-
-  async function getProfilesByUserIds(userIds: string[]) {
-    if (userIds.length === 0) return {};
-
-    const cleanUserIds = Array.from(
-      new Set(userIds.map((item) => String(item ?? "").trim()).filter(Boolean)),
-    );
-
-    if (cleanUserIds.length === 0) return {};
-
-    const profilesByUserId: Record<string, any> = {};
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .in("id", cleanUserIds);
-
-    if (error) {
-      console.log("Erro ao buscar profiles por id:", error);
-      return {};
-    }
-
-    (data ?? []).forEach((profile: any) => {
-      const profileId = String(profile?.id ?? "").trim();
-
-      if (profileId) {
-        profilesByUserId[profileId] = profile;
-      }
-    });
-
-    return profilesByUserId;
-  }
-
-  async function getLikesCountByPostIds(postIds: string[]) {
-    if (postIds.length === 0) return {};
-    const { data, error } = await supabase
-      .from("community_post_likes")
-      .select("post_id")
-      .in("post_id", postIds);
-    if (error) return {};
-    return (data ?? []).reduce((acc: Record<string, number>, like: any) => {
-      acc[like.post_id] = (acc[like.post_id] ?? 0) + 1;
-      return acc;
-    }, {});
-  }
-
-  async function getCommentsCountByPostIds(postIds: string[]) {
-    if (postIds.length === 0) return {};
-    const { data, error } = await supabase
-      .from("community_post_comments")
-      .select("post_id")
-      .in("post_id", postIds)
-      .is("deleted_at", null);
-    if (error) return {};
-    return (data ?? []).reduce((acc: Record<string, number>, comment: any) => {
-      acc[comment.post_id] = (acc[comment.post_id] ?? 0) + 1;
-      return acc;
-    }, {});
-  }
-
-  async function getLikedPostIdsByUser(postIds: string[], userId: string) {
-    if (postIds.length === 0 || !userId) return [];
-    const { data, error } = await supabase
-      .from("community_post_likes")
-      .select("post_id")
-      .eq("user_id", userId)
-      .in("post_id", postIds);
-    if (error) return [];
-    return (data ?? []).map((item: any) => item.post_id);
-  }
-
-  async function pickPostImages() {
-    try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          "Permissão necessária",
-          "Permita o acesso às suas fotos para adicionar imagens ao post.",
-        );
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.82,
-        allowsMultipleSelection: true,
-        selectionLimit: 6,
-      });
-      if (!result.canceled && result.assets?.length) {
-        setSelectedImages((current) =>
-          Array.from(
-            new Set([
-              ...current,
-              ...result.assets.map((asset: any) => asset.uri),
-            ]),
-          ).slice(0, 6),
-        );
-      }
-    } catch (error) {
-      Alert.alert("Erro", "Não foi possível selecionar as imagens.");
-    }
-  }
 
   async function pickPostImageForSlot(slotIndex: number) {
     try {
@@ -1609,45 +1170,34 @@ export default function CommunityContentFeedScreen() {
         allowsMultipleSelection: false,
       });
 
-      if (result.canceled) return;
+      const imageUri = result.canceled
+        ? ""
+        : String(result.assets?.[0]?.uri ?? "").trim();
 
-      const imageUri = String(result.assets?.[0]?.uri ?? "").trim();
-
-      if (!imageUri) {
-        Alert.alert("Erro", "A imagem selecionada não possui um endereço válido.");
-        return;
-      }
+      if (!imageUri) return;
 
       setSelectedImages((current) => {
-        const next = [...current];
-
-        while (next.length < 6) {
-          next.push("");
-        }
+        const next = Array.from(
+          { length: 6 },
+          (_, index) => current[index] ?? null,
+        );
 
         next[slotIndex] = imageUri;
-        return next.slice(0, 6);
+        return next;
       });
     } catch (error) {
-      console.log("Erro ao selecionar imagem para o post:", error);
       Alert.alert("Erro", "Não foi possível selecionar a imagem.");
     }
   }
 
   function removePostImageFromSlot(slotIndex: number) {
     setSelectedImages((current) => {
-      const next = [...current];
+      const next = Array.from(
+        { length: 6 },
+        (_, index) => current[index] ?? null,
+      );
 
-      while (next.length < 6) {
-        next.push("");
-      }
-
-      next[slotIndex] = "";
-
-      while (next.length > 0 && !next[next.length - 1]) {
-        next.pop();
-      }
-
+      next[slotIndex] = null;
       return next;
     });
   }
@@ -1761,7 +1311,7 @@ export default function CommunityContentFeedScreen() {
 
   function resetForm() {
     setPostContent("");
-    setSelectedImages([]);
+    setSelectedImages(Array(6).fill(null));
     setSupportType("passenger_problem");
     setSupportLatitude(null);
     setSupportLongitude(null);
@@ -1801,14 +1351,9 @@ export default function CommunityContentFeedScreen() {
     setSelectedResultTurnId("");
   }
 
-  function openCreatePostModal() {
-    resetForm();
-    setPostModalVisible(true);
-  }
-
   function closeCreatePostModal() {
     if (savingPost) return;
-    setPostModalVisible(false);
+    onClose();
     resetForm();
   }
 
@@ -1912,13 +1457,6 @@ export default function CommunityContentFeedScreen() {
       const payload: Record<string, any> = {
         user_id: currentUserId,
         city: profileCity || null,
-
-        /*
-          Esta é uma fotografia da região do usuário no momento da criação.
-          Ela não será alterada quando o usuário mudar a cidade do perfil.
-        */
-        immediate_region: normalizeRegion(profileImmediateRegion),
-
         content_type: contentType,
         category:
           contentType === "general"
@@ -1991,9 +1529,9 @@ export default function CommunityContentFeedScreen() {
       const { error } = await supabase.from("community_posts").insert(payload);
       if (error) throw error;
 
-      setPostModalVisible(false);
+      onClose();
       resetForm();
-      await loadCommunity(true);
+      await onCreated?.();
     } catch (error: any) {
       console.log("Erro ao criar post:", error);
       Alert.alert(
@@ -2209,7 +1747,10 @@ export default function CommunityContentFeedScreen() {
     return loadResultTurnOptionsForDateValue(parsedDate);
   }
 
-  async function loadResultPreview() {
+  async function loadResultPreview(
+    turnIdOverride?: string,
+    turnOptionsOverride?: any[],
+  ) {
     try {
       const parsedDate = parseResultReferenceDate(resultDate);
       if (!parsedDate) {
@@ -2221,11 +1762,14 @@ export default function CommunityContentFeedScreen() {
 
       if (resultPeriod === "turn") {
         const options =
-          resultTurnOptions.length > 0
-            ? resultTurnOptions
-            : await loadResultTurnOptionsForDate();
+          turnOptionsOverride && turnOptionsOverride.length > 0
+            ? turnOptionsOverride
+            : resultTurnOptions.length > 0
+              ? resultTurnOptions
+              : await loadResultTurnOptionsForDate();
+        const selectedTurnId = turnIdOverride || selectedResultTurnId;
         const selectedTurn =
-          options.find((item) => item.id === selectedResultTurnId) ??
+          options.find((item) => item.id === selectedTurnId) ??
           options[0] ??
           null;
 
@@ -2429,515 +1973,6 @@ export default function CommunityContentFeedScreen() {
     setResultSnapshot(null);
   }
 
-  async function handleToggleLike(post: CommunityPost) {
-    if (isPostClosed(post)) return;
-    try {
-      if (!currentUserId) return;
-      const alreadyLiked = Boolean(post.liked_by_me);
-      setPosts((current) =>
-        current.map((item) =>
-          item.id === post.id
-            ? {
-                ...item,
-                liked_by_me: !alreadyLiked,
-                likes_count: Math.max(
-                  Number(item.likes_count ?? 0) + (alreadyLiked ? -1 : 1),
-                  0,
-                ),
-              }
-            : item,
-        ),
-      );
-      if (alreadyLiked) {
-        const { error } = await supabase
-          .from("community_post_likes")
-          .delete()
-          .eq("post_id", post.id)
-          .eq("user_id", currentUserId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("community_post_likes")
-          .insert({ post_id: post.id, user_id: currentUserId });
-        if (error) throw error;
-      }
-    } catch (error) {
-      console.log("Erro ao curtir feed:", error);
-      await loadCommunity(true);
-    }
-  }
-
-  function openCommentsModal(post: CommunityPost) {
-    setSelectedPost(post);
-    setCommentsModalVisible(true);
-  }
-
-  function openImageModal(images: string[], index = 0) {
-    if (images.length === 0) return;
-    setFullImages(images);
-    setFullImageIndex(index);
-    setImageModalVisible(true);
-  }
-
-  function closeImageModal() {
-    setImageModalVisible(false);
-    setFullImages([]);
-    setFullImageIndex(0);
-  }
-
-  function showNextImage(direction: "prev" | "next") {
-    setFullImageIndex((current) => {
-      if (fullImages.length === 0) return 0;
-      if (direction === "prev")
-        return current === 0 ? fullImages.length - 1 : current - 1;
-      return current === fullImages.length - 1 ? 0 : current + 1;
-    });
-  }
-
-  async function handleClosePost(post: CommunityPost) {
-    Alert.alert("Fechar post", "Deseja fechar este post agora?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Fechar",
-        onPress: async () => {
-          const { error } = await supabase
-            .from("community_posts")
-            .update({ status: "closed", closed_at: new Date().toISOString() })
-            .eq("id", post.id)
-            .eq("user_id", currentUserId);
-          if (error) Alert.alert("Erro", error.message);
-          else await loadCommunity(true);
-        },
-      },
-    ]);
-  }
-
-  async function handleRenewPost(post: CommunityPost) {
-    if (!config.canRenew) return;
-    const { error } = await supabase
-      .from("community_posts")
-      .update({
-        status: "open",
-        closed_at: null,
-        expires_at: addHours(new Date(), 24 * 7).toISOString(),
-        renewed_at: new Date().toISOString(),
-      })
-      .eq("id", post.id)
-      .eq("user_id", currentUserId);
-    if (error) Alert.alert("Erro", error.message);
-    else await loadCommunity(true);
-  }
-
-  async function handleDeletePost(post: CommunityPost) {
-    Alert.alert(
-      "Excluir post",
-      "Deseja realmente excluir este post da comunidade?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            const { error } = await supabase
-              .from("community_posts")
-              .update({ deleted_at: new Date().toISOString() })
-              .eq("id", post.id)
-              .eq("user_id", currentUserId);
-            if (error) Alert.alert("Erro", error.message);
-            else await loadCommunity(true);
-          },
-        },
-      ],
-    );
-  }
-
-  async function handleUpdatePostLocation(post: CommunityPost) {
-    try {
-      if (!currentUserId) return;
-
-      setUpdatingLocationPostId(post.id);
-
-      const currentLocation = await getReadableCurrentLocation();
-
-      const { error } = await supabase
-        .from("community_posts")
-        .update({
-          latitude: currentLocation.latitude,
-          longitude: currentLocation.longitude,
-          location_label: currentLocation.locationLabel,
-        })
-        .eq("id", post.id)
-        .eq("user_id", currentUserId);
-
-      if (error) throw error;
-
-      await loadCommunity(true);
-    } catch (error: any) {
-      if (String(error?.message ?? "").includes("Permissão")) {
-        Alert.alert(
-          "Permissão necessária",
-          "Permita o acesso à localização para atualizar a posição do S.O.S.",
-        );
-      } else {
-        Alert.alert(
-          "Erro",
-          error?.message ?? "Não foi possível atualizar a localização.",
-        );
-      }
-    } finally {
-      setUpdatingLocationPostId("");
-    }
-  }
-
-  async function handleRemovePostLocation(post: CommunityPost) {
-    Alert.alert(
-      "Remover localização",
-      "Deseja remover a localização deste S.O.S?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Remover",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setUpdatingLocationPostId(post.id);
-
-              const { error } = await supabase
-                .from("community_posts")
-                .update({
-                  latitude: null,
-                  longitude: null,
-                  location_label: null,
-                })
-                .eq("id", post.id)
-                .eq("user_id", currentUserId);
-
-              if (error) throw error;
-
-              await loadCommunity(true);
-            } catch (error: any) {
-              Alert.alert(
-                "Erro",
-                error?.message ?? "Não foi possível remover a localização.",
-              );
-            } finally {
-              setUpdatingLocationPostId("");
-            }
-          },
-        },
-      ],
-    );
-  }
-
-  function isCurrentUserProfile(userId?: string | null) {
-    return Boolean(
-      userId && currentUserId && String(userId) === String(currentUserId),
-    );
-  }
-
-  function buildPublicProfileModalData(userId?: string | null, profile?: any | null) {
-    const cleanUserId = String(userId ?? profile?.id ?? "").trim();
-
-    if (!cleanUserId) return null;
-
-    return {
-      ...(profile ?? {}),
-      id: String(profile?.id ?? cleanUserId),
-    };
-  }
-
-  function closePublicProfileModal() {
-    setSelectedPublicProfile(null);
-  }
-
-  function openDriverProfile(userId?: string | null, profile?: any | null) {
-    if (!userId) return;
-
-    const modalProfile = buildPublicProfileModalData(userId, profile);
-
-    if (modalProfile) {
-      setSelectedPublicProfile(modalProfile);
-    }
-  }
-
-  function openDriverProfileFromModal(userId?: string | null, profile?: any | null) {
-    if (!userId) return;
-
-    const modalProfile = buildPublicProfileModalData(userId, profile);
-
-    if (modalProfile) {
-      setSelectedPublicProfile(modalProfile);
-    }
-  }
-
-  function openMainCommunity() {
-    router.replace("/(private)/(tabs)/motoristas-cidade" as never);
-  }
-
-  function renderScopeFilters() {
-    return null;
-  }
-
-  function renderPostDetails(post: CommunityPost, postColor = config.color) {
-    /*
-      Venda, aluguel, eventos e elétricos montam todo o conteúdo
-      diretamente em seus próprios componentes dentro de ConteudoPost.
-    */
-    if (
-      contentType === "sale" ||
-      contentType === "rental" ||
-      contentType === "events" ||
-      contentType === "electric"
-    ) {
-      return null;
-    }
-
-    /*
-      No S.O.S, o componente ConteudoPostSos renderiza primeiro:
-      1. tipo de ajuda;
-      2. descrição;
-      3. fotos.
-
-      Este bloco contém somente a localização e suas ações,
-      para aparecer abaixo das fotos.
-    */
-    if (contentType === "sos") {
-      const isMine = String(post.user_id) === String(currentUserId);
-      const hasCoordinates =
-        post.latitude != null && post.longitude != null;
-
-      const locationText =
-        String(post.location_label ?? "").trim() ||
-        (hasCoordinates
-          ? `Lat: ${Number(post.latitude).toFixed(5)} · Long: ${Number(
-              post.longitude,
-            ).toFixed(5)}`
-          : "");
-
-      const hasAnyLocation = Boolean(locationText);
-      const updatingLocation = updatingLocationPostId === post.id;
-
-      if (!hasAnyLocation && !isMine) {
-        return null;
-      }
-
-      return (
-        <View
-          style={[
-            styles.detailSection,
-            {
-              borderColor: `${postColor}36`,
-              borderRadius: 0,
-              marginTop: 12,
-              borderLeftWidth: 0,
-              borderRightWidth: 0,
-            },
-          ]}
-        >
-          {hasAnyLocation ? (
-            <View
-              style={[
-                styles.postLocationBox,
-                {
-                  backgroundColor: `${postColor}14`,
-                  borderColor: `${postColor}30`,
-                  marginTop: 0,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.postLocationIconBox,
-                  {
-                    backgroundColor: `${postColor}18`,
-                    borderColor: `${postColor}35`,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="location-outline"
-                  size={18}
-                  color={postColor}
-                />
-              </View>
-
-              <View style={styles.postLocationInfo}>
-                <Text style={styles.postLocationLabel}>
-                  Localização do S.O.S.
-                </Text>
-
-                <Text style={styles.postLocationText}>
-                  {locationText}
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <View
-              style={[
-                styles.postLocationBox,
-                {
-                  backgroundColor: `${postColor}0D`,
-                  borderColor: `${postColor}26`,
-                  marginTop: 0,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.postLocationIconBox,
-                  {
-                    backgroundColor: `${postColor}15`,
-                    borderColor: `${postColor}30`,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="location-outline"
-                  size={18}
-                  color={postColor}
-                />
-              </View>
-
-              <View style={styles.postLocationInfo}>
-                <Text style={styles.postLocationLabel}>
-                  Localização não adicionada
-                </Text>
-
-                <Text style={styles.postLocationText}>
-                  Adicione sua posição para facilitar o atendimento.
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {hasCoordinates ? (
-            <MapButton
-              latitude={Number(post.latitude)}
-              longitude={Number(post.longitude)}
-              color={postColor}
-            />
-          ) : null}
-
-          {isMine ? (
-            <View style={styles.locationActionsRow}>
-              <TouchableOpacity
-                activeOpacity={0.86}
-                style={[
-                  styles.locationEditButton,
-                  {
-                    backgroundColor: postColor,
-                  },
-                ]}
-                disabled={updatingLocation}
-                onPress={(event: any) => {
-                  event.stopPropagation?.();
-                  handleUpdatePostLocation(post);
-                }}
-              >
-                {updatingLocation ? (
-                  <ActivityIndicator color="#080808" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="locate-outline"
-                      size={16}
-                      color="#080808"
-                    />
-
-                    <Text style={styles.locationEditButtonText}>
-                      {hasAnyLocation
-                        ? "Atualizar localização"
-                        : "Adicionar localização"}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {hasAnyLocation ? (
-                <TouchableOpacity
-                  activeOpacity={0.86}
-                  style={styles.locationRemoveButton}
-                  disabled={updatingLocation}
-                  onPress={(event: any) => {
-                    event.stopPropagation?.();
-                    handleRemovePostLocation(post);
-                  }}
-                >
-                  <Ionicons
-                    name="close"
-                    size={17}
-                    color="#F87171"
-                  />
-
-                  <Text style={styles.locationRemoveButtonText}>
-                    Remover
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
-      );
-    }
-
-    /*
-      Resultados ainda recebem os cards funcionais do Dashboard
-      como details. O componente ConteudoPostResultados escolhe
-      a posição correta desses cards no layout.
-    */
-    if (contentType === "results" && post.result_snapshot) {
-      const snapshotPeriod = getSnapshotResultPeriod(
-        post.result_snapshot,
-        post.result_period_type,
-      );
-
-      if (snapshotPeriod === "turn") {
-        return (
-          <View style={styles.feedOperationalResultBox}>
-            <ResumoJornada
-              jornada={buildResumoJornadaDataFromSnapshot(
-                post.result_snapshot,
-              )}
-              accentColor={postColor}
-            />
-          </View>
-        );
-      }
-
-      const dashboardPeriod = getSnapshotDashboardPeriod(
-        post.result_snapshot,
-      );
-
-      if (dashboardPeriod) {
-        return (
-          <View style={styles.feedOperationalResultBox}>
-            <OperationalResultCard
-              period={dashboardPeriod}
-              referenceDate={getSnapshotReferenceDate(
-                post.result_snapshot,
-              )}
-              summaryOverride={buildOperationalResultSummaryFromSnapshot(
-                post.result_snapshot,
-              )}
-              showDetailsButton
-              detailsButtonLabel="Ver detalhes"
-              cardStyle={styles.feedOperationalResultInnerCard}
-            />
-          </View>
-        );
-      }
-
-      return (
-        <ResultSummary
-          snapshot={post.result_snapshot}
-          color={postColor}
-        />
-      );
-    }
-
-    return null;
-  }
-
   function isModernCreateType() {
     return [
       "general",
@@ -3016,15 +2051,6 @@ export default function CommunityContentFeedScreen() {
     return "Descrição";
   }
 
-  function getCreateChevronColor() {
-    if (contentType === "sos") return "#FCA5A5";
-    if (contentType === "sale") return "#86EFAC";
-    if (contentType === "rental") return "#93C5FD";
-    if (contentType === "results") return "#FDE68A";
-    if (contentType === "events") return "#DDD6FE";
-    if (contentType === "electric") return "#99F6E4";
-    return "#8F8A91";
-  }
 
   function renderCreateForm() {
     return (
@@ -3162,224 +2188,24 @@ export default function CommunityContentFeedScreen() {
           </View>
         ) : null}
 
-        <View
-          style={[
-            isModernCreateType() && styles.generalInputCard,
-            contentType === "sos" && styles.sosInputCard,
-            contentType === "sale" && styles.saleDescriptionCard,
-            contentType === "rental" && styles.rentalDescriptionCard,
-            contentType === "results" && styles.resultsDescriptionCard,
-            contentType === "events" && styles.eventsDescriptionCard,
-            contentType === "electric" && styles.electricDescriptionCard,
-          ]}
-        >
-          <View style={styles.generalInputHeaderRow}>
-            <Text
-              style={[
-                styles.inputLabel,
-                isModernCreateType() && styles.generalInputLabel,
-                contentType === "sos" && styles.sosInputLabel,
-                contentType === "sale" && styles.saleInputLabel,
-                contentType === "rental" && styles.rentalInputLabel,
-                contentType === "results" && styles.resultsInputLabel,
-                contentType === "events" && styles.eventsInputLabel,
-                contentType === "electric" && styles.electricInputLabel,
-              ]}
-            >
-              {getCreateDescriptionLabel()}
-            </Text>
+        <DescricaoPostCard
+          value={postContent}
+          onChangeText={setPostContent}
+          color={config.color}
+          label={getCreateDescriptionLabel()}
+          placeholder={getPostInputPlaceholder()}
+          disabled={savingPost}
+        />
 
-            {isModernCreateType() ? (
-              <Text
-                style={[
-                  styles.generalInputCounter,
-                  contentType === "sos" && styles.sosInputCounter,
-                  contentType === "sale" && styles.saleInputCounter,
-                  contentType === "rental" && styles.rentalInputCounter,
-                  contentType === "results" && styles.resultsInputCounter,
-                  contentType === "events" && styles.eventsInputCounter,
-                  contentType === "electric" && styles.electricInputCounter,
-                ]}
-              >
-                {postContent.trim().length} caracteres
-              </Text>
-            ) : null}
-          </View>
-
-          <TextInput
-            value={postContent}
-            onChangeText={setPostContent}
-            placeholder={getPostInputPlaceholder()}
-            placeholderTextColor="#8F8A91"
-            multiline
-            blurOnSubmit={false}
-            textAlignVertical="top"
-            style={[
-              styles.postInput,
-              contentType === "general" && styles.generalPostInput,
-              contentType === "sos" && styles.sosPostInput,
-              contentType === "sale" && styles.salePostInput,
-              contentType === "rental" && styles.rentalPostInput,
-              contentType === "results" && styles.resultsPostInput,
-              contentType === "events" && styles.eventsPostInput,
-              contentType === "electric" && styles.electricPostInput,
-            ]}
-          />
-        </View>
-
-        <TouchableOpacity
-          activeOpacity={0.86}
-          style={[
-            styles.imagePickerButton,
-            isModernCreateType() && styles.generalImagePickerButton,
-            contentType === "sos" && styles.sosImagePickerButton,
-            contentType === "sale" && styles.saleImagePickerButton,
-            contentType === "rental" && styles.rentalImagePickerButton,
-            contentType === "results" && styles.resultsImagePickerButton,
-            contentType === "events" && styles.eventsImagePickerButton,
-            contentType === "electric" && styles.electricImagePickerButton,
-          ]}
-          onPress={pickPostImages}
-        >
-          <View
-            style={[
-              styles.generalImagePickerIconBox,
-              contentType !== "general" && styles.generalImagePickerIconBoxCompact,
-            ]}
-          >
-            <Ionicons name="images-outline" size={20} color="#D4A64A" />
-          </View>
-
-          <View style={styles.generalImagePickerTextBox}>
-            <Text
-              style={[
-                styles.imagePickerButtonText,
-                isModernCreateType() && styles.generalImagePickerTitle,
-                contentType === "sos" && styles.sosImagePickerTitle,
-                contentType === "sale" && styles.saleImagePickerTitle,
-                contentType === "rental" && styles.rentalImagePickerTitle,
-                contentType === "results" && styles.resultsImagePickerTitle,
-                contentType === "events" && styles.eventsImagePickerTitle,
-                contentType === "electric" && styles.electricImagePickerTitle,
-              ]}
-            >
-              {selectedImages.length > 0
-                ? `Adicionar imagem (${selectedImages.length}/6)`
-                : "Adicionar imagem"}
-            </Text>
-
-            {isModernCreateType() ? (
-              <Text
-                style={[
-                  styles.generalImagePickerSubtitle,
-                  contentType === "sos" && styles.sosImagePickerSubtitle,
-                  contentType === "sale" && styles.saleImagePickerSubtitle,
-                  contentType === "rental" && styles.rentalImagePickerSubtitle,
-                  contentType === "results" && styles.resultsImagePickerSubtitle,
-                  contentType === "events" && styles.eventsImagePickerSubtitle,
-                  contentType === "electric" && styles.electricImagePickerSubtitle,
-                ]}
-              >
-                {getCreateImageSubtitle()}
-              </Text>
-            ) : null}
-          </View>
-
-          {isModernCreateType() ? (
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={getCreateChevronColor()}
-            />
-          ) : null}
-        </TouchableOpacity>
-
-        {selectedImages.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.selectedImagesList,
-              isModernCreateType() && {
-                minWidth: createImagesViewportWidth,
-              },
-            ]}
-          >
-            {selectedImages.map((uri, index) => {
-              const useModernImagePreview = isModernCreateType();
-              const imageWidth =
-                useModernImagePreview && selectedImages.length === 1
-                  ? createImagesViewportWidth
-                  : useModernImagePreview
-                    ? createImagePairItemWidth
-                    : 140;
-
-              return (
-                <View
-                  key={`${uri}-${index}`}
-                  style={[
-                    styles.selectedImageBox,
-                    isModernCreateType() && {
-                      width: imageWidth,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={{ uri }}
-                    style={[
-                      styles.selectedImage,
-                      isModernCreateType() && styles.generalSelectedImage,
-                    ]}
-                    resizeMode="cover"
-                  />
-
-                  {isModernCreateType() ? (
-                    <>
-                      <View
-                        style={[
-                          styles.generalSelectedImageOverlay,
-                          contentType === "sos" && styles.sosSelectedImageOverlay,
-                          contentType === "sale" && styles.saleSelectedImageOverlay,
-                          contentType === "rental" && styles.rentalSelectedImageOverlay,
-                          contentType === "results" && styles.resultsSelectedImageOverlay,
-                          contentType === "events" && styles.eventsSelectedImageOverlay,
-                          contentType === "electric" && styles.electricSelectedImageOverlay,
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.generalSelectedImageIndexBadge,
-                          contentType === "sos" && styles.sosSelectedImageIndexBadge,
-                          contentType === "sale" && styles.saleSelectedImageIndexBadge,
-                          contentType === "rental" && styles.rentalSelectedImageIndexBadge,
-                          contentType === "results" && styles.resultsSelectedImageIndexBadge,
-                          contentType === "events" && styles.eventsSelectedImageIndexBadge,
-                          contentType === "electric" && styles.electricSelectedImageIndexBadge,
-                        ]}
-                      >
-                        <Text style={styles.generalSelectedImageIndexText}>
-                          {index + 1}
-                        </Text>
-                      </View>
-                    </>
-                  ) : null}
-
-                  <TouchableOpacity
-                    activeOpacity={0.86}
-                    style={styles.removeImageButton}
-                    onPress={() =>
-                      setSelectedImages((current) =>
-                        current.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                  >
-                    <Ionicons name="close" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </ScrollView>
-        ) : null}
+        <FotosPostCard
+          images={selectedImages}
+          color={config.color}
+          title="Adicionar fotos"
+          description={getCreateImageSubtitle()}
+          disabled={savingPost}
+          onAddImage={pickPostImageForSlot}
+          onRemoveImage={removePostImageFromSlot}
+        />
       </>
     );
   }
@@ -3705,7 +2531,7 @@ export default function CommunityContentFeedScreen() {
     }
   }
 
-  const handleOperationalResultLoaded = useCallback(
+const handleOperationalResultLoaded = useCallback(
     (summary: any) => {
       if (resultPeriod === "turn") return;
 
@@ -3845,6 +2671,71 @@ export default function CommunityContentFeedScreen() {
     );
   }
 
+  function getSelectedResultTurn() {
+    if (resultPeriod !== "turn") return null;
+
+    return (
+      resultTurnOptions.find((item) => item.id === selectedResultTurnId) ??
+      null
+    );
+  }
+
+  function buildResumoJornadaTurnData() {
+    const selectedTurn = getSelectedResultTurn();
+
+    if (!selectedTurn) return null;
+
+    /*
+      Quando os ganhos do turno vêm da tabela earnings, o objeto do turno pode vir
+      com revenue zerado. Depois que o usuário seleciona o turno, loadResultPreview
+      monta resultSnapshot com o faturamento real; por isso priorizamos o snapshot.
+    */
+    const snapshot =
+      resultSnapshot && String(resultSnapshot?.turnId) === String(selectedTurn.id)
+        ? resultSnapshot
+        : null;
+
+    const startedAt =
+      snapshot?.startDate ??
+      selectedTurn.start ??
+      getSessionStartDate(selectedTurn) ??
+      selectedResultReferenceDate;
+
+    const finishedAt =
+      snapshot?.endDate ??
+      selectedTurn.end ??
+      getSessionEndDate(selectedTurn) ??
+      null;
+
+    const totalHours = Number(
+      snapshot?.totalHours ?? selectedTurn.hours ?? getSessionHours(selectedTurn) ?? 0,
+    );
+    const totalKm = Number(
+      snapshot?.totalKm ?? selectedTurn.km ?? getSessionKm(selectedTurn) ?? 0,
+    );
+    const revenue = Number(
+      snapshot?.revenue ?? selectedTurn.revenue ?? getSessionRevenue(selectedTurn) ?? 0,
+    );
+    const revenuePerHour = Number(
+      snapshot?.revenuePerHour ?? (totalHours > 0 ? revenue / totalHours : 0),
+    );
+    const revenuePerKm = Number(
+      snapshot?.revenuePerKm ?? (totalKm > 0 ? revenue / totalKm : 0),
+    );
+
+    return {
+      id: selectedTurn.id,
+      referenceDate: selectedResultReferenceDate,
+      started_at: startedAt,
+      finished_at: finishedAt,
+      totalHours,
+      totalKm,
+      revenue,
+      revenuePerHour,
+      revenuePerKm,
+    };
+  }
+
   function renderTurnResultReferenceControls(referenceTitle: string, referenceDisplay: string) {
     return (
       <>
@@ -3883,7 +2774,7 @@ export default function CommunityContentFeedScreen() {
             loadingResultPreview && styles.publishButtonDisabled,
           ]}
           disabled={loadingResultPreview}
-          onPress={loadResultPreview}
+          onPress={() => loadResultPreview()}
         >
           {loadingResultPreview ? (
             <ActivityIndicator color="#080808" />
@@ -3990,6 +2881,7 @@ export default function CommunityContentFeedScreen() {
                         onPress={() => {
                           setSelectedResultTurnId(turn.id);
                           setResultSnapshot(null);
+                          loadResultPreview(turn.id, resultTurnOptions);
                         }}
                       >
                         <View
@@ -4027,78 +2919,24 @@ export default function CommunityContentFeedScreen() {
               )}
             </View>
           ) : null}
-        </View>
-
-        <View style={[styles.resultsSectionCard, styles.resultsStepCard]}>
-          {renderResultsStepHeader("analytics-outline", "Resultado que será publicado")}
-
-          {isTurnResult && periodExpenses.length > 0 ? (
-            <View style={styles.resultsExpensesBox}>
-              <View style={styles.resultsSectionHeader}>
-                <View style={styles.resultsSectionIconBox}>
-                  <Ionicons name="eye-off-outline" size={19} color="#FDE68A" />
-                </View>
-
-                <View style={styles.resultsSectionHeaderText}>
-                  <Text style={styles.resultsSectionTitle}>Ocultar despesas</Text>
-                  <Text style={styles.resultsSectionSubtitle}>
-                    Marque despesas que não devem entrar no resultado público.
-                  </Text>
-                </View>
-              </View>
-
-              {periodExpenses.map((expense: any) => (
-                <TouchableOpacity
-                  key={expense.id}
-                  activeOpacity={0.86}
-                  style={styles.resultsExpenseOption}
-                  onPress={() => toggleHiddenExpense(expense.id)}
-                >
-                  <Ionicons
-                    name={
-                      hiddenExpenseIds.includes(expense.id)
-                        ? "checkbox"
-                        : "square-outline"
-                    }
-                    size={20}
-                    color={
-                      hiddenExpenseIds.includes(expense.id)
-                        ? "#FACC15"
-                        : "#8F8A91"
-                    }
-                  />
-                  <Text style={styles.expenseOptionText} numberOfLines={1}>
-                    {expense.category || expense.description || "Despesa"} · R${" "}
-                    {formatCurrency(expense.amount)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : null}
 
           {isTurnResult ? (
-            resultSnapshot ? (
-              <View style={styles.resultsPreviewCard}>
-                <ResultSummary snapshot={resultSnapshot} color="#FACC15" />
-              </View>
-            ) : (
-              <View style={styles.resultsEmptyPreviewCard}>
-                <View style={styles.resultsEmptyPreviewIcon}>
-                  <Ionicons name="bar-chart-outline" size={22} color="#FDE68A" />
-                </View>
-
-                <Text style={styles.resultsEmptyPreviewTitle}>
-                  Nenhum resultado carregado
-                </Text>
-                <Text style={styles.resultsEmptyPreviewText}>
-                  Selecione um turno para carregar e conferir a prévia.
-                </Text>
-              </View>
-            )
-          ) : (
-            renderSelectedOperationalResultCard()
-          )}
+            <View style={styles.resultsResumoJornadaBox}>
+              <ResumoJornada
+                jornada={buildResumoJornadaTurnData()}
+                accentColor="#FACC15"
+              />
+            </View>
+          ) : null}
         </View>
+
+        {!isTurnResult ? (
+          <View style={[styles.resultsSectionCard, styles.resultsStepCard]}>
+            {renderResultsStepHeader("analytics-outline", "Resultado que será publicado")}
+
+            {renderSelectedOperationalResultCard()}
+          </View>
+        ) : null}
 
 
       </View>
@@ -4215,621 +3053,108 @@ export default function CommunityContentFeedScreen() {
     return "Compartilhe consumo, autonomia, carregamento, custos, dúvidas ou experiências com elétricos e híbridos...";
   }
 
-  function ensureCommunityAreaVisible(nextContentType: ContentType) {
-    const layout = communityAreaLayoutsRef.current[nextContentType];
-    const viewportWidth = communityAreasViewportWidthRef.current;
-
-    if (!layout || viewportWidth <= 0) return;
-
-    const currentScrollX = communityAreasScrollXRef.current;
-    const safeMargin = 12;
-    const visibleStart = currentScrollX + safeMargin;
-    const visibleEnd = currentScrollX + viewportWidth - safeMargin;
-    const itemStart = layout.x;
-    const itemEnd = layout.x + layout.width;
-
-    let nextScrollX: number | null = null;
-
-    if (itemStart < visibleStart) {
-      nextScrollX = Math.max(itemStart - safeMargin, 0);
-    } else if (itemEnd > visibleEnd) {
-      nextScrollX = Math.max(
-        itemEnd - viewportWidth + safeMargin,
-        0,
-      );
-    }
-
-    if (nextScrollX === null) return;
-
-    communityAreasScrollRef.current?.scrollTo({
-      x: nextScrollX,
-      animated: true,
-    });
-  }
-
-  function handleSelectCommunityArea(nextContentType: ContentType) {
-    if (nextContentType !== contentType) {
-      void markCommunityAreaAsSeen(contentType);
-    }
-
-    requestAnimationFrame(() => {
-      ensureCommunityAreaVisible(nextContentType);
-    });
-
-    if (nextContentType === contentType) return;
-
-    const nextConfig = getConfig(nextContentType);
-
-    setSelectedPost(null);
-    setCommentsModalVisible(false);
-    setImageModalVisible(false);
-    setFullImages([]);
-    setFullImageIndex(0);
-    setPostModalVisible(false);
-    setFeedScope(nextConfig.defaultScope);
-    setResultsScopeFilter(nextConfig.defaultScope);
-    setSaleScope(nextContentType === "sale" ? "national" : nextConfig.defaultScope);
-    setResultScope(nextConfig.defaultScope);
-
-    (router as any).setParams({
-      contentType: nextContentType,
-    });
-  }
-
-  function renderCommunityAreasMenu() {
-    return (
-      <View style={styles.communityAreasMenuWrapper}>
-        <ScrollView
-          ref={communityAreasScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.communityAreasMenuContent}
-          scrollEventThrottle={16}
-          onLayout={(event) => {
-            communityAreasViewportWidthRef.current =
-              event.nativeEvent.layout.width;
-
-            requestAnimationFrame(() => {
-              ensureCommunityAreaVisible(contentType);
-            });
-          }}
-          onScroll={(event) => {
-            communityAreasScrollXRef.current =
-              event.nativeEvent.contentOffset.x;
-          }}
-        >
-          {configs.map((item) => {
-            const active = item.id === contentType;
-            const newCount = Number(newPostCounts[item.id] ?? 0);
-
-            return (
-              <TouchableOpacity
-                key={item.id}
-                activeOpacity={0.78}
-                accessibilityRole="button"
-                accessibilityLabel={item.title}
-                accessibilityState={{ selected: active }}
-                style={[
-                  styles.communityAreaIconButton,
-                  active && {
-                    backgroundColor: `${item.color}1F`,
-                    borderColor: item.color,
-                  },
-                ]}
-                onLayout={(event) => {
-                  communityAreaLayoutsRef.current[item.id] = {
-                    x: event.nativeEvent.layout.x,
-                    width: event.nativeEvent.layout.width,
-                  };
-                }}
-                onPress={() => handleSelectCommunityArea(item.id)}
-              >
-                <Ionicons
-                  name={item.icon}
-                  size={23}
-                  color={active ? item.color : "#918B95"}
-                />
-
-                {newCount > 0 ? (
-                  <View
-                    style={[
-                      styles.communityAreaNewBadge,
-                      {
-                        backgroundColor: item.color,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.communityAreaNewBadgeText}>
-                      {newCount > 99 ? "99+" : newCount}
-                    </Text>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          activeOpacity={0.86}
-          onPress={() =>
-            router.replace("/(private)/(tabs)/motoristas-cidade" as never)
-          }
-        >
-          <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
-        </TouchableOpacity>
-        <View style={styles.headerTextContent}>
-          <Text style={styles.headerEyebrow}>Área da comunidade</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {config.title}
-          </Text>
-          
-        </View>
-        <TouchableOpacity
-          activeOpacity={0.86}
-          style={[
-            styles.headerIconBox,
-            {
-              backgroundColor: 'rgba(212,166,74,0.12)',
-              borderColor: 'rgba(212,166,74,0.28)',
-            },
-          ]}
-          onPress={() =>
-            router.replace('/(private)/(tabs)/motoristas-cidade' as never)
-          }
-        >
-          <Ionicons name="grid-outline" size={21} color="#D4A64A" />
-        </TouchableOpacity>
-      </View>
-
-      {renderCommunityAreasMenu()}
-
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadCommunity(true)}
-            tintColor="#D4A64A"
-          />
-        }
-      >
-        {/*<View
-          style={[
-            styles.heroCard,
-            {
-              borderColor: `${config.color}45`,
-            },
-          ]}
-        >
-          <View style={styles.heroGlowOne} />
-          <View style={styles.heroGlowTwo} />
-
-          <View style={styles.heroTopRow}>
-            <View
-              style={[
-                styles.heroIconBox,
-                {
-                  backgroundColor: `${config.color}1F`,
-                  borderColor: `${config.color}45`,
-                },
-              ]}
-            >
-              <Ionicons name={config.icon} size={24} color={config.color} />
-            </View>
-
-            <View style={styles.heroInfo}>
-              <Text style={[styles.heroEyebrow, { color: config.color }]}>
-                Área da comunidade
-              </Text>
-              <Text style={styles.heroTitle}>{config.title}</Text>
-              <Text style={styles.heroText}>{config.description}</Text>
-            </View>
-          </View>
-        </View>*/}
-
-        {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator color="#D4A64A" />
-            <Text style={styles.loadingText}>Carregando posts...</Text>
-          </View>
-        ) : visiblePosts.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name={config.icon} size={36} color="#8F8A91" />
-            <Text style={styles.emptyTitle}>Nenhum post encontrado</Text>
-            <Text style={styles.emptyText}>
-              {profileImmediateRegion
-                ? "Toque no botão + para criar o primeiro post da sua região."
-                : "Atualize sua cidade onde mora para liberar os posts da sua região imediata."}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.postsList}>
-            {visiblePosts.map((post) => renderPostCard(post))}
-          </View>
-        )}
-      </ScrollView>
-
-      <TouchableOpacity
-        activeOpacity={0.88}
-        accessibilityRole="button"
-        accessibilityLabel={`Criar novo post em ${config.title}`}
-        style={[
-          styles.floatingButton,
-          {
-            backgroundColor: config.color,
-            borderColor: `${config.color}80`,
-            shadowColor: config.color,
-          },
-        ]}
-        onPress={openCreatePostModal}
-      >
-        <Ionicons
-          name="add"
-          size={26}
-          color={getCreatePublishTextColor()}
-        />
-      </TouchableOpacity>
-
-      <NovoPostModal
-        visible={postModalVisible}
-        onClose={closeCreatePostModal}
-        header={{
-          eyebrow: "Novo post",
-          title: config.title,
-          description: getCreateModalHint(),
-          icon: config.icon,
-          color: config.color,
-        }}
-        button={{
-          label: getCreatePublishLabel(),
-          icon: getCreatePublishIcon(),
-          color: config.color,
-          textColor: getCreatePublishTextColor(),
-          loading: savingPost,
-          disabled: savingPost,
-          onPress: handleCreatePost,
-        }}
-        conteudo={{
-          contentType,
-
-          geral: {
-            color: config.color,
-            description: postContent,
-            onChangeDescription: setPostContent,
-            images: selectedImages,
-            onAddImage: pickPostImageForSlot,
-            onRemoveImage: removePostImageFromSlot,
-            disabled: savingPost,
-            descriptionLabel: getCreateDescriptionLabel(),
-            descriptionPlaceholder: getPostInputPlaceholder(),
-            photosDescription: getCreateImageSubtitle(),
-          },
-
-          sos: {
-            color: config.color,
-            supportType: supportType as any,
-            onChangeSupportType: (value) => setSupportType(value),
-            latitude: supportLatitude,
-            longitude: supportLongitude,
-            locationLabel: supportLocationLabel,
-            locationLoading: gettingLocation,
-            onRequestLocation: getCurrentLocation,
-            onSetManualLocation: (locationLabel) => {
-              setSupportLatitude(null);
-              setSupportLongitude(null);
-              setSupportLocationLabel(locationLabel.trim());
-            },
-            onRemoveLocation: removeCurrentLocation,
-            description: postContent,
-            onChangeDescription: setPostContent,
-            images: selectedImages,
-            onAddImage: pickPostImageForSlot,
-            onRemoveImage: removePostImageFromSlot,
-            disabled: savingPost,
-          },
-
-          venda: {
-            color: config.color,
-            scope: saleScope,
-            onChangeScope: setSaleScope,
-            productName,
-            onChangeProductName: setProductName,
-            productPrice,
-            onChangeProductPrice: (value) =>
-              setProductPrice(maskCurrencyInput(value)),
-            paymentMethods: {
-              credit: paymentCredit,
-              creditInstallments: paymentInstallments,
-              debit: paymentDebit,
-              pix: paymentPix,
-              other: paymentOther,
-              otherDescription: paymentOtherDescription,
-            },
-            onChangePaymentMethods: (value) => {
-              setPaymentCredit(value.credit);
-              setPaymentInstallments(value.creditInstallments);
-              setPaymentDebit(value.debit);
-              setPaymentPix(value.pix);
-              setPaymentOther(value.other);
-              setPaymentOtherDescription(value.otherDescription);
-            },
-            whatsapp: whatsappUrl,
-            onChangeWhatsapp: setWhatsappUrl,
-            description: postContent,
-            onChangeDescription: setPostContent,
-            images: selectedImages,
-            onAddImage: pickPostImageForSlot,
-            onRemoveImage: removePostImageFromSlot,
-            disabled: savingPost,
-          },
-
-          aluguel: {
-            color: config.color,
-            vehicle: {
-              brand: vehicleBrand,
-              model: vehicleModel,
-              year: vehicleYear,
-            },
-            onChangeVehicle: (value) => {
-              setVehicleBrand(value.brand);
-              setVehicleModel(value.model);
-              setVehicleYear(value.year);
-            },
-            periodicity: rentalPeriodicity as any,
-            onChangePeriodicity: (value) => setRentalPeriodicity(value),
-            price: rentalPrice,
-            onChangePrice: (value) =>
-              setRentalPrice(maskCurrencyInput(value)),
-            deposit: {
-              required: depositRequired,
-              amount: depositAmount,
-              installments: depositInstallments,
-              paidOnDelivery: depositPaidOnDelivery,
-            },
-            onChangeDeposit: (value) => {
-              setDepositRequired(value.required);
-              setDepositAmount(value.amount);
-              setDepositInstallments(value.installments);
-              setDepositPaidOnDelivery(value.paidOnDelivery);
-            },
-            paymentMethods: {
-              credit: paymentCredit,
-              creditInstallments: paymentInstallments,
-              debit: paymentDebit,
-              pix: paymentPix,
-              other: paymentOther,
-              otherDescription: paymentOtherDescription,
-            },
-            onChangePaymentMethods: (value) => {
-              setPaymentCredit(value.credit);
-              setPaymentInstallments(value.creditInstallments);
-              setPaymentDebit(value.debit);
-              setPaymentPix(value.pix);
-              setPaymentOther(value.other);
-              setPaymentOtherDescription(value.otherDescription);
-            },
-            whatsapp: whatsappUrl,
-            onChangeWhatsapp: setWhatsappUrl,
-            description: postContent,
-            onChangeDescription: setPostContent,
-            images: selectedImages,
-            onAddImage: pickPostImageForSlot,
-            onRemoveImage: removePostImageFromSlot,
-            disabled: savingPost,
-          },
-
-          resultados: {
-            color: config.color,
-            period: resultPeriod,
-            onChangePeriod: handleSelectResultPeriod,
-            referenceLabel: getResultReferenceDisplay(
-              resultPeriod,
-              resultDate,
-            ),
-            onChangeReference: () => handleShiftResultReference(-1),
-            loadingPreview: loadingResultPreview,
-            onLoadPreview: loadResultPreview,
-            preview:
-              resultPeriod === "turn"
-                ? resultSnapshot
-                  ? (
-                      <ResultSummary
-                        snapshot={resultSnapshot}
-                        color={config.color}
-                      />
-                    )
-                  : undefined
-                : renderSelectedOperationalResultCard(),
-            description: postContent,
-            onChangeDescription: setPostContent,
-            images: selectedImages,
-            onAddImage: pickPostImageForSlot,
-            onRemoveImage: removePostImageFromSlot,
-            disabled: savingPost,
-          },
-
-          eventos: {
-            color: config.color,
-            startDate: eventDate,
-            onChangeStartDate: (value) =>
-              setEventDate(maskDateInput(value)),
-            startTime: eventTime,
-            onChangeStartTime: (value) =>
-              setEventTime(maskTimeInput(value)),
-            endDate: eventEndDate,
-            onChangeEndDate: (value) =>
-              setEventEndDate(maskDateInput(value)),
-            endTime: eventEndTime,
-            onChangeEndTime: (value) =>
-              setEventEndTime(maskTimeInput(value)),
-            address: eventAddress,
-            onChangeAddress: setEventAddress,
-            description: postContent,
-            onChangeDescription: setPostContent,
-            images: selectedImages,
-            onAddImage: pickPostImageForSlot,
-            onRemoveImage: removePostImageFromSlot,
-            disabled: savingPost,
-          },
-
-          eletricos: {
-            color: config.color,
-            description: postContent,
-            onChangeDescription: setPostContent,
-            images: selectedImages,
-            onAddImage: pickPostImageForSlot,
-            onRemoveImage: removePostImageFromSlot,
-            disabled: savingPost,
-          },
-        }}
-      />
-      {renderCommentsModal()}
-      {renderImageModal()}
-      <PublicUserProfileModal
-        visible={Boolean(selectedPublicProfile)}
-        profile={selectedPublicProfile}
-        userId={String(selectedPublicProfile?.id ?? "")}
-        onClose={closePublicProfileModal}
-      />
-    </View>
-  );
-
-  function renderPostCard(post: CommunityPost) {
-    return (
-      <CommunityPostCard
-        key={post.id}
-        post={post}
-        color={config.color}
-        currentUserId={currentUserId}
-        canRenew={config.canRenew}
-        postImagesViewportWidth={postImagesViewportWidth}
-        postImagePairItemWidth={postImagePairItemWidth}
-        details={renderPostDetails(post, isPostClosed(post) ? "#8F8A91" : config.color)}
-        onOpenComments={openCommentsModal}
-        onOpenDriverProfile={openDriverProfile}
-        onOpenImages={openImageModal}
-        onToggleLike={handleToggleLike}
-        onClosePost={handleClosePost}
-        onRenewPost={handleRenewPost}
-        onDeletePost={handleDeletePost}
-      />
-    );
-  }
-
-  function closeCommentsModal() {
-    setCommentsModalVisible(false);
-    setSelectedPost(null);
-  }
-
-  function renderCommentsModal() {
-    return (
-      <CommunityPostConversation
-        visible={commentsModalVisible}
-        post={selectedPost}
-        currentUserId={currentUserId}
-        postColor={config.color}
-        postImagesViewportWidth={postImagesViewportWidth}
-        postImagePairItemWidth={postImagePairItemWidth}
-        postImageTripleItemWidth={postImageTripleItemWidth}
-        messageBubbleMinWidth={messageBubbleMinWidth}
-        renderPostDetails={renderPostDetails}
-        onClose={closeCommentsModal}
-        onPostUpdated={() => loadCommunity(true)}
-        onOpenDriverProfile={openDriverProfileFromModal}
-        onOpenImages={openImageModal}
-      />
-    );
-  }
-
-  function renderImageModal() {
+  function renderCreateModal() {
     return (
       <Modal
-        visible={imageModalVisible}
+        visible={visible}
         transparent
         animationType="fade"
-        onRequestClose={() => setImageModalVisible(false)}
+        onRequestClose={closeCreatePostModal}
       >
-        <View style={styles.fullImageModalOverlay}>
-          <TouchableOpacity
-            activeOpacity={0.86}
-            style={styles.fullImageCloseButton}
-            onPress={() => {
-              setImageModalVisible(false);
-              setFullImages([]);
-              setFullImageIndex(0);
-            }}
-          >
-            <Ionicons name="close" size={24} color="#F5F0E6" />
-          </TouchableOpacity>
-          {fullImages[fullImageIndex] ? (
-            <Image
-              source={{ uri: fullImages[fullImageIndex] }}
-              style={styles.fullImage}
-              resizeMode="contain"
-            />
-          ) : null}
-          {fullImages.length > 1 ? (
-            <View style={styles.fullImageControls}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.postModalCard} onTouchStart={Keyboard.dismiss}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeftModern}>
+                <View
+                  style={[
+                    styles.createModalIconBox,
+                    {
+                      backgroundColor: `${config.color}18`,
+                      borderColor: `${config.color}35`,
+                    },
+                  ]}
+                >
+                  <Ionicons name={config.icon} size={22} color={config.color} />
+                </View>
+
+                <View style={styles.modalHeaderText}>
+                  <Text style={[styles.modalEyebrow, { color: config.color }]}>
+                    Novo post
+                  </Text>
+                  <Text style={styles.modalTitle}>{config.title}</Text>
+                  {getCreateModalHint() ? (
+                    <Text style={styles.generalModalHeaderHint} numberOfLines={2}>
+                      {getCreateModalHint()}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+
               <TouchableOpacity
                 activeOpacity={0.86}
-                style={styles.fullImageControlButton}
-                onPress={() => showNextImage("prev")}
+                style={styles.modalCloseButton}
+                onPress={closeCreatePostModal}
               >
-                <Ionicons name="chevron-back" size={24} color="#F5F0E6" />
-              </TouchableOpacity>
-              <Text style={styles.fullImageCounter}>
-                {fullImageIndex + 1}/{fullImages.length}
-              </Text>
-              <TouchableOpacity
-                activeOpacity={0.86}
-                style={styles.fullImageControlButton}
-                onPress={() => showNextImage("next")}
-              >
-                <Ionicons name="chevron-forward" size={24} color="#F5F0E6" />
+                <Ionicons name="close" size={22} color="#F5F0E6" />
               </TouchableOpacity>
             </View>
-          ) : null}
-        </View>
+            <ScrollView
+              style={styles.createModalScroll}
+              contentContainerStyle={styles.createModalScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              onTouchStart={Keyboard.dismiss}
+            >
+              {renderCreateForm()}
+            </ScrollView>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[
+                styles.publishButton,
+                isModernCreateType() && {
+                  backgroundColor: config.color,
+                  shadowColor: config.color,
+                },
+                savingPost && styles.publishButtonDisabled,
+              ]}
+              disabled={savingPost}
+              onPress={handleCreatePost}
+            >
+              {savingPost ? (
+                <ActivityIndicator color="#080808" />
+              ) : (
+                <>
+                  <Ionicons
+                    name={getCreatePublishIcon()}
+                    size={20}
+                    color={getCreatePublishTextColor()}
+                  />
+                  <Text
+                    style={[
+                      styles.publishButtonText,
+                      contentType === "sos" && styles.publishButtonTextLight,
+                    ]}
+                  >
+                    {getCreatePublishLabel()}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     );
   }
+
+  return renderCreateModal();
 }
 
-function FilterButton({
-  label,
-  icon,
-  active,
-  onPress,
-}: {
-  label: string;
-  icon: IconName;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.86}
-      style={[styles.feedFilterButton, active && styles.feedFilterButtonActive]}
-      onPress={onPress}
-    >
-      <Ionicons name={icon} size={17} color={active ? "#080808" : "#9B969B"} />
-      <Text
-        style={[styles.feedFilterText, active && styles.feedFilterTextActive]}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-}
+export default CommunityCreatePostModal;
+
 function Options({
   options,
   selectedId,
@@ -5210,46 +3535,7 @@ function ResultSummary({ snapshot, color = "#D4A64A" }: { snapshot: any; color?:
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#050505" },
   container: { flex: 1, backgroundColor: "#050505" },
-  content: { paddingHorizontal: 18, paddingTop: 5, paddingBottom: 128 },
-  communityAreasMenuWrapper: {
-    backgroundColor: "#070707",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1E1A14",
-    paddingVertical: 11,
-  },
-  communityAreasMenuContent: {
-    paddingHorizontal: 14,
-    gap: 10,
-  },
-  communityAreaIconButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#28252C",
-    backgroundColor: "#0D0C10",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  communityAreaNewBadge: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    minWidth: 21,
-    height: 21,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: "#070707",
-    paddingHorizontal: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  communityAreaNewBadgeText: {
-    color: "#080808",
-    fontSize: 8,
-    fontWeight: "900",
-  },
+  content: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 128 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -5452,7 +3738,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
     gap: 10,
-    marginTop: 10,
   },
   emptyTitle: {
     color: "#F5F0E6",
@@ -5467,7 +3752,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     textAlign: "center",
   },
-  postsList: { gap: 5 },
+  postsList: { gap: 16 },
   postCard: {
     position: "relative",
     overflow: "hidden",
@@ -5843,17 +4128,17 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 20,
     bottom: 104,
-    zIndex: 30,
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    borderWidth: 1,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#D4A64A",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#D4A64A",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    elevation: 10,
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalOverlay: {
     flex: 1,
@@ -5861,18 +4146,14 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   postModalCard: {
-    maxHeight: "92%",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    width: "100%",
+    height: "100%",
+    maxHeight: "100%",
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     backgroundColor: "#0B0B0F",
-    borderWidth: 1,
-    borderColor: "rgba(212,166,74,0.18)",
-    padding: 18,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: -12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 22,
-    elevation: 12,
+    borderWidth: 0,
+    padding: 0,
   },
   commentsModalCard: {
     position: "relative",
@@ -5887,16 +4168,29 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   modalHeader: {
-    borderRadius: 22,
+    width: "100%",
+    borderRadius: 0,
     backgroundColor: "#101014",
-    borderWidth: 1,
-    borderColor: "rgba(245,240,230,0.08)",
-    padding: 12,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(245,240,230,0.08)",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 54 : 34,
+    paddingBottom: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 14,
+    marginBottom: 0,
+  },
+  createModalScroll: {
+    flex: 1,
+    width: "100%",
+  },
+  createModalScrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 18,
   },
   modalHeaderLeftModern: {
     flex: 1,
@@ -6382,6 +4676,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     lineHeight: 16,
+  },
+  resultsResumoJornadaBox: {
+    marginTop: 12,
   },
   resultsTurnPickerHeader: {
     flexDirection: "row",
@@ -7707,7 +6004,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
-    marginTop: 16,
+    marginHorizontal: 18,
+    marginTop: 12,
+    marginBottom: Platform.OS === "ios" ? 28 : 14,
     shadowColor: "#D4A64A",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.20,
@@ -8294,4 +6593,3 @@ const styles = StyleSheet.create({
   },
   fullImageCounter: { color: "#F5F0E6", fontSize: 13, fontWeight: "900" },
 });
-

@@ -1,0 +1,120 @@
+import { supabase } from "../../../database/supabase";
+
+export type GooglePlaceSuggestion = {
+  placeId: string;
+  fullText: string;
+  mainText: string;
+  secondaryText: string;
+};
+
+export type GooglePlaceDetails = {
+  placeId: string;
+  latitude: number;
+  longitude: number;
+  locationLabel: string;
+};
+
+type SearchGooglePlacesParams = {
+  input: string;
+  sessionToken: string;
+  locationBias?: {
+    latitude: number;
+    longitude: number;
+  };
+};
+
+type GetGooglePlaceDetailsParams = {
+  placeId: string;
+  sessionToken: string;
+};
+
+export async function searchGooglePlaces({
+  input,
+  sessionToken,
+  locationBias,
+}: SearchGooglePlacesParams): Promise<GooglePlaceSuggestion[]> {
+  const cleanInput = String(input ?? "").trim();
+
+  if (cleanInput.length < 3) {
+    return [];
+  }
+
+  const { data, error } = await supabase.functions.invoke(
+    "google-places",
+    {
+      body: {
+        action: "autocomplete",
+        input: cleanInput,
+        sessionToken,
+        locationBias,
+      },
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      error.message || "Não foi possível pesquisar os endereços.",
+    );
+  }
+
+  if (data?.error) {
+    throw new Error(String(data.error));
+  }
+
+  return Array.isArray(data?.suggestions)
+    ? data.suggestions
+    : [];
+}
+
+export async function getGooglePlaceDetails({
+  placeId,
+  sessionToken,
+}: GetGooglePlaceDetailsParams): Promise<GooglePlaceDetails> {
+  const cleanPlaceId = String(placeId ?? "").trim();
+
+  if (!cleanPlaceId) {
+    throw new Error("Localização inválida.");
+  }
+
+  const { data, error } = await supabase.functions.invoke(
+    "google-places",
+    {
+      body: {
+        action: "details",
+        placeId: cleanPlaceId,
+        sessionToken,
+      },
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      error.message || "Não foi possível carregar o endereço.",
+    );
+  }
+
+  if (data?.error) {
+    throw new Error(String(data.error));
+  }
+
+  const latitude = Number(data?.latitude);
+  const longitude = Number(data?.longitude);
+  const locationLabel = String(data?.locationLabel ?? "").trim();
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !locationLabel
+  ) {
+    throw new Error(
+      "O Google não retornou as coordenadas completas deste endereço.",
+    );
+  }
+
+  return {
+    placeId: String(data?.placeId ?? cleanPlaceId),
+    latitude,
+    longitude,
+    locationLabel,
+  };
+}

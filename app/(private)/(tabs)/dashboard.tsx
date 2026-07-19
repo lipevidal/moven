@@ -3078,31 +3078,30 @@ export default function DashboardScreen() {
             </View>
 
             <Text style={styles.modernHeroValue}>
-              R$ {formatCurrency(dashboardProfit)}
+              R$ {formatCurrency(dashboardRevenue)}
             </Text>
-            <Text style={styles.modernHeroSub}>
+            {/*<Text style={styles.modernHeroSub}>
               {formatDecimal(profitPercent)}% do faturamento ficou como lucro
-            </Text>
+            </Text>*/}
           </View>
 
           <View style={styles.modernHeroMiniGrid}>
             <View style={styles.modernHeroMiniCard}>
-              <View style={{flexDirection: 'row', gap: 5}}>
-                <View style={styles.modernMiniIconBlue}>
-                  <Ionicons name="cash-outline" size={18} color="#D4A64A" />
-                </View>
-                <Text style={styles.modernHeroMiniLabel}>Faturamento</Text>
+              <View style={{flexDirection: 'row', gap: 5, alignItems: 'center'}}>
+                <Ionicons name="cash-outline" size={18} color="#D4A64A" />
+                <Text style={styles.modernHeroMiniLabel}>Lucro</Text>
               </View>
               <Text style={styles.modernHeroMiniValue}>
-                R$ {formatCurrency(dashboardRevenue)}
+                R$ {formatCurrency(dashboardProfit)}
+              </Text>
+              <Text style={styles.modernHeroMiniCaption}>
+                {formatDecimal(profitPercent)}% do faturamento
               </Text>
             </View>
 
             <View style={styles.modernHeroMiniCard}>
               <View style={{flexDirection: 'row', gap: 5}}>
-                <View style={styles.modernMiniIconRed}>
-                  <Ionicons name="wallet-outline" size={18} color="#FCA5A5" />
-                </View>
+                <Ionicons name="wallet-outline" size={18} color="#FCA5A5" />
                 <Text style={styles.modernHeroMiniLabel}>Despesas</Text>
               </View>
               <Text style={styles.modernHeroMiniValueRed}>
@@ -3122,17 +3121,17 @@ export default function DashboardScreen() {
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <View style={{flexDirection: 'row', gap: 5}}>
-              <View style={styles.modernStatIconBlue}>
-                <Ionicons name="time-outline" size={20} color="#D4A64A" />
-              </View>
+            <View style={styles.modernStatIconBlue}>
+              <Ionicons name="time-outline" size={20} color="#D4A64A" />
+            </View>
+            <View>
               <Text style={[styles.modernStatLabel, { color: theme.muted }]}>
                 Tempo
               </Text>
+              <Text style={[styles.modernStatValue, { color: theme.text }]}>
+                {formatHours(data.totalHours)}
+              </Text>
             </View>
-            <Text style={[styles.modernStatValue, { color: theme.text }]}>
-              {formatHours(data.totalHours)}
-            </Text>
           </View>
 
           <View
@@ -3141,17 +3140,17 @@ export default function DashboardScreen() {
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <View style={{flexDirection: 'row', gap: 5}}>
-              <View style={styles.modernStatIconOrange}>
-                <Ionicons name="speedometer-outline" size={20} color="#D4A64A" />
-              </View>
+            <View style={styles.modernStatIconOrange}>
+              <Ionicons name="speedometer-outline" size={20} color="#D4A64A" />
+            </View>
+            <View>
               <Text style={[styles.modernStatLabel, { color: theme.muted }]}>
                 KM rodado
               </Text>
+              <Text style={[styles.modernStatValue, { color: theme.text }]}>
+                {formatNumber(data.totalKm)} km
+              </Text>
             </View>
-            <Text style={[styles.modernStatValue, { color: theme.text }]}>
-              {formatNumber(data.totalKm)} km
-            </Text>
           </View>
 
           <View
@@ -3160,22 +3159,22 @@ export default function DashboardScreen() {
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <View style={{flexDirection: 'row', gap: 5}}>
-              <View style={styles.modernStatIconGreen}>
-                <Ionicons name="analytics-outline" size={20} color="#D4A64A" />
-              </View>
+            <View style={styles.modernStatIconGreen}>
+              <Ionicons name="analytics-outline" size={20} color="#D4A64A" />
+            </View>
+            <View>
               <Text style={[styles.modernStatLabel, { color: theme.muted }]}>
                 Ganho/h
               </Text>
+              <Text
+                style={[
+                  styles.modernStatValue,
+                  { color: dashboardRevenuePerHourColor },
+                ]}
+              >
+                R$ {formatPerformanceDecimal(dashboardRevenuePerHour)}
+              </Text>
             </View>
-            <Text
-              style={[
-                styles.modernStatValue,
-                { color: dashboardRevenuePerHourColor },
-              ]}
-            >
-              R$ {formatPerformanceDecimal(dashboardRevenuePerHour)}
-            </Text>
           </View>
 
           <View
@@ -3184,22 +3183,22 @@ export default function DashboardScreen() {
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <View style={{flexDirection: 'row', gap: 5}}>
-              <View style={styles.modernStatIconPurple}>
-                <Ionicons name="navigate-outline" size={20} color="#A78BFA" />
-              </View>
+            <View style={styles.modernStatIconPurple}>
+              <Ionicons name="navigate-outline" size={20} color="#A78BFA" />
+            </View>
+            <View>
               <Text style={[styles.modernStatLabel, { color: theme.muted }]}>
                 Ganho/km
               </Text>
+              <Text
+                style={[
+                  styles.modernStatValue,
+                  { color: dashboardRevenuePerKmColor },
+                ]}
+              >
+                R$ {formatPerformanceDecimal(dashboardRevenuePerKm)}
+              </Text>
             </View>
-            <Text
-              style={[
-                styles.modernStatValue,
-                { color: dashboardRevenuePerKmColor },
-              ]}
-            >
-              R$ {formatPerformanceDecimal(dashboardRevenuePerKm)}
-            </Text>
           </View>
         </View>
 
@@ -7163,9 +7162,10 @@ const styles = StyleSheet.create({
   },
   modernHeroMiniCard: {
     flex: 1,
-    minHeight: 112,
+    minHeight: 92,
     borderRadius: 16,
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: "#18171D",
     borderWidth: 1,
     borderColor: "#2A2830",
@@ -7194,7 +7194,6 @@ const styles = StyleSheet.create({
     color: "#9B969B",
     fontSize: 11,
     fontWeight: "900",
-    marginTop: 9,
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
@@ -7224,14 +7223,17 @@ const styles = StyleSheet.create({
   },
   modernStatCard: {
     width: "48.5%",
-    minHeight: 102,
+    minHeight: 52,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#2A2830",
     backgroundColor: "#18171D",
-    padding: 14,
+    padding: 10,
     borderLeftWidth: 3,
     borderLeftColor: "rgba(212,166,74,0.62)",
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 
   modernStatIconBlue: {
@@ -7268,18 +7270,15 @@ const styles = StyleSheet.create({
   },
   modernStatLabel: {
     color: "#9B969B",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "900",
-    marginTop: 11,
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
   modernStatValue: {
     color: "#F5F0E6",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
-    marginTop: 6,
-    textAlign: "center",
   },
 
   modernSectionHeader: {
